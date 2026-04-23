@@ -189,7 +189,7 @@ this:
                 num_rooms += 1
 
 +       stairs_component = Stairs(self.dungeon_level + 1)
-+       down_stairs = Entity(center_of_last_room_x, center_of_last_room_y, '>', libtcod.white, 'Stairs',
++       down_stairs = Entity(center_of_last_room_x, center_of_last_room_y, '>', (255, 255, 255), 'Stairs',
 +                            render_order=RenderOrder.STAIRS, stairs=stairs_component)
 +       entities.append(down_stairs)
 {{</ highlight >}}
@@ -258,7 +258,7 @@ this:
                 num_rooms += 1
 
         <span class="new-text">stairs_component = Stairs(self.dungeon_level + 1)
-        down_stairs = Entity(center_of_last_room_x, center_of_last_room_y, '>', libtcod.white, 'Stairs',
+        down_stairs = Entity(center_of_last_room_x, center_of_last_room_y, '>', (255, 255, 255), 'Stairs',
                              render_order=RenderOrder.STAIRS, stairs=stairs_component)
         entities.append(down_stairs)</span></pre>
 {{</ original-tab >}}
@@ -340,19 +340,19 @@ To make this happen, we can modify the `draw_entity` function inside
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
 -def draw_entity(con, entity, fov_map):
 +def draw_entity(con, entity, fov_map, game_map):
--   if libtcod.map_is_in_fov(fov_map, entity.x, entity.y):
-+   if libtcod.map_is_in_fov(fov_map, entity.x, entity.y) or (entity.stairs and game_map.tiles[entity.x][entity.y].explored):
-        libtcod.console_set_default_foreground(con, entity.color)
-        libtcod.console_put_char(con, entity.x, entity.y, entity.char, libtcod.BKGND_NONE)
+-   if fov_map[entity.x, entity.y]:
++   if fov_map[entity.x, entity.y] or (entity.stairs and game_map.tiles[entity.x][entity.y].explored):
+        con.default_fg = entity.color
+        con.print(entity.x, entity.y, entity.char)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre><span class="crossed-out-text">def draw_entity(con, entity, fov_map):</span>
 <span class="new-text">def draw_entity(con, entity, fov_map, game_map):</span>
-    <span class="crossed-out-text">if libtcod.map_is_in_fov(fov_map, entity.x, entity.y):</span>
-    <span class="new-text">if libtcod.map_is_in_fov(fov_map, entity.x, entity.y) or (entity.stairs and game_map.tiles[entity.x][entity.y].explored):</span>
-        libtcod.console_set_default_foreground(con, entity.color)
-        libtcod.console_put_char(con, entity.x, entity.y, entity.char, libtcod.BKGND_NONE)</pre>
+    <span class="crossed-out-text">if fov_map[entity.x, entity.y]:</span>
+    <span class="new-text">if fov_map[entity.x, entity.y] or (entity.stairs and game_map.tiles[entity.x][entity.y].explored):</span>
+        con.default_fg = entity.color
+        con.print(entity.x, entity.y, entity.char)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -389,10 +389,10 @@ function:
     elif key_char == 'd':
         return {'drop_inventory': True}
 
-+   elif key.vk == libtcod.KEY_ENTER:
++   elif event.sym == tcod.event.KeySym.RETURN:
 +       return {'take_stairs': True}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if event.sym == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -401,10 +401,10 @@ function:
     elif key_char == 'd':
         return {'drop_inventory': True}
 
-    <span class="new-text">elif key.vk == libtcod.KEY_ENTER:
+    <span class="new-text">elif event.sym == tcod.event.KeySym.RETURN:
         return {'take_stairs': True}</span>
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if event.sym == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -437,7 +437,7 @@ following to the bottom of the `game_map.py`:
 
         player.fighter.heal(player.fighter.max_hp // 2)
 
-        message_log.add_message(Message('You take a moment to rest, and recover your strength.', libtcod.light_violet))
+        message_log.add_message(Message('You take a moment to rest, and recover your strength.', (191, 63, 255)))
 
         return entities
 {{</ highlight >}}
@@ -467,11 +467,11 @@ At last, let's modify `engine.py` to use this new function.
 +                   entities = game_map.next_floor(player, message_log, constants)
 +                   fov_map = initialize_fov(game_map)
 +                   fov_recompute = True
-+                   libtcod.console_clear(con)
++                   con.clear()
 +
 +                   break
 +           else:
-+               message_log.add_message(Message('There are no stairs here.', libtcod.yellow))
++               message_log.add_message(Message('There are no stairs here.', (255, 255, 0)))
 
         if game_state == GameStates.TARGETING:
             ...
@@ -493,11 +493,11 @@ At last, let's modify `engine.py` to use this new function.
                     entities = game_map.next_floor(player, message_log, constants)
                     fov_map = initialize_fov(game_map)
                     fov_recompute = True
-                    libtcod.console_clear(con)
+                    con.clear()
 
                     break
             else:
-                message_log.add_message(Message('There are no stairs here.', libtcod.yellow))</span>
+                message_log.add_message(Message('There are no stairs here.', (255, 255, 0)))</span>
 
         if game_state == GameStates.TARGETING:
             ...</pre>
@@ -515,11 +515,10 @@ bar, by rendering the `render_all` function like so:
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
     render_bar(panel, 1, 1, bar_width, 'HP', player.fighter.hp, player.fighter.max_hp,
-               libtcod.light_red, libtcod.darker_red)
-+   libtcod.console_print_ex(panel, 1, 3, libtcod.BKGND_NONE, libtcod.LEFT,
-+                            'Dungeon level: {0}'.format(game_map.dungeon_level))
+               (255, 63, 63), (128, 0, 0))
++   panel.print(1, 3, 'Dungeon level: {0}'.format(game_map.dungeon_level))
 
-    libtcod.console_set_default_foreground(panel, libtcod.light_gray)
+    panel.default_fg = (191, 191, 191)
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -527,11 +526,10 @@ bar, by rendering the `render_all` function like so:
 <pre>
     ...
     render_bar(panel, 1, 1, bar_width, 'HP', player.fighter.hp, player.fighter.max_hp,
-               libtcod.light_red, libtcod.darker_red)
-    <span class="new-text">libtcod.console_print_ex(panel, 1, 3, libtcod.BKGND_NONE, libtcod.LEFT,
-                             'Dungeon level: {0}'.format(game_map.dungeon_level))</span>
+               (255, 63, 63), (128, 0, 0))
+    <span class="new-text">panel.print(1, 3, 'Dungeon level: {0}'.format(game_map.dungeon_level))</span>
 
-    libtcod.console_set_default_foreground(panel, libtcod.light_gray)
+    panel.default_fg = (191, 191, 191)
     ...
 </pre>
 {{</ original-tab >}}
@@ -589,14 +587,14 @@ each fighter component.
 +                   fighter_component = Fighter(hp=10, defense=0, power=3, xp=35)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
 -                   fighter_component = Fighter(hp=16, defense=1, power=4)
 +                   fighter_component = Fighter(hp=16, defense=1, power=4, xp=100)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)
                 ...
 {{</ highlight >}}
@@ -607,13 +605,13 @@ each fighter component.
                     fighter_component = Fighter(hp=10, defense=0, power=3<span class="new-text">, xp=35</span>)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
                     fighter_component = Fighter(hp=16, defense=1, power=4<span class="new-text">, xp=100</span>)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)
                 ...</pre>
 {{</ original-tab >}}
@@ -757,7 +755,7 @@ Now we'll need to add it to the `player` object. Open
     fighter_component = Fighter(hp=30, defense=2, power=5)
     inventory_component = Inventory(26)
 +   level_component = Level()
-    player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
 -                   fighter=fighter_component, inventory=inventory_component)
 +                   fighter=fighter_component, inventory=inventory_component, level=level_component)
 {{</ highlight >}}
@@ -767,7 +765,7 @@ Now we'll need to add it to the `player` object. Open
     fighter_component = Fighter(hp=30, defense=2, power=5)
     inventory_component = Inventory(26)
     <span class="new-text">level_component = Level()</span>
-    player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
                     fighter=fighter_component, inventory=inventory_component<span class="new-text">, level=level_component</span>)
 </pre>
 {{</ original-tab >}}
@@ -853,7 +851,7 @@ And now let's process the result in `engine.py`:
 +               if leveled_up:
 +                   message_log.add_message(Message(
 +                       'Your battle skills grow stronger! You reached level {0}'.format(
-+                           player.level.current_level) + '!', libtcod.yellow))
++                           player.level.current_level) + '!', (255, 255, 0)))
 +                   previous_game_state = game_state
 +                   game_state = GameStates.LEVEL_UP
 
@@ -873,7 +871,7 @@ And now let's process the result in `engine.py`:
                 if leveled_up:
                     message_log.add_message(Message(
                         'Your battle skills grow stronger! You reached level {0}'.format(
-                            player.level.current_level) + '!', libtcod.yellow))
+                            player.level.current_level) + '!', (255, 255, 0)))
                     previous_game_state = game_state
                     game_state = GameStates.LEVEL_UP</span>
 
@@ -917,34 +915,34 @@ Let's create a new menu function, called `level_up_menu`, which will
 display our options:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def main_menu(con, background_image, screen_width, screen_height):
+def main_menu(con, root_console, screen_width, screen_height):
     ...
 
-+def level_up_menu(con, header, player, menu_width, screen_width, screen_height):
++def level_up_menu(con, root_console, header, player, menu_width, screen_width, screen_height):
 +   options = ['Constitution (+20 HP, from {0})'.format(player.fighter.max_hp),
 +              'Strength (+1 attack, from {0})'.format(player.fighter.power),
 +              'Agility (+1 defense, from {0})'.format(player.fighter.defense)]
 +
-+   menu(con, header, options, menu_width, screen_width, screen_height)
++   menu(con, root_console, header, options, menu_width, screen_width, screen_height)
 
 
-def message_box(con, header, width, screen_width, screen_height):
+def message_box(con, root_console, header, width, screen_width, screen_height):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def main_menu(con, background_image, screen_width, screen_height):
+<pre>def main_menu(con, root_console, screen_width, screen_height):
     ...
 
-<span class="new-text">def level_up_menu(con, header, player, menu_width, screen_width, screen_height):
+<span class="new-text">def level_up_menu(con, root_console, header, player, menu_width, screen_width, screen_height):
     options = ['Constitution (+20 HP, from {0})'.format(player.fighter.max_hp),
                'Strength (+1 attack, from {0})'.format(player.fighter.power),
                'Agility (+1 defense, from {0})'.format(player.fighter.defense)]
 
-    menu(con, header, options, menu_width, screen_width, screen_height)</span>
+    menu(con, root_console, header, options, menu_width, screen_width, screen_height)</span>
 
 
-def message_box(con, header, width, screen_width, screen_height):
+def message_box(con, root_console, header, width, screen_width, screen_height):
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -953,7 +951,7 @@ Modify the `render_all` function to display this menu, after importing
 the `level_up_menu` function.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 from enum import Enum
 
@@ -965,7 +963,7 @@ from game_states import GameStates
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 from enum import Enum
 
@@ -981,7 +979,7 @@ from menus import inventory_menu<span class="new-text">, level_up_menu</span>
         ...
 
 +   elif game_state == GameStates.LEVEL_UP:
-+       level_up_menu(con, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)
++       level_up_menu(con, root_console, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -990,7 +988,7 @@ from menus import inventory_menu<span class="new-text">, level_up_menu</span>
         ...
 
     <span class="new-text">elif game_state == GameStates.LEVEL_UP:
-        level_up_menu(con, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)</span>
+        level_up_menu(con, root_console, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)</span>
 </pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -999,46 +997,44 @@ Of course, we'll need to handle the input for this menu. Open up
 `input_handlers.py` and add the following function:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_main_menu(key):
+def handle_main_menu(event):
     ...
 
-+def handle_level_up_menu(key):
-+   if key:
-+       key_char = chr(key.c)
-+
-+       if key_char == 'a':
++def handle_level_up_menu(event):
++   if isinstance(event, tcod.event.KeyDown):
++       key = event.sym
++       if key == tcod.event.KeySym.a:
 +           return {'level_up': 'hp'}
-+       elif key_char == 'b':
++       elif key == tcod.event.KeySym.b:
 +           return {'level_up': 'str'}
-+       elif key_char == 'c':
++       elif key == tcod.event.KeySym.c:
 +           return {'level_up': 'def'}
 +
 +   return {}
 
 
-def handle_mouse(mouse):
+def handle_mouse(event):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_main_menu(key):
+<pre>def handle_main_menu(event):
     ...
 
-<span class="new-text">def handle_level_up_menu(key):
-    if key:
-        key_char = chr(key.c)
-
-        if key_char == 'a':
+<span class="new-text">def handle_level_up_menu(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
+        if key == tcod.event.KeySym.a:
             return {'level_up': 'hp'}
-        elif key_char == 'b':
+        elif key == tcod.event.KeySym.b:
             return {'level_up': 'str'}
-        elif key_char == 'c':
+        elif key == tcod.event.KeySym.c:
             return {'level_up': 'def'}
 
     return {}</span>
 
 
-def handle_mouse(mouse):
+def handle_mouse(event):
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1046,33 +1042,33 @@ def handle_mouse(mouse):
 Modify the `handle_keys` function to use this new handler:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     elif game_state == GameStates.TARGETING:
-        return handle_targeting_keys(key)
+        return handle_targeting_keys(event)
     elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
 +   elif game_state == GameStates.LEVEL_UP:
-+       return handle_level_up_menu(key)
++       return handle_level_up_menu(event)
 
     return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_keys(key, game_state):
+<pre>def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     elif game_state == GameStates.TARGETING:
-        return handle_targeting_keys(key)
+        return handle_targeting_keys(event)
     elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
     <span class="new-text">elif game_state == GameStates.LEVEL_UP:
-        return handle_level_up_menu(key)</span>
+        return handle_level_up_menu(event)</span>
 
     return {}</pre>
 {{</ original-tab >}}
@@ -1170,25 +1166,25 @@ key to `handle_player_turn_keys`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
-    elif key.vk == libtcod.KEY_ENTER:
+    elif event.sym == tcod.event.KeySym.RETURN:
         return {'take_stairs': True}
 
 +   elif key_char == 'c':
 +       return {'show_character_screen': True}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if event.sym == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    elif key.vk == libtcod.KEY_ENTER:
+    elif event.sym == tcod.event.KeySym.RETURN:
         return {'take_stairs': True}
 
     <span class="new-text">elif key_char == 'c':
         return {'show_character_screen': True}</span>
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if event.sym == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...
 </pre>
 {{</ original-tab >}}
@@ -1245,32 +1241,34 @@ is handles the 'Escape' key, since the character screen isn't
 interactive in any way.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_level_up_menu(key):
+def handle_level_up_menu(event):
     ...
 
-+def handle_character_screen(key):
-+   if key.vk == libtcod.KEY_ESCAPE:
-+       return {'exit': True}
++def handle_character_screen(event):
++   if isinstance(event, tcod.event.KeyDown):
++       if event.sym == tcod.event.KeySym.ESCAPE:
++           return {'exit': True}
 +
 +   return {}
 
 
-def handle_mouse(mouse):
+def handle_mouse(event):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_level_up_menu(key):
+<pre>def handle_level_up_menu(event):
     ...
 
-<span class="new-text">def handle_character_screen(key):
-    if key.vk == libtcod.KEY_ESCAPE:
-        return {'exit': True}
+<span class="new-text">def handle_character_screen(event):
+    if isinstance(event, tcod.event.KeyDown):
+        if event.sym == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
 
     return {}</span>
 
 
-def handle_mouse(mouse):
+def handle_mouse(event):
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1279,37 +1277,37 @@ Modify `handle_keys` to call this function when showing the character
 screen:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     elif game_state == GameStates.TARGETING:
-        return handle_targeting_keys(key)
+        return handle_targeting_keys(event)
     elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
     elif game_state == GameStates.LEVEL_UP:
-        return handle_level_up_menu(key)
+        return handle_level_up_menu(event)
 +   elif game_state == GameStates.CHARACTER_SCREEN:
-+       return handle_character_screen(key)
++       return handle_character_screen(event)
 
     return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_keys(key, game_state):
+<pre>def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     elif game_state == GameStates.TARGETING:
-        return handle_targeting_keys(key)
+        return handle_targeting_keys(event)
     elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
     elif game_state == GameStates.LEVEL_UP:
-        return handle_level_up_menu(key)
+        return handle_level_up_menu(event)
     <span class="new-text">elif game_state == GameStates.CHARACTER_SCREEN:
-        return handle_character_screen(key)</span>
+        return handle_character_screen(event)</span>
 
     return {}</pre>
 {{</ original-tab >}}
@@ -1354,68 +1352,54 @@ the following
     function.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def level_up_menu(con, header, player, menu_width, screen_width, screen_height):
+def level_up_menu(con, root_console, header, player, menu_width, screen_width, screen_height):
     ...
 
-+def character_screen(player, character_screen_width, character_screen_height, screen_width, screen_height):
-+   window = libtcod.console_new(character_screen_width, character_screen_height)
++def character_screen(root_console, player, character_screen_width, character_screen_height, screen_width, screen_height):
++   window = tcod.console.Console(character_screen_width, character_screen_height, order='F')
 +
-+   libtcod.console_set_default_foreground(window, libtcod.white)
++   window.default_fg = (255, 255, 255)
 +
-+   libtcod.console_print_rect_ex(window, 0, 1, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Character Information')
-+   libtcod.console_print_rect_ex(window, 0, 2, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Level: {0}'.format(player.level.current_level))
-+   libtcod.console_print_rect_ex(window, 0, 3, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Experience: {0}'.format(player.level.current_xp))
-+   libtcod.console_print_rect_ex(window, 0, 4, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Experience to Level: {0}'.format(player.level.experience_to_next_level))
-+   libtcod.console_print_rect_ex(window, 0, 6, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Maximum HP: {0}'.format(player.fighter.max_hp))
-+   libtcod.console_print_rect_ex(window, 0, 7, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Attack: {0}'.format(player.fighter.power))
-+   libtcod.console_print_rect_ex(window, 0, 8, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-+                                 libtcod.LEFT, 'Defense: {0}'.format(player.fighter.defense))
++   window.print(0, 1, 'Character Information')
++   window.print(0, 2, 'Level: {0}'.format(player.level.current_level))
++   window.print(0, 3, 'Experience: {0}'.format(player.level.current_xp))
++   window.print(0, 4, 'Experience to Level: {0}'.format(player.level.experience_to_next_level))
++   window.print(0, 6, 'Maximum HP: {0}'.format(player.fighter.max_hp))
++   window.print(0, 7, 'Attack: {0}'.format(player.fighter.power))
++   window.print(0, 8, 'Defense: {0}'.format(player.fighter.defense))
 +
 +   x = screen_width // 2 - character_screen_width // 2
 +   y = screen_height // 2 - character_screen_height // 2
-+   libtcod.console_blit(window, 0, 0, character_screen_width, character_screen_height, 0, x, y, 1.0, 0.7)
++   window.blit(dest=root_console, dest_x=x, dest_y=y, fg_alpha=1.0, bg_alpha=0.7)
 
 
-def message_box(con, header, width, screen_width, screen_height):
+def message_box(con, root_console, header, width, screen_width, screen_height):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def level_up_menu(con, header, player, menu_width, screen_width, screen_height):
+<pre>def level_up_menu(con, root_console, header, player, menu_width, screen_width, screen_height):
     ...
 
-<span class="new-text">def character_screen(player, character_screen_width, character_screen_height, screen_width, screen_height):
-    window = libtcod.console_new(character_screen_width, character_screen_height)
+<span class="new-text">def character_screen(root_console, player, character_screen_width, character_screen_height, screen_width, screen_height):
+    window = tcod.console.Console(character_screen_width, character_screen_height, order='F')
 
-    libtcod.console_set_default_foreground(window, libtcod.white)
+    window.default_fg = (255, 255, 255)
 
-    libtcod.console_print_rect_ex(window, 0, 1, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Character Information')
-    libtcod.console_print_rect_ex(window, 0, 2, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Level: {0}'.format(player.level.current_level))
-    libtcod.console_print_rect_ex(window, 0, 3, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Experience: {0}'.format(player.level.current_xp))
-    libtcod.console_print_rect_ex(window, 0, 4, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Experience to Level: {0}'.format(player.level.experience_to_next_level))
-    libtcod.console_print_rect_ex(window, 0, 6, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Maximum HP: {0}'.format(player.fighter.max_hp))
-    libtcod.console_print_rect_ex(window, 0, 7, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Attack: {0}'.format(player.fighter.power))
-    libtcod.console_print_rect_ex(window, 0, 8, character_screen_width, character_screen_height, libtcod.BKGND_NONE,
-                                  libtcod.LEFT, 'Defense: {0}'.format(player.fighter.defense))
+    window.print(0, 1, 'Character Information')
+    window.print(0, 2, 'Level: {0}'.format(player.level.current_level))
+    window.print(0, 3, 'Experience: {0}'.format(player.level.current_xp))
+    window.print(0, 4, 'Experience to Level: {0}'.format(player.level.experience_to_next_level))
+    window.print(0, 6, 'Maximum HP: {0}'.format(player.fighter.max_hp))
+    window.print(0, 7, 'Attack: {0}'.format(player.fighter.power))
+    window.print(0, 8, 'Defense: {0}'.format(player.fighter.defense))
 
     x = screen_width // 2 - character_screen_width // 2
     y = screen_height // 2 - character_screen_height // 2
-    libtcod.console_blit(window, 0, 0, character_screen_width, character_screen_height, 0, x, y, 1.0, 0.7)</span>
+    window.blit(dest=root_console, dest_x=x, dest_y=y, fg_alpha=1.0, bg_alpha=0.7)</span>
 
 
-def message_box(con, header, width, screen_width, screen_height):
+def message_box(con, root_console, header, width, screen_width, screen_height):
     ...
 </pre>
 {{</ original-tab >}}
@@ -1425,7 +1409,7 @@ In order to display this new menu, we'll modify `render_all` once again.
 Start by importing the menu.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 from enum import Enum
 
@@ -1437,7 +1421,7 @@ from game_states import GameStates
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 from enum import Enum
 
@@ -1453,18 +1437,18 @@ Now, add the menu to the bottom of `render_all`.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     elif game_state == GameStates.LEVEL_UP:
-        level_up_menu(con, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)
+        level_up_menu(con, root_console, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)
 
 +   elif game_state == GameStates.CHARACTER_SCREEN:
-+       character_screen(player, 30, 10, screen_width, screen_height)
++       character_screen(root_console, player, 30, 10, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    elif game_state == GameStates.LEVEL_UP:
-        level_up_menu(con, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)
+        level_up_menu(con, root_console, 'Level up! Choose a stat to raise:', player, 40, screen_width, screen_height)
 
     <span class="new-text">elif game_state == GameStates.CHARACTER_SCREEN:
-        character_screen(player, 30, 10, screen_width, screen_height)</span></pre>
+        character_screen(root_console, player, 30, 10, screen_width, screen_height)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1476,51 +1460,55 @@ will start getting more difficult. Open up `input_handlers.py` and add
 the following to `handle_player_turn_keys`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_player_turn_keys(key):
-    key_char = chr(key.c)
+def handle_player_turn_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
+        key_char = chr(key) if tcod.event.KeySym.a <= key <= tcod.event.KeySym.z else ''
 
-    if key.vk == libtcod.KEY_UP or key_char == 'k':
-        return {'move': (0, -1)}
-    elif key.vk == libtcod.KEY_DOWN or key_char == 'j':
-        return {'move': (0, 1)}
-    elif key.vk == libtcod.KEY_LEFT or key_char == 'h':
-        return {'move': (-1, 0)}
-    elif key.vk == libtcod.KEY_RIGHT or key_char == 'l':
-        return {'move': (1, 0)}
-    elif key_char == 'y':
-        return {'move': (-1, -1)}
-    elif key_char == 'u':
-        return {'move': (1, -1)}
-    elif key_char == 'b':
-        return {'move': (-1, 1)}
-    elif key_char == 'n':
-        return {'move': (1, 1)}
-+   elif key_char == 'z':
-+       return {'wait': True}
+        if key == tcod.event.KeySym.UP or key_char == 'k':
+            return {'move': (0, -1)}
+        elif key == tcod.event.KeySym.DOWN or key_char == 'j':
+            return {'move': (0, 1)}
+        elif key == tcod.event.KeySym.LEFT or key_char == 'h':
+            return {'move': (-1, 0)}
+        elif key == tcod.event.KeySym.RIGHT or key_char == 'l':
+            return {'move': (1, 0)}
+        elif key_char == 'y':
+            return {'move': (-1, -1)}
+        elif key_char == 'u':
+            return {'move': (1, -1)}
+        elif key_char == 'b':
+            return {'move': (-1, 1)}
+        elif key_char == 'n':
+            return {'move': (1, 1)}
++       elif key_char == 'z':
++           return {'wait': True}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_player_turn_keys(key):
-    key_char = chr(key.c)
+<pre>def handle_player_turn_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
+        key_char = chr(key) if tcod.event.KeySym.a &lt;= key &lt;= tcod.event.KeySym.z else ''
 
-    if key.vk == libtcod.KEY_UP or key_char == 'k':
-        return {'move': (0, -1)}
-    elif key.vk == libtcod.KEY_DOWN or key_char == 'j':
-        return {'move': (0, 1)}
-    elif key.vk == libtcod.KEY_LEFT or key_char == 'h':
-        return {'move': (-1, 0)}
-    elif key.vk == libtcod.KEY_RIGHT or key_char == 'l':
-        return {'move': (1, 0)}
-    elif key_char == 'y':
-        return {'move': (-1, -1)}
-    elif key_char == 'u':
-        return {'move': (1, -1)}
-    elif key_char == 'b':
-        return {'move': (-1, 1)}
-    elif key_char == 'n':
-        return {'move': (1, 1)}
-    <span class="new-text">elif key_char == 'z':
-        return {'wait': True}</span></pre>
+        if key == tcod.event.KeySym.UP or key_char == 'k':
+            return {'move': (0, -1)}
+        elif key == tcod.event.KeySym.DOWN or key_char == 'j':
+            return {'move': (0, 1)}
+        elif key == tcod.event.KeySym.LEFT or key_char == 'h':
+            return {'move': (-1, 0)}
+        elif key == tcod.event.KeySym.RIGHT or key_char == 'l':
+            return {'move': (1, 0)}
+        elif key_char == 'y':
+            return {'move': (-1, -1)}
+        elif key_char == 'u':
+            return {'move': (1, -1)}
+        elif key_char == 'b':
+            return {'move': (-1, 1)}
+        elif key_char == 'n':
+            return {'move': (1, 1)}
+        <span class="new-text">elif key_char == 'z':
+            return {'wait': True}</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 

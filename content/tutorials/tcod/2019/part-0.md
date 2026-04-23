@@ -19,9 +19,8 @@ paragraph if you're feeling bold\!
 
 #### Installation
 
-To do this tutorial, you'll need Python version 3.5 or higher. The
-latest version of Python is recommended (currently 3.7 as of March
-2019). **Note: Python 2 is not compatible.**
+To do this tutorial, you'll need Python version 3.8 or higher. The
+latest version of Python is recommended. **Note: Python 2 is not compatible.**
 
 [Download Python here](https://www.python.org/downloads/).
 
@@ -53,7 +52,7 @@ create a new file (in whatever directory you plan on using for the
 tutorial) called `engine.py`, and enter the following text into it:
 
 ```py3
-import tcod as libtcod
+import tcod
 
 
 def main():
@@ -174,13 +173,13 @@ be no spaces before "from"):
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from input_handlers import handle_keys
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-    <pre>import tcod as libtcod
+    <pre>import tcod
 
 <span class="new-text">from input_handlers import handle_keys</span></pre>
 {{</ original-tab >}}

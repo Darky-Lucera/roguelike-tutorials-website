@@ -32,7 +32,7 @@ def heal(*args, **kwargs):
 +   closest_distance = maximum_range + 1
 +
 +   for entity in entities:
-+       if entity.fighter and entity != caster and libtcod.map_is_in_fov(fov_map, entity.x, entity.y):
++       if entity.fighter and entity != caster and fov_map[entity.x, entity.y]:
 +           distance = caster.distance_to(entity)
 +
 +           if distance < closest_distance:
@@ -43,7 +43,7 @@ def heal(*args, **kwargs):
 +       results.append({'consumed': True, 'target': target, 'message': Message('A lighting bolt strikes the {0} with a loud thunder! The damage is {1}'.format(target.name, damage))})
 +       results.extend(target.fighter.take_damage(damage))
 +   else:
-+       results.append({'consumed': False, 'target': None, 'message': Message('No enemy is close enough to strike.', libtcod.red)})
++       results.append({'consumed': False, 'target': None, 'message': Message('No enemy is close enough to strike.', (255, 0, 0))})
 +
 +   return results
 {{</ highlight >}}
@@ -65,7 +65,7 @@ def heal(*args, **kwargs):
     closest_distance = maximum_range + 1
 
     for entity in entities:
-        if entity.fighter and entity != caster and libtcod.map_is_in_fov(fov_map, entity.x, entity.y):
+        if entity.fighter and entity != caster and fov_map[entity.x, entity.y]:
             distance = caster.distance_to(entity)
 
             if distance < closest_distance:
@@ -76,7 +76,7 @@ def heal(*args, **kwargs):
         results.append({'consumed': True, 'target': target, 'message': Message('A lighting bolt strikes the {0} with a loud thunder! The damage is {1}'.format(target.name, damage))})
         results.extend(target.fighter.take_damage(damage))
     else:
-        results.append({'consumed': False, 'target': None, 'message': Message('No enemy is close enough to strike.', libtcod.red)})
+        results.append({'consumed': False, 'target': None, 'message': Message('No enemy is close enough to strike.', (255, 0, 0))})
 
     return results</span></pre>
 {{</ original-tab >}}
@@ -91,16 +91,16 @@ lightning scrolls as well. In `game_map.py`:
             if not any([entity for entity in entities if entity.x == x and entity.y == y]):
 +               item_chance = randint(0, 100)
 -               item_component = Item(use_function=heal, amount=4)
--               item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+-               item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
 -                              item=item_component)
 +
 +               if item_chance < 70:
 +                   item_component = Item(use_function=heal, amount=4)
-+                   item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
++                   item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
 +                                 item=item_component)
 +               else:
 +                   item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
-+                   item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
++                   item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
 +                                 item=item_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -111,11 +111,11 @@ lightning scrolls as well. In `game_map.py`:
 
                 if item_chance < 70:</span>
                     <span style="color: blue">item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)</span>
                 <span class="new-text">else:
                     item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -198,15 +198,15 @@ def cast_lightning(*args, **kwargs):
 +
 +   results = []
 +
-+   if not libtcod.map_is_in_fov(fov_map, target_x, target_y):
-+       results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', libtcod.yellow)})
++   if not fov_map[target_x, target_y]:
++       results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', (255, 255, 0))})
 +       return results
 +
-+   results.append({'consumed': True, 'message': Message('The fireball explodes, burning everything within {0} tiles!'.format(radius), libtcod.orange)})
++   results.append({'consumed': True, 'message': Message('The fireball explodes, burning everything within {0} tiles!'.format(radius), (255, 127, 0))})
 +
 +   for entity in entities:
 +       if entity.distance(target_x, target_y) <= radius and entity.fighter:
-+           results.append({'message': Message('The {0} gets burned for {1} hit points.'.format(entity.name, damage), libtcod.orange)})
++           results.append({'message': Message('The {0} gets burned for {1} hit points.'.format(entity.name, damage), (255, 127, 0))})
 +           results.extend(entity.fighter.take_damage(damage))
 +
 +   return results
@@ -227,15 +227,15 @@ def cast_lightning(*args, **kwargs):
 
     results = []
 
-    if not libtcod.map_is_in_fov(fov_map, target_x, target_y):
-        results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', libtcod.yellow)})
+    if not fov_map[target_x, target_y]:
+        results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', (255, 255, 0))})
         return results
 
-    results.append({'consumed': True, 'message': Message('The fireball explodes, burning everything within {0} tiles!'.format(radius), libtcod.orange)})
+    results.append({'consumed': True, 'message': Message('The fireball explodes, burning everything within {0} tiles!'.format(radius), (255, 127, 0))})
 
     for entity in entities:
         if entity.distance(target_x, target_y) <= radius and entity.fighter:
-            results.append({'message': Message('The {0} gets burned for {1} hit points.'.format(entity.name, damage), libtcod.orange)})
+            results.append({'message': Message('The {0} gets burned for {1} hit points.'.format(entity.name, damage), (255, 127, 0))})
             results.extend(entity.fighter.take_damage(damage))
 
     return results</span></pre>
@@ -282,69 +282,69 @@ while we're targeting, and also add a generalized mouse handler, to know
 where the player clicks.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
 +   elif game_state == GameStates.TARGETING:
-+       return handle_targeting_keys(key)
++       return handle_targeting_keys(event)
     elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
     ...
 
 
-+def handle_targeting_keys(key):
-+   if key.vk == libtcod.KEY_ESCAPE:
-+       return {'exit': True}
++def handle_targeting_keys(event):
++   if isinstance(event, tcod.event.KeyDown):
++       if event.sym == tcod.event.KeySym.ESCAPE:
++           return {'exit': True}
 +
 +   return {}
 
-def handle_player_dead_keys(key):
+def handle_player_dead_keys(event):
     ...
 
 
-+def handle_mouse(mouse):
-+   (x, y) = (mouse.cx, mouse.cy)
-+
-+   if mouse.lbutton_pressed:
-+       return {'left_click': (x, y)}
-+   elif mouse.rbutton_pressed:
-+       return {'right_click': (x, y)}
++def handle_mouse(event):
++   if isinstance(event, tcod.event.MouseButtonDown):
++       if event.button == 1:
++           return {'left_click': (event.tile.x, event.tile.y)}
++       elif event.button == 3:
++           return {'right_click': (event.tile.x, event.tile.y)}
 +
 +   return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_keys(key, game_state):
+<pre>def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     <span class="new-text">elif game_state == GameStates.TARGETING:
-        return handle_targeting_keys(key)</span>
+        return handle_targeting_keys(event)</span>
     elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
     ...
 
 
-<span class="new-text">def handle_targeting_keys(key):
-    if key.vk == libtcod.KEY_ESCAPE:
-        return {'exit': True}
+<span class="new-text">def handle_targeting_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        if event.sym == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
 
     return {}</span>
 
-def handle_player_dead_keys(key):
+def handle_player_dead_keys(event):
     ...
 
 
-<span class="new-text">def handle_mouse(mouse):
-    (x, y) = (mouse.cx, mouse.cy)
-
-    if mouse.lbutton_pressed:
-        return {'left_click': (x, y)}
-    elif mouse.rbutton_pressed:
-        return {'right_click': (x, y)}
+<span class="new-text">def handle_mouse(event):
+    if isinstance(event, tcod.event.MouseButtonDown):
+        if event.button == 1:
+            return {'left_click': (event.tile.x, event.tile.y)}
+        elif event.button == 3:
+            return {'right_click': (event.tile.x, event.tile.y)}
 
     return {}</span></pre>
 {{</ original-tab >}}
@@ -358,8 +358,13 @@ Modify `engine.py` to accept the mouse inputs:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
         ...
-        action = handle_keys(key, game_state)
-+       mouse_action = handle_mouse(mouse)
++       mouse_action = {}
+        for event in tcod.event.wait():
+            if isinstance(event, tcod.event.MouseMotion):
+                mouse_pos = (event.tile.x, event.tile.y)
++           elif isinstance(event, tcod.event.MouseButtonDown):
++               mouse_action = handle_mouse(event)
+            action = handle_keys(event, game_state)
 
         move = action.get('move')
         pickup = action.get('pickup')
@@ -376,8 +381,13 @@ Modify `engine.py` to accept the mouse inputs:
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
-        action = handle_keys(key, game_state)
-        <span class="new-text">mouse_action = handle_mouse(mouse)</span>
+        <span class="new-text">mouse_action = {}</span>
+        for event in tcod.event.wait():
+            if isinstance(event, tcod.event.MouseMotion):
+                mouse_pos = (event.tile.x, event.tile.y)
+            <span class="new-text">elif isinstance(event, tcod.event.MouseButtonDown):
+                mouse_action = handle_mouse(event)</span>
+            action = handle_keys(event, game_state)
 
         move = action.get('move')
         pickup = action.get('pickup')
@@ -456,7 +466,7 @@ the previous code section in the "else" clause, like this:
         item_component = item_entity.item
 
         if item_component.use_function is None:
-            results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})
+            results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})
         else:
 -           kwargs = {**item_component.function_kwargs, **kwargs}
 -           item_use_results = item_component.use_function(self.owner, **kwargs)
@@ -488,7 +498,7 @@ the previous code section in the "else" clause, like this:
         item_component = item_entity.item
 
         if item_component.use_function is None:
-            results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})
+            results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})
         else:
             <span class="new-text">if item_component.targeting and not (kwargs.get('target_x') or kwargs.get('target_y')):
                 results.append({'targeting': item_entity})
@@ -525,7 +535,7 @@ loop to keep track of the targeting item that was selected.
 
 +   targeting_item = None
 
-    while not libtcod.console_is_window_closed():
+    while True:
         ...
             message = player_turn_result.get('message')
             dead_entity = player_turn_result.get('dead')
@@ -554,7 +564,7 @@ loop to keep track of the targeting item that was selected.
 
     <span class="new-text">targeting_item = None</span>
 
-    while not libtcod.console_is_window_closed():
+    while True:
         ...
             message = player_turn_result.get('message')
             dead_entity = player_turn_result.get('dead')
@@ -684,17 +694,17 @@ Finally, let's add the fireball scroll to the map. Modify
 
                 if item_chance < 70:
                     item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
 +               elif item_chance < 85:
 +                   item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-+                       'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
++                       'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
 +                                         damage=12, radius=3)
-+                   item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
++                   item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
 +                                 item=item_component)
                 else:
                     item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -704,17 +714,17 @@ Finally, let's add the fireball scroll to the map. Modify
 
                 if item_chance < 70:
                     item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 <span class="new-text">elif item_chance < 85:
                     item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-                        'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+                        'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
                                           damage=12, radius=3)
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)</span>
                 else:
                     item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -786,8 +796,6 @@ spell ends.
 We'll begin by adding the confused AI, to `ai.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
-
 +from random import randint
 +
 +from game_messages import Message
@@ -815,15 +823,13 @@ class BasicMonster:
 +           self.number_of_turns -= 1
 +       else:
 +           self.owner.ai = self.previous_ai
-+           results.append({'message': Message('The {0} is no longer confused!'.format(self.owner.name), libtcod.red)})
++           results.append({'message': Message('The {0} is no longer confused!'.format(self.owner.name), (255, 0, 0))})
 +
 +       return results
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
-
-<span class="new-text">from random import randint
+<pre><span class="new-text">from random import randint
 
 from game_messages import Message</span>
 
@@ -850,7 +856,7 @@ class BasicMonster:
             self.number_of_turns -= 1
         else:
             self.owner.ai = self.previous_ai
-            results.append({'message': Message('The {0} is no longer confused!'.format(self.owner.name), libtcod.red)})
+            results.append({'message': Message('The {0} is no longer confused!'.format(self.owner.name), (255, 0, 0))})
 
         return results</span></pre>
 {{</ original-tab >}}
@@ -877,8 +883,8 @@ def cast_fireball(*args, **kwargs):
 +
 +   results = []
 +
-+   if not libtcod.map_is_in_fov(fov_map, target_x, target_y):
-+       results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', libtcod.yellow)})
++   if not fov_map[target_x, target_y]:
++       results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', (255, 255, 0))})
 +       return results
 +
 +   for entity in entities:
@@ -888,11 +894,11 @@ def cast_fireball(*args, **kwargs):
 +           confused_ai.owner = entity
 +           entity.ai = confused_ai
 +
-+           results.append({'consumed': True, 'message': Message('The eyes of the {0} look vacant, as he starts to stumble around!'.format(entity.name), libtcod.light_green)})
++           results.append({'consumed': True, 'message': Message('The eyes of the {0} look vacant, as he starts to stumble around!'.format(entity.name), (63, 255, 63))})
 +
 +           break
 +   else:
-+       results.append({'consumed': False, 'message': Message('There is no targetable enemy at that location.', libtcod.yellow)})
++       results.append({'consumed': False, 'message': Message('There is no targetable enemy at that location.', (255, 255, 0))})
 +
 +   return results
 +
@@ -910,8 +916,8 @@ def cast_fireball(*args, **kwargs):
 
     results = []
 
-    if not libtcod.map_is_in_fov(fov_map, target_x, target_y):
-        results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', libtcod.yellow)})
+    if not fov_map[target_x, target_y]:
+        results.append({'consumed': False, 'message': Message('You cannot target a tile outside your field of view.', (255, 255, 0))})
         return results
 
     for entity in entities:
@@ -921,11 +927,11 @@ def cast_fireball(*args, **kwargs):
             confused_ai.owner = entity
             entity.ai = confused_ai
 
-            results.append({'consumed': True, 'message': Message('The eyes of the {0} look vacant, as he starts to stumble around!'.format(entity.name), libtcod.light_green)})
+            results.append({'consumed': True, 'message': Message('The eyes of the {0} look vacant, as he starts to stumble around!'.format(entity.name), (63, 255, 63))})
 
             break
     else:
-        results.append({'consumed': False, 'message': Message('There is no targetable enemy at that location.', libtcod.yellow)})
+        results.append({'consumed': False, 'message': Message('There is no targetable enemy at that location.', (255, 255, 0))})
 
     return results
 </span></pre>
@@ -936,8 +942,6 @@ You'll need to import the `ConfusedMonster` class to the top of the
 file:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
-
 +from components.ai import ConfusedMonster
 
 from game_messages import Message
@@ -945,9 +949,7 @@ from game_messages import Message
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
-
-<span class="new-text">from components.ai import ConfusedMonster</span>
+<pre><span class="new-text">from components.ai import ConfusedMonster</span>
 
 from game_messages import Message
 ...</pre>
@@ -985,38 +987,38 @@ chance of spawning.
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
                 if item_chance < 70:
                     item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
 -               elif item_chance < 85:
 +               elif item_chance < 80:
                     item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-                        'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+                        'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
                                           damage=12, radius=3)
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
 +               elif item_chance < 90:
 +                   item_component = Item(use_function=cast_confuse, targeting=True, targeting_message=Message(
-+                       'Left-click an enemy to confuse it, or right-click to cancel.', libtcod.light_cyan))
-+                   item = Entity(x, y, '#', libtcod.light_pink, 'Confusion Scroll', render_order=RenderOrder.ITEM,
++                       'Left-click an enemy to confuse it, or right-click to cancel.', (63, 255, 255)))
++                   item = Entity(x, y, '#', (255, 114, 114), 'Confusion Scroll', render_order=RenderOrder.ITEM,
 +                                 item=item_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>                if item_chance < 70:
                     item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 <span class="crossed-out-text">elif item_chance < 85:</span>
                 <span class="new-text">elif item_chance < 80:</span>
                     item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-                        'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+                        'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
                                           damage=12, radius=3)
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 <span class="new-text">elif item_chance < 90:
                     item_component = Item(use_function=cast_confuse, targeting=True, targeting_message=Message(
-                        'Left-click an enemy to confuse it, or right-click to cancel.', libtcod.light_cyan))
-                    item = Entity(x, y, '#', libtcod.light_pink, 'Confusion Scroll', render_order=RenderOrder.ITEM,
+                        'Left-click an enemy to confuse it, or right-click to cancel.', (63, 255, 255)))
+                    item = Entity(x, y, '#', (255, 114, 114), 'Confusion Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}

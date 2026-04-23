@@ -117,14 +117,14 @@ directly), but it does need the `Fighter` component.
 First, import the `Fighter` component into `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from components.fighter import Fighter
 from entity import Entity, get_blocking_entities_at_location
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 <span class="new-text">from components.fighter import Fighter</span>
 from entity import Entity, get_blocking_entities_at_location</pre>
@@ -135,8 +135,8 @@ Then, create the component and add it to the player Entity.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
 +   fighter_component = Fighter(hp=30, defense=2, power=5)
--   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True)
-+   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, fighter=fighter_component)
+-   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True)
++   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, fighter=fighter_component)
     entities = [player]
     ...
 {{</ highlight >}}
@@ -144,8 +144,8 @@ Then, create the component and add it to the player Entity.
 {{< original-tab >}}
         <pre>
     <span class="new-text">fighter_component = Fighter(hp=30, defense=2, power=5)</span>
-    <span class="crossed-out-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True)</span>
-    <span class="new-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, fighter=fighter_component)</span>
+    <span class="crossed-out-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True)</span>
+    <span class="new-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, fighter=fighter_component)</span>
     entities = [player]
     ...</pre>
 {{</ original-tab >}}
@@ -159,15 +159,15 @@ components for them.
 +                   fighter_component = Fighter(hp=10, defense=0, power=3)
 +                   ai_component = BasicMonster()
 
--                   monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True)
-+                   monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+-                   monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True)
++                   monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
 +                                    fighter=fighter_component, ai=ai_component)
                 else:
 +                   fighter_component = Fighter(hp=16, defense=1, power=4)
 +                   ai_component = BasicMonster()
 
--                   monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True)
-+                   monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+-                   monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True)
++                   monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
 +                                    ai=ai_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -177,15 +177,15 @@ components for them.
                     <span class="new-text">fighter_component = Fighter(hp=10, defense=0, power=3)
                     ai_component = BasicMonster()</span>
 
-                    <span class="crossed-out-text">monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True)</span>
-                    <span class="new-text">monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    <span class="crossed-out-text">monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True)</span>
+                    <span class="new-text">monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      fighter=fighter_component, ai=ai_component)</span>
                 else:
                     <span class="new-text">fighter_component = Fighter(hp=16, defense=1, power=4)
                     ai_component = BasicMonster()</span>
 
-                    <span class="crossed-out-text">monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True)</span>
-                    <span class="new-text">monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    <span class="crossed-out-text">monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True)</span>
+                    <span class="new-text">monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      ai=ai_component)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -193,7 +193,6 @@ components for them.
 Remember to import the needed classes at the top.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
 from random import randint
 
 +from components.ai import BasicMonster
@@ -206,8 +205,7 @@ from map_objects.tile import Tile
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
-from random import randint
+<pre>from random import randint
 
 <span class="new-text">from components.ai import BasicMonster
 from components.fighter import Fighter</span>
@@ -348,15 +346,12 @@ Now let's replace our placeholder `take_turn` function with one that
 will actually move the Entity.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
-
-
 class BasicMonster:
 -   def take_turn(self):
 +   def take_turn(self, target, fov_map, game_map, entities):
 -       print('The ' + self.owner.name + ' wonders when it will get to move.')
 +       monster = self.owner
-+       if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
++       if fov_map[monster.x, monster.y]:
 +
 +           if monster.distance_to(target) >= 2:
 +               monster.move_towards(target.x, target.y, game_map, entities)
@@ -366,15 +361,12 @@ class BasicMonster:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">import tcod as libtcod</span>
-
-
-class BasicMonster:
+<pre>class BasicMonster:
     <span class="crossed-out-text">def take_turn(self):</span>
     <span class="new-text">def take_turn(self, target, fov_map, game_map, entities):</span>
         <span class="crossed-out-text">print('The ' + self.owner.name + ' wonders when it will get to move.')</span>
         <span class="new-text">monster = self.owner
-        if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+        if fov_map[monster.x, monster.y]:
 
             if monster.distance_to(target) >= 2:
                 monster.move_towards(target.x, target.y, game_map, entities)
@@ -413,124 +405,106 @@ to allow us to move diagonally. Modify the movement part of that
 function like so:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_keys(key):
-+   key_char = chr(key.c)
+def handle_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
 
--   if key.vk == libtcod.KEY_UP:
-+   if key.vk == libtcod.KEY_UP or key_char == 'k':
-        return {'move': (0, -1)}
--  elif key.vk == libtcod.KEY_DOWN:
-+   elif key.vk == libtcod.KEY_DOWN or key_char == 'j':
-        return {'move': (0, 1)}
--   elif key.vk == libtcod.KEY_LEFT:
-+   elif key.vk == libtcod.KEY_LEFT or key_char == 'h':
-        return {'move': (-1, 0)}
--   elif key.vk == libtcod.KEY_RIGHT:
-+   elif key.vk == libtcod.KEY_RIGHT or key_char == 'l':
-        return {'move': (1, 0)}
-+   elif key_char == 'y':
-+       return {'move': (-1, -1)}
-+   elif key_char == 'u':
-+       return {'move': (1, -1)}
-+   elif key_char == 'b':
-+       return {'move': (-1, 1)}
-+   elif key_char == 'n':
-+       return {'move': (1, 1)}
+-       if key == tcod.event.KeySym.UP:
++       if key == tcod.event.KeySym.UP or key == tcod.event.KeySym.k:
+            return {'move': (0, -1)}
+-       elif key == tcod.event.KeySym.DOWN:
++       elif key == tcod.event.KeySym.DOWN or key == tcod.event.KeySym.j:
+            return {'move': (0, 1)}
+-       elif key == tcod.event.KeySym.LEFT:
++       elif key == tcod.event.KeySym.LEFT or key == tcod.event.KeySym.h:
+            return {'move': (-1, 0)}
+-       elif key == tcod.event.KeySym.RIGHT:
++       elif key == tcod.event.KeySym.RIGHT or key == tcod.event.KeySym.l:
+            return {'move': (1, 0)}
++       elif key == tcod.event.KeySym.y:
++           return {'move': (-1, -1)}
++       elif key == tcod.event.KeySym.u:
++           return {'move': (1, -1)}
++       elif key == tcod.event.KeySym.b:
++           return {'move': (-1, 1)}
++       elif key == tcod.event.KeySym.n:
++           return {'move': (1, 1)}
 
-    ...
+        elif key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
+            return {'fullscreen': True}
+        elif key == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
+    return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_keys(key):
-    <span class="new-text">key_char = chr(key.c)</span>
+<pre>def handle_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
 
-    if key.vk == libtcod.KEY_UP<span class="new-text"> or key_char == 'k'</span>:
-        return {'move': (0, -1)}
-    elif key.vk == libtcod.KEY_DOWN<span class="new-text"> or key_char == 'j'</span>:
-        return {'move': (0, 1)}
-    elif key.vk == libtcod.KEY_LEFT<span class="new-text"> or key_char == 'h'</span>:
-        return {'move': (-1, 0)}
-    elif key.vk == libtcod.KEY_RIGHT<span class="new-text"> or key_char == 'l'</span>:
-        return {'move': (1, 0)}
-    <span class="new-text">elif key_char == 'y':
-        return {'move': (-1, -1)}
-    elif key_char == 'u':
-        return {'move': (1, -1)}
-    elif key_char == 'b':
-        return {'move': (-1, 1)}
-    elif key_char == 'n':
-        return {'move': (1, 1)}</span>
+        if key == tcod.event.KeySym.UP<span class="new-text"> or key == tcod.event.KeySym.k</span>:
+            return {'move': (0, -1)}
+        elif key == tcod.event.KeySym.DOWN<span class="new-text"> or key == tcod.event.KeySym.j</span>:
+            return {'move': (0, 1)}
+        elif key == tcod.event.KeySym.LEFT<span class="new-text"> or key == tcod.event.KeySym.h</span>:
+            return {'move': (-1, 0)}
+        elif key == tcod.event.KeySym.RIGHT<span class="new-text"> or key == tcod.event.KeySym.l</span>:
+            return {'move': (1, 0)}
+        <span class="new-text">elif key == tcod.event.KeySym.y:
+            return {'move': (-1, -1)}
+        elif key == tcod.event.KeySym.u:
+            return {'move': (1, -1)}
+        elif key == tcod.event.KeySym.b:
+            return {'move': (-1, 1)}
+        elif key == tcod.event.KeySym.n:
+            return {'move': (1, 1)}</span>
 
-    ...</pre>
+        elif key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
+            return {'fullscreen': True}
+        elif key == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
+    return {}</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-The first line is just getting the 'character' that we pressed on the
-keyboard. This will be handy in other spots as well, when we check for
-inventory and pickup commands.
-
 For diagonal movement, we've implemented the "vim keys" for movement,
-while also retaining the arrow keys for cardinal directions. Vim keys
-allow you to move diagonally without the help of a numpad. A lot of
-older roguelikes do 8 directions through the numpad, but personally, I
-play all my roguelikes on a laptop, which doesn't have one, so the Vim
-keys are useful.
+while also retaining the arrow keys for cardinal directions. We use
+`tcod.event.KeySym` to compare key symbols directly, so `KeySym.k`,
+`KeySym.j`, `KeySym.h`, `KeySym.l` etc. map to the vim movement keys.
+A lot of older roguelikes do 8 directions through the numpad, but
+personally, I play all my roguelikes on a laptop, which doesn't have
+one, so the Vim keys are useful.
 
 Getting the enemies to move in eight directions is going to be a bit
 more complicated. For that, we'll want to use a pathfinding algorithm
-known as A-star. I'm simply going to be copying the code from the
-[Roguebasin
-extra](http://www.roguebasin.com/index.php?title=Complete_Roguelike_Tutorial,_using_Python%2Blibtcod,_extras#A.2A_Pathfinding)
-for our purposes. I won't go into detail explaining how this works, but
-if you want to know more about the details of the algorithm, [click
-here](https://en.wikipedia.org/wiki/A*_search_algorithm).
+known as A-star. tcod includes a pathfinding module (`tcod.path`) that
+we can use directly. I won't go into detail explaining how the A*
+algorithm works, but if you want to know more about the details,
+[click here](https://en.wikipedia.org/wiki/A*_search_algorithm).
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     def move_towards(self, target_x, target_y, game_map, entities):
     ...
 
 +   def move_astar(self, target, entities, game_map):
-+       # Create a FOV map that has the dimensions of the map
-+       fov = libtcod.map_new(game_map.width, game_map.height)
-+
-+       # Scan the current map each turn and set all the walls as unwalkable
-+       for y1 in range(game_map.height):
-+           for x1 in range(game_map.width):
-+               libtcod.map_set_properties(fov, x1, y1, not game_map.tiles[x1][y1].block_sight,
-+                                          not game_map.tiles[x1][y1].blocked)
-+
-+       # Scan all the objects to see if there are objects that must be navigated around
-+       # Check also that the object isn't self or the target (so that the start and the end points are free)
-+       # The AI class handles the situation if self is next to the target so it will not use this A* function anyway
++       walkable = np.array(
++           [[not game_map.tiles[x1][y1].blocked for y1 in range(game_map.height)]
++            for x1 in range(game_map.width)],
++           dtype=np.int8
++       )
 +       for entity in entities:
 +           if entity.blocks and entity != self and entity != target:
-+               # Set the tile as a wall so it must be navigated around
-+               libtcod.map_set_properties(fov, entity.x, entity.y, True, False)
-+
-+       # Allocate a A* path
-+       # The 1.41 is the normal diagonal cost of moving, it can be set as 0.0 if diagonal moves are prohibited
-+       my_path = libtcod.path_new_using_map(fov, 1.41)
-+
-+       # Compute the path between self's coordinates and the target's coordinates
-+       libtcod.path_compute(my_path, self.x, self.y, target.x, target.y)
-+
-+       # Check if the path exists, and in this case, also the path is shorter than 25 tiles
-+       # The path size matters if you want the monster to use alternative longer paths (for example through other rooms) if for example the player is in a corridor
-+       # It makes sense to keep path size relatively low to keep the monsters from running around the map if there's an alternative path really far away
-+       if not libtcod.path_is_empty(my_path) and libtcod.path_size(my_path) < 25:
-+           # Find the next coordinates in the computed full path
-+           x, y = libtcod.path_walk(my_path, True)
-+           if x or y:
-+               # Set self's coordinates to the next path tile
-+               self.x = x
-+               self.y = y
++               walkable[entity.x, entity.y] = 0
++       graph = tcod.path.SimpleGraph(cost=walkable.T.copy(), cardinal=2, diagonal=3)
++       pathfinder = tcod.path.Pathfinder(graph)
++       pathfinder.add_root((self.y, self.x))
++       path = pathfinder.path_to((target.y, target.x))[1:].tolist()
++       if path and len(path) < 25:
++           dest_y, dest_x = path[0]
++           self.x = dest_x
++           self.y = dest_y
 +       else:
-+           # Keep the old move function as a backup so that if there are no paths (for example another monster blocks a corridor)
-+           # it will still try to move towards the player (closer to the corridor opening)
 +           self.move_towards(target.x, target.y, game_map, entities)
-+
-+           # Delete the path to free memory
-+       libtcod.path_delete(my_path)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -538,61 +512,40 @@ here](https://en.wikipedia.org/wiki/A*_search_algorithm).
     ...
 
     <span class="new-text">def move_astar(self, target, entities, game_map):
-        # Create a FOV map that has the dimensions of the map
-        fov = libtcod.map_new(game_map.width, game_map.height)
-
-        # Scan the current map each turn and set all the walls as unwalkable
-        for y1 in range(game_map.height):
-            for x1 in range(game_map.width):
-                libtcod.map_set_properties(fov, x1, y1, not game_map.tiles[x1][y1].block_sight,
-                                           not game_map.tiles[x1][y1].blocked)
-
-        # Scan all the objects to see if there are objects that must be navigated around
-        # Check also that the object isn't self or the target (so that the start and the end points are free)
-        # The AI class handles the situation if self is next to the target so it will not use this A* function anyway
+        walkable = np.array(
+            [[not game_map.tiles[x1][y1].blocked for y1 in range(game_map.height)]
+             for x1 in range(game_map.width)],
+            dtype=np.int8
+        )
         for entity in entities:
             if entity.blocks and entity != self and entity != target:
-                # Set the tile as a wall so it must be navigated around
-                libtcod.map_set_properties(fov, entity.x, entity.y, True, False)
-
-        # Allocate a A* path
-        # The 1.41 is the normal diagonal cost of moving, it can be set as 0.0 if diagonal moves are prohibited
-        my_path = libtcod.path_new_using_map(fov, 1.41)
-
-        # Compute the path between self's coordinates and the target's coordinates
-        libtcod.path_compute(my_path, self.x, self.y, target.x, target.y)
-
-        # Check if the path exists, and in this case, also the path is shorter than 25 tiles
-        # The path size matters if you want the monster to use alternative longer paths (for example through other rooms) if for example the player is in a corridor
-        # It makes sense to keep path size relatively low to keep the monsters from running around the map if there's an alternative path really far away
-        if not libtcod.path_is_empty(my_path) and libtcod.path_size(my_path) < 25:
-            # Find the next coordinates in the computed full path
-            x, y = libtcod.path_walk(my_path, True)
-            if x or y:
-                # Set self's coordinates to the next path tile
-                self.x = x
-                self.y = y
+                walkable[entity.x, entity.y] = 0
+        graph = tcod.path.SimpleGraph(cost=walkable.T.copy(), cardinal=2, diagonal=3)
+        pathfinder = tcod.path.Pathfinder(graph)
+        pathfinder.add_root((self.y, self.x))
+        path = pathfinder.path_to((target.y, target.x))[1:].tolist()
+        if path and len(path) < 25:
+            dest_y, dest_x = path[0]
+            self.x = dest_x
+            self.y = dest_y
         else:
-            # Keep the old move function as a backup so that if there are no paths (for example another monster blocks a corridor)
-            # it will still try to move towards the player (closer to the corridor opening)
-            self.move_towards(target.x, target.y, game_map, entities)
-
-            # Delete the path to free memory
-        libtcod.path_delete(my_path)</span></pre>
+            self.move_towards(target.x, target.y, game_map, entities)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-For this to work, we'll need to import `libtcod` into `entity.py`:
+For this to work, we'll need to import `numpy` and `tcod` into `entity.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-+import tcod as libtcod
++import numpy as np
++import tcod
 
 import math
 ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">import tcod as libtcod</span>
+<pre><span class="new-text">import numpy as np
+import tcod</span>
 
 import math
 ...</pre>
@@ -817,7 +770,7 @@ class BasicMonster:
 +       results = []
 
         monster = self.owner
-        if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+        if fov_map[monster.x, monster.y]:
 
             if monster.distance_to(target) >= 2:
                 monster.move_astar(target, entities, game_map)
@@ -836,7 +789,7 @@ class BasicMonster:
         <span class="new-text">results = []</span>
 
         monster = self.owner
-        if libtcod.map_is_in_fov(fov_map, monster.x, monster.y):
+        if fov_map[monster.x, monster.y]:
 
             if monster.distance_to(target) >= 2:
                 monster.move_astar(target, entities, game_map)
@@ -882,7 +835,7 @@ So what do we actually *do* with this `results` list? Lets modify
             return True
 
         if fullscreen:
-            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+            context.sdl_window.fullscreen = not context.sdl_window.fullscreen
 
 +       for player_turn_result in player_turn_results:
 +           message = player_turn_result.get('message')
@@ -943,7 +896,7 @@ So what do we actually *do* with this `results` list? Lets modify
             return True
 
         if fullscreen:
-            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+            context.sdl_window.fullscreen = not context.sdl_window.fullscreen
 
         <span class="new-text">for player_turn_result in player_turn_results:
             message = player_turn_result.get('message')
@@ -986,14 +939,12 @@ now. Create a new python file called `death_functions.py` and put the
 following two functions in it:
 
 {{< highlight py3 >}}
-import tcod as libtcod
-
 from game_states import GameStates
 
 
 def kill_player(player):
     player.char = '%'
-    player.color = libtcod.dark_red
+    player.color = (139, 0, 0)
 
     return 'You died!', GameStates.PLAYER_DEAD
 
@@ -1002,7 +953,7 @@ def kill_monster(monster):
     death_message = '{0} is dead!'.format(monster.name.capitalize())
 
     monster.char = '%'
-    monster.color = libtcod.dark_red
+    monster.color = (139, 0, 0)
     monster.blocks = False
     monster.fighter = None
     monster.ai = None
@@ -1158,31 +1109,29 @@ statement (note that the player needs to be passed to `render_all`
     now).
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--def render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
-+def render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
+-def render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
++def render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
     ...
     for entity in entities:
         draw_entity(con, entity, fov_map)
 
-+   libtcod.console_set_default_foreground(con, libtcod.white)
-+   libtcod.console_print_ex(con, 1, screen_height - 2, libtcod.BKGND_NONE, libtcod.LEFT,
-+                        'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp))
++   con.print(1, screen_height - 2, 'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp),
++             fg=(255, 255, 255))
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
+    con.blit(dest=root_console)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
-<span class="new-text">def render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
+<pre><span class="crossed-out-text">def render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
+<span class="new-text">def render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
     ...
     for entity in entities:
         draw_entity(con, entity, fov_map)
 
-    <span class="new-text">libtcod.console_set_default_foreground(con, libtcod.white)
-    libtcod.console_print_ex(con, 1, screen_height - 2, libtcod.BKGND_NONE, libtcod.LEFT,
-                         'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp))</span>
+    <span class="new-text">con.print(1, screen_height - 2, 'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp),
+              fg=(255, 255, 255))</span>
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)</pre>
+    con.blit(dest=root_console)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1190,13 +1139,13 @@ Update the call to `render_all` in
     `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
-+render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
+-render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
++render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)</span>
-<span class="new-text">render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)</span></pre>
+<pre><span class="crossed-out-text">render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)</span>
+<span class="new-text">render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1211,7 +1160,7 @@ above the Entities.
 Add the following to `render_functions.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from enum import Enum
 +
@@ -1222,12 +1171,12 @@ import tcod as libtcod
 +   ACTOR = 3
 
 
-def render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
+def render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 <span class="new-text">from enum import Enum
 
@@ -1238,7 +1187,7 @@ class RenderOrder(Enum):
     ACTOR = 3</span>
 
 
-def render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
+def render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1247,8 +1196,9 @@ Now modify the `__init__` function in `Entity` to take this into
 account.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
 import math
+import numpy as np
+import tcod
 
 +from render_functions import RenderOrder
 
@@ -1271,8 +1221,9 @@ class Entity:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
-import math
+<pre>import math
+import numpy as np
+import tcod
 
 <span class="new-text">from render_functions import RenderOrder</span>
 
@@ -1298,24 +1249,24 @@ Now modify our Entity initializations, starting with
     `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, fighter=fighter_component)
-+player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR, fighter=fighter_component)
+-player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, fighter=fighter_component)
++player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR, fighter=fighter_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, <span class="new-text">render_order=RenderOrder.ACTOR,</span> fighter=fighter_component)</pre>
+<pre>player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, <span class="new-text">render_order=RenderOrder.ACTOR,</span> fighter=fighter_component)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 ... And don't leave out the import:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--from render_functions import clear_all, render_all
-+from render_functions import clear_all, render_all, RenderOrder
+-from render_functions import render_all
++from render_functions import render_all, RenderOrder
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>from render_functions import clear_all, render_all<span class="new-text">, RenderOrder</span></pre>
+<pre>from render_functions import render_all<span class="new-text">, RenderOrder</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1326,17 +1277,17 @@ Now for the monsters, in `game_map.py`:
                     fighter_component = Fighter(hp=10, defense=0, power=3)
                     ai_component = BasicMonster()
 
--                   monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+-                   monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
 -                                    fighter=fighter_component, ai=ai_component)
-+                   monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
++                   monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
 +                                    render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
                     fighter_component = Fighter(hp=16, defense=1, power=4)
                     ai_component = BasicMonster()
 
--                   monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+-                   monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
 -                                    ai=ai_component)
-+                   monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
++                   monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
 +                                    render_order=RenderOrder.ACTOR, ai=ai_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -1345,17 +1296,17 @@ Now for the monsters, in `game_map.py`:
                     fighter_component = Fighter(hp=10, defense=0, power=3)
                     ai_component = BasicMonster()
 
-                    <span class="crossed-out-text">monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,</span>
+                    <span class="crossed-out-text">monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,</span>
                                      <span class="crossed-out-text">fighter=fighter_component, ai=ai_component)</span>
-                    <span class="new-text">monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    <span class="new-text">monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)</span>
                 else:
                     fighter_component = Fighter(hp=16, defense=1, power=4)
                     ai_component = BasicMonster()
 
-                    <span class="crossed-out-text">monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,</span>
+                    <span class="crossed-out-text">monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,</span>
                                      <span class="crossed-out-text">ai=ai_component)</span>
-                    <span class="new-text">monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    <span class="new-text">monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}

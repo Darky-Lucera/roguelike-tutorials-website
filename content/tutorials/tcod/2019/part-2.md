@@ -50,7 +50,7 @@ Let's put our fancy new class into action\! Modify the first part of
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from entity import Entity
 from input_handlers import handle_keys
@@ -63,14 +63,14 @@ def main():
 -   player_x = int(screen_width / 2)
 -   player_y = int(screen_height / 2)
 
-+   player = Entity(int(screen_width / 2), int(screen_height / 2), '@', libtcod.white)
-+   npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', libtcod.yellow)
++   player = Entity(int(screen_width / 2), int(screen_height / 2), '@', (255, 255, 255))
++   npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', (255, 255, 0))
 +   entities = [npc, player]
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 <span class="new-text">from entity import Entity</span>
 from input_handlers import handle_keys
@@ -83,16 +83,17 @@ def main():
     <span class="crossed-out-text">player_x = int(screen_width / 2)</span>
     <span class="crossed-out-text">player_y = int(screen_height / 2)</span>
 
-    <span class="new-text">player = Entity(int(screen_width / 2), int(screen_height / 2), '@', libtcod.white)
-    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', libtcod.yellow)
+    <span class="new-text">player = Entity(int(screen_width / 2), int(screen_height / 2), '@', (255, 255, 255))
+    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', (255, 255, 0))
     entities = [npc, player]</span>
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 We're importing the `Entity` class into `engine.py`, and using it to
-initialize the player and a new NPC. We store these two in a list, that
-will eventually hold all our entities on the map.
+initialize the player and a new NPC. Colors are specified as RGB tuples —
+`(255, 255, 255)` for white and `(255, 255, 0)` for yellow. We store
+these two in a list that will eventually hold all our entities on the map.
 
 Also modify the part where we handle movement so that the Entity class
 handles the actual movement.
@@ -100,58 +101,45 @@ handles the actual movement.
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-        if move:
-            dx, dy = move
--           player_x += dx
--           player_x += dy
-+           player.move(dx, dy)
+                if move:
+                    dx, dy = move
+-                   player_x += dx
+-                   player_y += dy
++                   player.move(dx, dy)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        if move:
-            dx, dy = move
-            <span class="crossed-out-text">player_x += dx</span>
-            <span class="crossed-out-text">player_x += dy</span>
-            <span class="new-text">player.move(dx, dy)</span></pre>
+<pre>                if move:
+                    dx, dy = move
+                    <span class="crossed-out-text">player_x += dx</span>
+                    <span class="crossed-out-text">player_y += dy</span>
+                    <span class="new-text">player.move(dx, dy)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-Lastly, update the drawing functions to use the new player object:
+Lastly, update the drawing function to use the new player object's
+coordinates:
 
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-    while not libtcod.console_is_window_closed():
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
-        libtcod.console_set_default_foreground(con, libtcod.white)
--       libtcod.console_put_char(con, player_x, player_y, '@', libtcod.BKGND_NONE)
-+       libtcod.console_put_char(con, player.x, player.y, '@', libtcod.BKGND_NONE)
-        libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
-        libtcod.console_flush()
-
--       libtcod.console_put_char(con, player_x, player_y, ' ', libtcod.BKGND_NONE)
-+       libtcod.console_put_char(con, player.x, player.y, ' ', libtcod.BKGND_NONE)
-
-        action = handle_keys(key)
-
+        while True:
+-           con.print(player_x, player_y, '@', fg=(255, 255, 255))
++           con.print(player.x, player.y, '@', fg=(255, 255, 255))
+            con.blit(dest=root_console)
+            context.present(root_console)
+            con.clear()
+        ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>    while not libtcod.console_is_window_closed():
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
-        libtcod.console_set_default_foreground(con, libtcod.white)
-        <span class="crossed-out-text">libtcod.console_put_char(con, player_x, player_y, '@', libtcod.BKGND_NONE)</span>
-        <span class="new-text">libtcod.console_put_char(con, player.x, player.y, '@', libtcod.BKGND_NONE)</span>
-        libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
-        libtcod.console_flush()
-
-        <span class="crossed-out-text">libtcod.console_put_char(con, player_x, player_y, ' ', libtcod.BKGND_NONE)</span>
-        <span class="new-text">libtcod.console_put_char(con, player.x, player.y, ' ', libtcod.BKGND_NONE)</span>
-
-        action = handle_keys(key)
-    </pre>
+<pre>        while True:
+            <span class="crossed-out-text">con.print(player_x, player_y, '@', fg=(255, 255, 255))</span>
+            <span class="new-text">con.print(player.x, player.y, '@', fg=(255, 255, 255))</span>
+            con.blit(dest=root_console)
+            context.present(root_console)
+            con.clear()
+        ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -161,54 +149,38 @@ some functions to draw not only the player, but any entity currently in
 our entities list.
 
 Create a new file called `render_functions.py`. This will hold our
-functions for drawing and clearing from the screen. Put the following
-code in that file.
+functions for drawing to the screen. Put the following code in that file.
 
 {{< highlight py3 >}}
-import tcod as libtcod
+import tcod
 
 
-def render_all(con, entities, screen_width, screen_height):
+def render_all(con, root_console, entities, screen_width, screen_height):
     # Draw all entities in the list
     for entity in entities:
         draw_entity(con, entity)
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
-
-
-def clear_all(con, entities):
-    for entity in entities:
-        clear_entity(con, entity)
+    con.blit(dest=root_console)
 
 
 def draw_entity(con, entity):
-    libtcod.console_set_default_foreground(con, entity.color)
-    libtcod.console_put_char(con, entity.x, entity.y, entity.char, libtcod.BKGND_NONE)
-
-
-def clear_entity(con, entity):
-    # erase the character that represents this object
-    libtcod.console_put_char(con, entity.x, entity.y, ' ', libtcod.BKGND_NONE)
+    con.print(entity.x, entity.y, entity.char, fg=entity.color)
 {{</ highlight >}}
 
 Here's a quick breakdown of what these functions do:
 
   - The `render_all` function is what we'll call from our game loop to
     draw entities and, shortly, the map. For now, it takes the console
-    (con), a list of entities, and the screen width/height as
-    parameters, and calls the `draw_entity` function on each. It then
-    blits the changes to the screen.
-  - `draw_entity` is what does the actual drawing. The code should look
-    very similar to what's in our game loop right now, except it's using
-    the entity's variables (x, y, char, and color) to do the drawing.
-    This makes it flexible enough to, theoretically, draw any entity we
-    pass to it.
-  - `clear_all` is what we'll use to clear all the entities after
-    drawing them to the screen. It's just a loop that calls another
-    function.
-  - `clear_entity` just does what our previous line did, and clears the
-    entity from the screen (so that when it moves, it doesn't leave a
-    trail behind).
+    (`con`), the root console, a list of entities, and the screen
+    width/height as parameters. It calls `draw_entity` on each, then
+    blits the offscreen console to the root.
+  - `draw_entity` is what does the actual drawing. It calls `con.print()`
+    with the entity's position, character, and color. This makes it
+    flexible enough to draw any entity we pass to it.
+
+Note that we no longer need a separate `clear_entity` or `clear_all`
+function — calling `con.clear()` in the game loop (which we already do)
+erases the entire console each frame, which is simpler and more thorough.
 
 Now that we've gotten a few functions to assist drawing the entities,
 let's put them to use. Make the following modifications to the section
@@ -217,61 +189,45 @@ where we drew the player (in `engine.py`).
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
+        while True:
+-           con.print(player.x, player.y, '@', fg=(255, 255, 255))
+-           con.blit(dest=root_console)
++           render_all(con, root_console, entities, screen_width, screen_height)
+            context.present(root_console)
+            con.clear()
         ...
-    libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
--   libtcod.console_set_default_foreground(con, libtcod.white)
--   libtcod.console_put_char(con, player.x, player.y, '@', libtcod.BKGND_NONE)
--   libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
-+   render_all(con, entities, screen_width, screen_height)
-
-    libtcod.console_flush()
-
--   libtcod.console_put_char(con, player.x, player.y, ' ', libtcod.BKGND_NONE)
-+   clear_all(con, entities)
-
-    action = handle_keys(key)
-    ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        ...
-    libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
-    <span class="crossed-out-text">libtcod.console_set_default_foreground(con, libtcod.white)</span>
-    <span class="crossed-out-text">libtcod.console_put_char(con, player.x, player.y, '@', libtcod.BKGND_NONE)</span>
-    <span class="crossed-out-text">libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)</span>
-    <span class="new-text">render_all(con, entities, screen_width, screen_height)</span>
-
-    libtcod.console_flush()
-
-    <span class="crossed-out-text">libtcod.console_put_char(con, player.x, player.y, ' ', libtcod.BKGND_NONE)</span>
-    <span class="new-text">clear_all(con, entities)</span>
-
-    action = handle_keys(key)
-    ...</pre>
+<pre>        while True:
+            <span class="crossed-out-text">con.print(player.x, player.y, '@', fg=(255, 255, 255))</span>
+            <span class="crossed-out-text">con.blit(dest=root_console)</span>
+            <span class="new-text">render_all(con, root_console, entities, screen_width, screen_height)</span>
+            context.present(root_console)
+            con.clear()
+        ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-Don't forget to import `render_all` and `clear_all` at the top of your
-file. Your imports section should now look something like this:
+Don't forget to import `render_all` at the top of your file. Your
+imports section should now look something like this:
 
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 from entity import Entity
 from input_handlers import handle_keys
-+from render_functions import clear_all, render_all
++from render_functions import render_all
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 from entity import Entity
 from input_handlers import handle_keys
-<span class="new-text">from render_functions import clear_all, render_all</span></pre>
+<span class="new-text">from render_functions import render_all</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -372,7 +328,7 @@ initialization, and two, because I prefer keeping `__init__` functions
 as simple as possible.
 
 Go back to `engine.py`, where we'll make a few changes so that our map
-get initialized and then drawn to the screen.
+gets initialized and then drawn to the screen.
 
 Firstly, we need to define what colors to draw for blocked and
 non-blocked tiles. Let's set up a dictionary that holds the colors we'll
@@ -385,11 +341,11 @@ be using for now (it will expand as this tutorial goes on).
     map_height = 45
 
 +   colors = {
-+       'dark_wall': libtcod.Color(0, 0, 100),
-+       'dark_ground': libtcod.Color(50, 50, 150)
++       'dark_wall': (0, 0, 100),
++       'dark_ground': (50, 50, 150)
 +   }
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), '@', libtcod.white)
+    player = Entity(int(screen_width / 2), int(screen_height / 2), '@', (255, 255, 255))
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -397,36 +353,40 @@ be using for now (it will expand as this tutorial goes on).
     map_height = 45
 
     <span class="new-text">colors = {
-        'dark_wall': libtcod.Color(0, 0, 100),
-        'dark_ground': libtcod.Color(50, 50, 150)
+        'dark_wall': (0, 0, 100),
+        'dark_ground': (50, 50, 150)
     }</span>
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), '@', libtcod.white)</pre>
+    player = Entity(int(screen_width / 2), int(screen_height / 2), '@', (255, 255, 255))</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 These colors will serve as our wall and ground outside the FOV, when we
-get there (hence the 'dark' in the names).
+get there (hence the 'dark' in the names). Colors are specified as
+`(red, green, blue)` tuples, with each value between 0 and 255.
 
 Now let's initialize the game map itself. This can go anywhere before
-the main loop; I put mine right below the console initialization.
+the main loop; I put mine inside the `with` block, right below the
+console initialization.
 
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-    con = libtcod.console_new(screen_width, screen_height)
+        root_console = tcod.console.Console(screen_width, screen_height, order='F')
+        con = tcod.console.Console(screen_width, screen_height, order='F')
 
-+   game_map = GameMap(map_width, map_height)
++       game_map = GameMap(map_width, map_height)
 
-    key = libtcod.Key()
+        while True:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>    con = libtcod.console_new(screen_width, screen_height)
+<pre>        root_console = tcod.console.Console(screen_width, screen_height, order='F')
+        con = tcod.console.Console(screen_width, screen_height, order='F')
 
-    <span class="new-text">game_map = GameMap(map_width, map_height)</span>
+        <span class="new-text">game_map = GameMap(map_width, map_height)</span>
 
-    key = libtcod.Key()</pre>
+        while True:</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -439,34 +399,32 @@ in the engine.
 from entity import Entity
 from input_handlers import handle_keys
 +from map_objects.game_map import GameMap
-from render_functions import clear_all, render_all
+from render_functions import render_all
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>from entity import Entity
 from input_handlers import handle_keys
 <span class="new-text">from map_objects.game_map import GameMap</span>
-from render_functions import clear_all, render_all</pre>
+from render_functions import render_all</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 Now that our map object is ready to go, let's pass it to `render_all` so
 that we can draw it. We'll also pass the `colors` dictionary, because
 `render_all` will need to know what colors to draw the various parts of
-the map. Note that the order in which you pass these arguments doesn't
-matter, it just has to match in the function definition and when you
-call it.
+the map.
 
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
--       render_all(con, entities, screen_width, screen_height)
-+       render_all(con, entities, game_map, screen_width, screen_height, colors)
+-       render_all(con, root_console, entities, screen_width, screen_height)
++       render_all(con, root_console, entities, game_map, screen_width, screen_height, colors)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        <span class="crossed-out-text">render_all(con, entities, screen_width, screen_height)</span>
-        <span class="new-text">render_all(con, entities, game_map, screen_width, screen_height, colors)</span></pre>
+<pre>        <span class="crossed-out-text">render_all(con, root_console, entities, screen_width, screen_height)</span>
+        <span class="new-text">render_all(con, root_console, entities, game_map, screen_width, screen_height, colors)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -475,49 +433,50 @@ Open up `render_functions.py` and modify `render_all` like this:
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
--def render_all(con, entities, screen_width, screen_height):
-+def render_all(con, entities, game_map, screen_width, screen_height, colors):
+-def render_all(con, root_console, entities, screen_width, screen_height):
++def render_all(con, root_console, entities, game_map, screen_width, screen_height, colors):
 +   # Draw all the tiles in the game map
 +   for y in range(game_map.height):
 +       for x in range(game_map.width):
 +           wall = game_map.tiles[x][y].block_sight
 +
 +           if wall:
-+               libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
++               con.bg[x, y] = colors.get('dark_wall')
 +           else:
-+               libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)
++               con.bg[x, y] = colors.get('dark_ground')
 +
     # Draw all entities in the list
     for entity in entities:
         draw_entity(con, entity)
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
+    con.blit(dest=root_console)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def render_all(con, entities, screen_width, screen_height):</span>
-<span class="new-text">def render_all(con, entities, game_map, screen_width, screen_height, colors):
+<pre><span class="crossed-out-text">def render_all(con, root_console, entities, screen_width, screen_height):</span>
+<span class="new-text">def render_all(con, root_console, entities, game_map, screen_width, screen_height, colors):
     # Draw all the tiles in the game map
     for y in range(game_map.height):
         for x in range(game_map.width):
             wall = game_map.tiles[x][y].block_sight
 
             if wall:
-                libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
+                con.bg[x, y] = colors.get('dark_wall')
             else:
-                libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)
-    </span>
+                con.bg[x, y] = colors.get('dark_ground')
+</span>
     # Draw all entities in the list
     for entity in entities:
         draw_entity(con, entity)
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)</pre>
+    con.blit(dest=root_console)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-`render_all` now loops through each tile in the game map, and checks if
-it blocks sight or not. If it does, then it draws it as a wall, and if
-not, it draws a floor.
+`render_all` now loops through each tile in the game map and checks if
+it blocks sight or not. If it does, it draws a wall background; if not,
+a floor background. `con.bg[x, y]` directly sets the background color of
+tile (x, y) on the console.
 
 Run the project now, and you should see the 'map' drawn with some color
 to it. You'll see our three block wall as well, but there's one problem:
@@ -529,21 +488,21 @@ part where the player's move function gets called to look like this:
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-        if move:
-            dx, dy = move
+                if move:
+                    dx, dy = move
 
-+           if not game_map.is_blocked(player.x + dx, player.y + dy):
-+               player.move(dx, dy)
--           player.move(dx, dy)
++                   if not game_map.is_blocked(player.x + dx, player.y + dy):
++                       player.move(dx, dy)
+-                   player.move(dx, dy)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        if move:
-            dx, dy = move
+<pre>                if move:
+                    dx, dy = move
 <span class="new-text">
-            if not game_map.is_blocked(player.x + dx, player.y + dy):
-                player.move(dx, dy)</span>
-            <span class="crossed-out-text">player.move(dx, dy)</span></pre>
+                    if not game_map.is_blocked(player.x + dx, player.y + dy):
+                        player.move(dx, dy)</span>
+                    <span class="crossed-out-text">player.move(dx, dy)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 

@@ -93,13 +93,13 @@ from render_functions import RenderOrder
                     fighter_component = Fighter(hp=10, defense=0, power=3, xp=35)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
                     fighter_component = Fighter(hp=16, defense=1, power=4, xp=100)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    monster = Entity(x, y, 'T', (0, 128, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)
 
                 entities.append(monster)
@@ -115,24 +115,24 @@ from render_functions import RenderOrder
 -               if item_chance < 70:
 +               if item_choice == 'healing_potion':
                     item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
 -               elif item_chance < 80:
 +               elif item_choice == 'fireball_scroll':
                     item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-                        'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+                        'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
                                           damage=12, radius=3)
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
 -               elif item_chance < 90:
 +               elif item_choice == 'confusion_scroll':
                     item_component = Item(use_function=cast_confuse, targeting=True, targeting_message=Message(
-                        'Left-click an enemy to confuse it, or right-click to cancel.', libtcod.light_cyan))
-                    item = Entity(x, y, '#', libtcod.light_pink, 'Confusion Scroll', render_order=RenderOrder.ITEM,
+                        'Left-click an enemy to confuse it, or right-click to cancel.', (63, 255, 255)))
+                    item = Entity(x, y, '#', (255, 114, 114), 'Confusion Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 else:
                     item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
 
                 entities.append(item)
@@ -158,13 +158,13 @@ from render_functions import RenderOrder
                     fighter_component = Fighter(hp=10, defense=0, power=3, xp=35)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
                     fighter_component = Fighter(hp=16, defense=1, power=4, xp=100)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    monster = Entity(x, y, 'T', (0, 128, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)
 
                 entities.append(monster)
@@ -180,24 +180,24 @@ from render_functions import RenderOrder
                 <span class="crossed-out-text">if item_chance < 70:</span>
                 <span class="new-text">if item_choice == 'healing_potion':</span>
                     item_component = Item(use_function=heal, amount=4)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 <span class="crossed-out-text">elif item_chance < 80:</span>
                 <span class="new-text">elif item_choice == 'fireball_scroll':</span>
                     item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-                        'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+                        'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
                                           damage=12, radius=3)
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 <span class="crossed-out-text">elif item_chance < 90:</span>
                 <span class="new-text">elif item_choice == 'confusion_scroll':</span>
                     item_component = Item(use_function=cast_confuse, targeting=True, targeting_message=Message(
-                        'Left-click an enemy to confuse it, or right-click to cancel.', libtcod.light_cyan))
-                    item = Entity(x, y, '#', libtcod.light_pink, 'Confusion Scroll', render_order=RenderOrder.ITEM,
+                        'Left-click an enemy to confuse it, or right-click to cancel.', (63, 255, 255)))
+                    item = Entity(x, y, '#', (255, 114, 114), 'Confusion Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 else:
                     item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
 
                 entities.append(item)</pre>
@@ -442,14 +442,14 @@ def get_game_variables(constants):
 +                   fighter_component = Fighter(hp=20, defense=0, power=4, xp=35)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
 -                   fighter_component = Fighter(hp=16, defense=1, power=4, xp=100)
 +                   fighter_component = Fighter(hp=30, defense=2, power=8, xp=100)
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    monster = Entity(x, y, 'T', (0, 128, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)
                 ...
 {{</ highlight >}}
@@ -461,14 +461,14 @@ def get_game_variables(constants):
                     <span class="new-text">fighter_component = Fighter(hp=20, defense=0, power=4, xp=35)</span>
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True,
+                    monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True,
                                      render_order=RenderOrder.ACTOR, fighter=fighter_component, ai=ai_component)
                 else:
                     <span class="crossed-out-text">fighter_component = Fighter(hp=16, defense=1, power=4, xp=100)</span>
                     <span class="new-text">fighter_component = Fighter(hp=30, defense=2, power=8, xp=100)</span>
                     ai_component = BasicMonster()
 
-                    monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True, fighter=fighter_component,
+                    monster = Entity(x, y, 'T', (0, 128, 0), 'Troll', blocks=True, fighter=fighter_component,
                                      render_order=RenderOrder.ACTOR, ai=ai_component)
                 ...</pre>
 {{</ original-tab >}}
@@ -482,26 +482,26 @@ def get_game_variables(constants):
                 if item_choice == 'healing_potion':
 -                   item_component = Item(use_function=heal, amount=4)
 +                   item_component = Item(use_function=heal, amount=40)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 elif item_choice == 'fireball_scroll':
 -                   item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
--                       'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+-                       'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
 -                                         damage=12, radius=3)
 +                   item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-+                       'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
++                       'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
 +                                         damage=25, radius=3)
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 elif item_choice == 'confusion_scroll':
                     item_component = Item(use_function=cast_confuse, targeting=True, targeting_message=Message(
-                        'Left-click an enemy to confuse it, or right-click to cancel.', libtcod.light_cyan))
-                    item = Entity(x, y, '#', libtcod.light_pink, 'Confusion Scroll', render_order=RenderOrder.ITEM,
+                        'Left-click an enemy to confuse it, or right-click to cancel.', (63, 255, 255)))
+                    item = Entity(x, y, '#', (255, 114, 114), 'Confusion Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 else:
 -                   item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)
 +                   item_component = Item(use_function=cast_lightning, damage=40, maximum_range=5)
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 ...
 {{</ highlight >}}
@@ -514,26 +514,26 @@ def get_game_variables(constants):
                 if item_choice == 'healing_potion':
                     <span class="crossed-out-text">item_component = Item(use_function=heal, amount=4)</span>
                     <span class="new-text">item_component = Item(use_function=heal, amount=40)</span>
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 elif item_choice == 'fireball_scroll':
                     <span class="crossed-out-text">item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(</span>
-                        <span class="crossed-out-text">'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),</span>
+                        <span class="crossed-out-text">'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),</span>
                                           <span class="crossed-out-text">damage=12, radius=3)</span>
                     <span class="new-text">item_component = Item(use_function=cast_fireball, targeting=True, targeting_message=Message(
-                        'Left-click a target tile for the fireball, or right-click to cancel.', libtcod.light_cyan),
+                        'Left-click a target tile for the fireball, or right-click to cancel.', (63, 255, 255)),
                                           damage=25, radius=3)</span>
-                    item = Entity(x, y, '#', libtcod.red, 'Fireball Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 0, 0), 'Fireball Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 elif item_choice == 'confusion_scroll':
                     item_component = Item(use_function=cast_confuse, targeting=True, targeting_message=Message(
-                        'Left-click an enemy to confuse it, or right-click to cancel.', libtcod.light_cyan))
-                    item = Entity(x, y, '#', libtcod.light_pink, 'Confusion Scroll', render_order=RenderOrder.ITEM,
+                        'Left-click an enemy to confuse it, or right-click to cancel.', (63, 255, 255)))
+                    item = Entity(x, y, '#', (255, 114, 114), 'Confusion Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 else:
                     <span class="crossed-out-text">item_component = Item(use_function=cast_lightning, damage=20, maximum_range=5)</span>
                     <span class="new-text">item_component = Item(use_function=cast_lightning, damage=40, maximum_range=5)</span>
-                    item = Entity(x, y, '#', libtcod.yellow, 'Lightning Scroll', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '#', (255, 255, 0), 'Lightning Scroll', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 ...</pre>
 {{</ original-tab >}}

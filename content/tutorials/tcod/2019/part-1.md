@@ -26,7 +26,7 @@ Assuming that you've done all that, let's get started. Modify (or
 create, if you haven't already) the file `engine.py` to look like this:
 
 {{< highlight py3 >}}
-import tcod as libtcod
+import tcod
 
 
 def main():
@@ -60,7 +60,7 @@ Overflow](https://stackoverflow.com/a/419185) gives a pretty good
 overview.
 
 Confirm that the above program runs (if not, there's probably an issue
-with your libtcod setup). Once that's done, we can move on to bigger and
+with your tcod setup). Once that's done, we can move on to bigger and
 better things. The first major step to creating any roguelike is getting
 an '@' character on the screen and moving, so let's get started with
 that.
@@ -68,26 +68,37 @@ that.
 Modify `engine.py` to look like this:
 
 {{< highlight py3 >}}
-import tcod as libtcod
+import tcod
 
 
 def main():
     screen_width = 80
     screen_height = 50
 
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet(
+        'arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD
+    )
 
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
+        tileset=tileset,
+        title='libtcod tutorial revised',
+        vsync=True,
+    ) as context:
+        root_console = tcod.console.Console(screen_width, screen_height, order='F')
 
-    while not libtcod.console_is_window_closed():
-        libtcod.console_set_default_foreground(0, libtcod.white)
-        libtcod.console_put_char(0, 1, 1, '@', libtcod.BKGND_NONE)
-        libtcod.console_flush()
+        while True:
+            root_console.print(1, 1, '@', fg=(255, 255, 255))
+            context.present(root_console)
+            root_console.clear()
 
-        key = libtcod.console_check_for_keypress()
-
-        if key.vk == libtcod.KEY_ESCAPE:
-            return True
+            for event in tcod.event.wait():
+                if isinstance(event, tcod.event.Quit):
+                    raise SystemExit()
+                if isinstance(event, tcod.event.KeyDown):
+                    if event.sym == tcod.event.KeySym.ESCAPE:
+                        raise SystemExit()
 
 
 if __name__ == '__main__':
@@ -96,7 +107,7 @@ if __name__ == '__main__':
 
 Run `engine.py` again, and you should see an '@' symbol on the screen.
 Once you've fully soaked in the glory on the screen in front of you, you
-can hit the \`Esc\` key to exit the program.
+can hit the `Esc` key to exit the program.
 
 There's a lot going on here, so let's break it down line by line.
 
@@ -112,71 +123,80 @@ have some more variables like
 this.
 
 {{< highlight py3 >}}
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet(
+        'arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD
+    )
 {{</ highlight >}}
 
-Here, we're telling libtcod which font to use. The `'arial10x10.png'`
+Here, we're telling tcod which font to use. The `'arial10x10.png'`
 bit is the actual file we're reading from (this should exist in your
-project folder). The other two parts are telling libtcod which type of
-file we're
-reading.
+project folder). The numbers `32, 8` specify the layout of the tile
+sheet (32 columns, 8 rows of characters), and `tcod.tileset.CHARMAP_TCOD`
+tells tcod which character mapping to use.
 
 {{< highlight py3 >}}
-    libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, 'libtcod tutorial revised', False)
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
+        tileset=tileset,
+        title='libtcod tutorial revised',
+        vsync=True,
+    ) as context:
 {{</ highlight >}}
 
-This line is what actually creates the screen. We're giving it the
-`screen_width` and `screen_height` values from before (80 and 50,
-respectively), along with a title (change this if you've already got
-your game's name figured out), and a boolean value that tells libtcod
-whether to go full screen or not.
+This is what actually creates the window. We use a `with` statement so
+that the window is automatically cleaned up when our program exits. We
+pass it the `screen_width` and `screen_height` values from before (80 and
+50, respectively), the tileset we just loaded, a title for the window,
+and `vsync=True` to enable vertical sync (smooth rendering).
 
 {{< highlight py3 >}}
-    while not libtcod.console_is_window_closed():
+        while True:
 {{</ highlight >}}
 
 This is what's called our 'game loop'. Basically, this is a loop that
-won't ever end, until we close the screen. Every game has some sort of
+won't ever end until we explicitly exit. Every game has some sort of
 game loop or another.
 
 {{< highlight py3 >}}
-        libtcod.console_set_default_foreground(0, libtcod.white)
+            root_console.print(1, 1, '@', fg=(255, 255, 255))
 {{</ highlight >}}
 
-This line tells libtcod to set the color for our '@' symbol. If you want
-your character to be a different color, change `libtcod.white` to
-something like `libtcod.red` and see what happens. The '0' in this
-function is the console we're drawing to. We'll go over that more later.
+This prints our '@' character to the console at position (1, 1). The
+`fg=(255, 255, 255)` sets the foreground color to white (as an RGB
+tuple). If you want your character to be a different color, try changing
+those numbers (they represent red, green, and blue values from 0 to 255).
 
 {{< highlight py3 >}}
-        libtcod.console_put_char(0, 1, 1, '@', libtcod.BKGND_NONE)
+            context.present(root_console)
 {{</ highlight >}}
 
-The first argument is '0' (again, the console we're printing to). The
-next two are x and y coordinates, in this case, 1 and 1 (try changing
-that and see what happens). Next, we're printing the '@' symbol, and
-setting the background to 'none' with `libtcod.BKGND_NONE`.
+This is the part that presents everything on the screen. The
+`root_console` is passed to `context.present()`, which draws it to the
+window. Pretty straightforward.
 
 {{< highlight py3 >}}
-        libtcod.console_flush()
+            root_console.clear()
 {{</ highlight >}}
 
-This is the part that presents everything on the screen. Pretty
-straightforward.
+After presenting, we clear the console so it's ready for the next frame.
+This erases everything we've drawn, so the next loop iteration starts
+with a blank slate.
 
 {{< highlight py3 >}}
-        key = libtcod.console_check_for_keypress()
-
-        if key.vk == libtcod.KEY_ESCAPE:
-            return True
+            for event in tcod.event.wait():
+                if isinstance(event, tcod.event.Quit):
+                    raise SystemExit()
+                if isinstance(event, tcod.event.KeyDown):
+                    if event.sym == tcod.event.KeySym.ESCAPE:
+                        raise SystemExit()
 {{</ highlight >}}
 
-This part gives us a way to gracefully exit (i.e. not crashing) the
-program by hitting the `Esc` key. The
-`libtcod.console_check_for_keypress()` function gets any keyboard input
-to the program, which we store in the `key` variable. From there, we
-check if the key pressed was the `Esc` key or not. If it was, then we
-exit the loop, thus ending the program.
+`tcod.event.wait()` pauses the program and returns events one at a time
+as the user interacts with the window. We check if the event is a
+`Quit` event (the user closed the window) or a `KeyDown` event (the user
+pressed a key). If the user presses `Esc`, we raise `SystemExit()` to
+close the program gracefully.
 
 So we've got our '@' symbol drawn, now let's get it moving around\!
 
@@ -192,7 +212,7 @@ create two variables, `player_x` and `player_y` to keep track of this.
 +   player_x = int(screen_width / 2)
 +   player_y = int(screen_height / 2)
 +
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet(
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -203,7 +223,7 @@ create two variables, `player_x` and `player_y` to keep track of this.
     player_x = int(screen_width / 2)
     player_y = int(screen_height / 2)
     </span>
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet(
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -216,32 +236,26 @@ The green lines denote code that you should be adding.*
 We're placing the player right in the middle of the screen. What's with
 the `int()` function though? Well, Python 3 doesn't automatically
 truncate division like Python 2 does, so we have to cast the division
-result (a float) to an integer. If we don't, libtcod will give an error.
+result (a float) to an integer. If we don't, tcod will give an error.
 
-We also have to modify the command to put the '@' symbol to use these
+We also have to modify the command to print the '@' symbol to use these
 new coordinates.
 
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
         ...
-        libtcod.console_set_default_foreground(0, libtcod.white)
--       libtcod.console_put_char(0, 1, 1, '@', libtcod.BKGND_NONE)
-+       libtcod.console_put_char(0, player_x, player_y, '@', libtcod.BKGND_NONE)
-        libtcod.console_flush()
-
-+       libtcod.console_put_char(0, player_x, player_y, ' ', libtcod.BKGND_NONE)
+-       root_console.print(1, 1, '@', fg=(255, 255, 255))
++       root_console.print(player_x, player_y, '@', fg=(255, 255, 255))
+        context.present(root_console)
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
-        libtcod.console_set_default_foreground(0, libtcod.white)
-        <span class="crossed-out-text">libtcod.console_put_char(0, 1, 1, '@', libtcod.BKGND_NONE)</span>
-        <span class="new-text">libtcod.console_put_char(0, player_x, player_y, '@', libtcod.BKGND_NONE)</span>
-        libtcod.console_flush()
-
-        <span class="new-text">libtcod.console_put_char(0, player_x, player_y, ' ', libtcod.BKGND_NONE)</span>
+        <span class="crossed-out-text">root_console.print(1, 1, '@', fg=(255, 255, 255))</span>
+        <span class="new-text">root_console.print(player_x, player_y, '@', fg=(255, 255, 255))</span>
+        context.present(root_console)
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -251,66 +265,9 @@ new coordinates.
 Run the code now and you should see the '@' in the center of the screen.
 Let's take care of moving it around now.
 
-Put the following two lines right above the main game loop.
-
-{{< codetab >}}
-{{< diff-tab >}}
-{{< highlight diff >}}
-    ...
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
-
-+   key = libtcod.Key()
-+   mouse = libtcod.Mouse()
-
-    while not libtcod.console_is_window_closed():
-    ...
-{{</ highlight >}}
-{{</ diff-tab >}}
-{{< original-tab >}}
-<pre>    ...
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
-
-    <span class="new-text">key = libtcod.Key()
-    mouse = libtcod.Mouse()</span>
-
-    while not libtcod.console_is_window_closed():
-    ...</pre>
-{{</ original-tab >}}
-{{</ codetab >}}
-
-As the names imply, these variables will hold our keyboard and mouse
-input. We aren't implementing the mouse yet, but the function we're
-about to add take it into account, so we might as well add it.
-
-{{< codetab >}}
-{{< diff-tab >}}
-{{< highlight diff >}}
-    ...
-    while not libtcod.console_is_window_closed():
-+       libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
-        libtcod.console_set_default_foreground(0, libtcod.white)
-    ...
-{{</ highlight >}}
-{{</ diff-tab >}}
-{{< original-tab >}}
-<pre>    ...
-    while not libtcod.console_is_window_closed():
-        <span class="new-text">libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)</span>
-
-        libtcod.console_set_default_foreground(0, libtcod.white)
-    ...</pre>
-{{</ original-tab >}}
-{{</ codetab >}}
-
-This is the function that actually captures new "events" (user input).
-It will update the `key` and `mouse` variables with what the user
-inputs. Again, we're only concerned with `key` for right now.
-
-Okay, so we're updating the `key` variable with the user's input. But
-what do we actually *do* with it? Let's define a function to handle the
-user's input. It will essentially translate the user's key presses into
-game actions.
+Okay, so we're rendering the '@' but it just sits there. We need to
+define a function to handle the user's input. It will essentially
+translate the user's key presses into game actions.
 
 Up until now, this tutorial hasn't deviated all that much from the
 original one, but here's a critical turning point. We're about to define
@@ -325,27 +282,30 @@ create a new file, called `input_handlers.py`. Put the following code
 inside that new file.
 
 {{< highlight py3 >}}
-import tcod as libtcod
+import tcod
 
 
-def handle_keys(key):
-    # Movement keys
-    if key.vk == libtcod.KEY_UP:
-        return {'move': (0, -1)}
-    elif key.vk == libtcod.KEY_DOWN:
-        return {'move': (0, 1)}
-    elif key.vk == libtcod.KEY_LEFT:
-        return {'move': (-1, 0)}
-    elif key.vk == libtcod.KEY_RIGHT:
-        return {'move': (1, 0)}
+def handle_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
-        # Alt+Enter: toggle full screen
-        return {'fullscreen': True}
+        # Movement keys
+        if key == tcod.event.KeySym.UP:
+            return {'move': (0, -1)}
+        elif key == tcod.event.KeySym.DOWN:
+            return {'move': (0, 1)}
+        elif key == tcod.event.KeySym.LEFT:
+            return {'move': (-1, 0)}
+        elif key == tcod.event.KeySym.RIGHT:
+            return {'move': (1, 0)}
 
-    elif key.vk == libtcod.KEY_ESCAPE:
-        # Exit the game
-        return {'exit': True}
+        if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
+            # Alt+Enter: toggle full screen
+            return {'fullscreen': True}
+
+        elif key == tcod.event.KeySym.ESCAPE:
+            # Exit the game
+            return {'exit': True}
 
     # No key was pressed
     return {}
@@ -355,23 +315,32 @@ That's a lot to take in all at once, so again, let's break it down a
 bit.
 
 {{< highlight py3 >}}
-def handle_keys(key):
+def handle_keys(event):
 {{</ highlight >}}
 
 We're defining a function called `handle_keys`, which takes one
-argument, `key`. `key` in this case will be the key variable we captured
-earlier.
+argument, `event`. `event` in this case will be a tcod event object from
+the event loop.
 
 {{< highlight py3 >}}
-    if key.vk == libtcod.KEY_UP:
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
+{{</ highlight >}}
+
+First we check if the event is actually a key press (`tcod.event.KeyDown`).
+If it is, we grab the key symbol from `event.sym` and store it in `key`
+for convenience.
+
+{{< highlight py3 >}}
+        if key == tcod.event.KeySym.UP:
 {{</ highlight >}}
 
 This if statement (along with the other elifs) just tell us which key
 was pressed. Right now, it's one of the arrow keys for movement. What's
-more interesting is the code inside these if statements
+more interesting is the code inside these if statements.
 
 {{< highlight py3 >}}
-    return {'move': (0, -1)}
+        return {'move': (0, -1)}
 {{</ highlight >}}
 
 So what's going on here? Well, when we return from this function, the
@@ -388,17 +357,19 @@ what direction to move the player. So for example, the 'up' key will
 move us '0' on the x axis, and '-1' on the y axis.
 
 {{< highlight py3 >}}
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
-        # Alt+Enter: toggle full screen
-        return {'fullscreen': True}
-    elif key.vk == libtcod.KEY_ESCAPE:
-        # Exit the game
-        return {'exit': True}
+        if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
+            # Alt+Enter: toggle full screen
+            return {'fullscreen': True}
+        elif key == tcod.event.KeySym.ESCAPE:
+            # Exit the game
+            return {'exit': True}
 {{</ highlight >}}
 
 These are our non-movement actions that we're allowing for now. If the
 user pressed ALT+Enter, the game will go full screen. If the user
-presses 'Esc', the game will exit.
+presses 'Esc', the game will exit. Note that `event.mod &
+tcod.event.Modifier.LALT` checks whether the left Alt key is held down
+at the same time as the Enter key.
 
 {{< highlight py3 >}}
     return {}
@@ -414,59 +385,62 @@ function.
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-        ...
-        libtcod.console_flush()
-
--       key = libtcod.console_check_for_keypress()
-+       action = handle_keys(key)
+            ...
+            for event in tcod.event.wait():
+                if isinstance(event, tcod.event.Quit):
+                    raise SystemExit()
+-               if isinstance(event, tcod.event.KeyDown):
+-                   if event.sym == tcod.event.KeySym.ESCAPE:
+-                       raise SystemExit()
++               action = handle_keys(event)
 +
-+       move = action.get('move')
-+       exit = action.get('exit')
-+       fullscreen = action.get('fullscreen')
-
-+       if move:
-+           dx, dy = move
-+           player_x += dx
-+           player_y += dy
-
--       if key.vk == libtcod.KEY_ESCAPE:
-+       if exit:
-+           return True
++               move = action.get('move')
++               exit = action.get('exit')
++               fullscreen = action.get('fullscreen')
 +
-+       if fullscreen:
-+           libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
-        ...
++               if move:
++                   dx, dy = move
++                   player_x += dx
++                   player_y += dy
++
++               if exit:
++                   raise SystemExit()
++
++               if fullscreen:
++                   context.sdl_window.fullscreen = not context.sdl_window.fullscreen
+            ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        ...
-        libtcod.console_flush()
+<pre>            ...
+            for event in tcod.event.wait():
+                if isinstance(event, tcod.event.Quit):
+                    raise SystemExit()
+                <span class="crossed-out-text">if isinstance(event, tcod.event.KeyDown):
+                    if event.sym == tcod.event.KeySym.ESCAPE:
+                        raise SystemExit()</span>
+                <span class="new-text">action = handle_keys(event)
 
-        <span class="crossed-out-text">key = libtcod.console_check_for_keypress()</span>
-        <span class="new-text">action = handle_keys(key)
+                move = action.get('move')
+                exit = action.get('exit')
+                fullscreen = action.get('fullscreen')
 
-        move = action.get('move')
-        exit = action.get('exit')
-        fullscreen = action.get('fullscreen')</span>
+                if move:
+                    dx, dy = move
+                    player_x += dx
+                    player_y += dy
 
-        <span class="new-text">if move:
-            dx, dy = move
-            player_x += dx
-            player_y += dy</span>
+                if exit:
+                    raise SystemExit()
 
-        <span class="crossed-out-text">if key.vk == libtcod.KEY_ESCAPE:</span>
-        <span class="new-text">if exit:
-            return True
-
-        if fullscreen:
-            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())</span>
-        ...</pre>
+                if fullscreen:
+                    context.sdl_window.fullscreen = not context.sdl_window.fullscreen</span>
+            ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 Note: I'll denote lines to delete in red. So in this case, remove the
-`key = libtcod.console_check_for_keypress()` and `if key.vk ==
-libtcod.KEY_ESCAPE` lines.
+inline key-check block and replace it with the calls to `handle_keys`.
 
 Also be sure to import the `handle_keys` function at the top of
 `engine.py`.
@@ -474,13 +448,13 @@ Also be sure to import the `handle_keys` function at the top of
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from input_handlers import handle_keys
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-    <pre>import tcod as libtcod
+    <pre>import tcod
 
 <span class="new-text">from input_handlers import handle_keys</span></pre>
 {{</ original-tab >}}
@@ -497,66 +471,48 @@ Try running the engine.py file now. You should be able to move around.
 Exciting!
 
 One last thing before we move on. Take a look at our drawing functions.
-Notice how the first argument is '0'? In truth, that represents the
-current 'console' we are drawing to, 0 is the default. Rather than just
-drawing to the default we'll want to specify which console to draw to,
-after initiating a new one. The reasoning is that it will make it easier
-to make new consoles and draw to them in the future. This will be
-especially useful when we get to the GUI portion of this series.
+Notice how we're drawing directly to `root_console`? Rather than doing
+that, we'll want to use an offscreen console, then 'blit' (copy) it to
+the root console before presenting. This will make it easier to manage
+multiple consoles when we get to the GUI portion of this series.
 
 Modify the `engine.py` file like this:
 
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-    ...
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
+        ...
+        root_console = tcod.console.Console(screen_width, screen_height, order='F')
++       con = tcod.console.Console(screen_width, screen_height, order='F')
 
-+   con = libtcod.console_new(screen_width, screen_height)
-
-    key = libtcod.Key()
-    mouse = libtcod.Mouse()
-
-    while not libtcod.console_is_window_closed():
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-+
-+       libtcod.console_set_default_foreground(con, libtcod.white)
-+       libtcod.console_put_char(con, player_x, player_y, '@', libtcod.BKGND_NONE)
-+       libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
--       libtcod.console_set_default_foreground(0, libtcod.white)
--       libtcod.console_put_char(0, player_x, player_y, '@', libtcod.BKGND_NONE)
-        libtcod.console_flush()
-+
-+       libtcod.console_put_char(con, player_x, player_y, ' ', libtcod.BKGND_NONE)
--       libtcod.console_put_char(0, player_x, player_y, ' ', libtcod.BKGND_NONE)
+        while True:
+-           root_console.print(player_x, player_y, '@', fg=(255, 255, 255))
++           con.print(player_x, player_y, '@', fg=(255, 255, 255))
++           con.blit(dest=root_console)
+            context.present(root_console)
+-           root_console.clear()
++           con.clear()
+        ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>    ...
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
+<pre>        ...
+        root_console = tcod.console.Console(screen_width, screen_height, order='F')
+        <span class="new-text">con = tcod.console.Console(screen_width, screen_height, order='F')</span>
 
-    <span class="new-text">con = libtcod.console_new(screen_width, screen_height)</span>
-
-    key = libtcod.Key()
-    mouse = libtcod.Mouse()
-
-    while not libtcod.console_is_window_closed():
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-        <span class="new-text">
-        libtcod.console_set_default_foreground(con, libtcod.white)
-        libtcod.console_put_char(con, player_x, player_y, '@', libtcod.BKGND_NONE)
-        libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)</span>
-        <span class="crossed-out-text">libtcod.console_set_default_foreground(0, libtcod.white)</span>
-        <span class="crossed-out-text">libtcod.console_put_char(0, player_x, player_y, '@', libtcod.BKGND_NONE)</span>
-        libtcod.console_flush()
-        <span class="new-text">
-        libtcod.console_put_char(con, player_x, player_y, ' ', libtcod.BKGND_NONE)</span>
-        <span class="crossed-out-text">libtcod.console_put_char(0, player_x, player_y, ' ', libtcod.BKGND_NONE)</span></pre>
+        while True:
+            <span class="crossed-out-text">root_console.print(player_x, player_y, '@', fg=(255, 255, 255))</span>
+            <span class="new-text">con.print(player_x, player_y, '@', fg=(255, 255, 255))
+            con.blit(dest=root_console)</span>
+            context.present(root_console)
+            <span class="crossed-out-text">root_console.clear()</span>
+            <span class="new-text">con.clear()</span>
+        ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-`libtcod.console_blit` is used to copy `con` to libtcod's root console
-which is then presented by `libtcod.console_flush`.
+`con.blit(dest=root_console)` is used to copy `con` to the root console,
+which is then presented to the screen by `context.present(root_console)`.
 
 That wraps up part one of this tutorial\! If you're using git or some
 other form of version control (and I recommend you do), commit your

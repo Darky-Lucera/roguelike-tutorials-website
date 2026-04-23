@@ -11,7 +11,9 @@ attacked (the actual attacking part we'll save for next time). To start,
 we'll need a function to place the enemies in the dungeon; let's call it
 `place_entities` and put it in the `GameMap` class.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
     def create_v_tunnel(self, y1, y2, x):
         ...
 
@@ -26,9 +28,9 @@ we'll need a function to place the enemies in the dungeon; let's call it
 +
 +           if not any([entity for entity in entities if entity.x == x and entity.y == y]):
 +               if randint(0, 100) < 80:
-+                   monster = Entity(x, y, 'o', libtcod.desaturated_green)
++                   monster = Entity(x, y, 'o', (63, 127, 63))
 +               else:
-+                   monster = Entity(x, y, 'T', libtcod.darker_green)
++                   monster = Entity(x, y, 'T', (0, 100, 0))
 +
 +               entities.append(monster)
 
@@ -51,9 +53,9 @@ we'll need a function to place the enemies in the dungeon; let's call it
 
             if not any([entity for entity in entities if entity.x == x and entity.y == y]):
                 if randint(0, 100) < 80:
-                    monster = Entity(x, y, 'o', libtcod.desaturated_green)
+                    monster = Entity(x, y, 'o', (63, 127, 63))
                 else:
-                    monster = Entity(x, y, 'T', libtcod.darker_green)
+                    monster = Entity(x, y, 'T', (0, 100, 0))
 
                 entities.append(monster)</span>
 
@@ -65,13 +67,16 @@ we'll need a function to place the enemies in the dungeon; let's call it
 In this function, we're choosing a random amount of enemies to place,
 between 0 and the maximum we specify. Then, we take a random x and y,
 and, if no other monster is currently at that location, we place a
-monster there. There's an 80% chance of it being an Orc, and a 20%
-chance of it being a Troll.
+monster there. There's an 80% chance of it being an Orc (color
+`(63, 127, 63)` — a muted green) and a 20% chance of it being a Troll
+(color `(0, 100, 0)` — a darker green). Feel free to adjust these colors.
 
-We'll need to import both `libtcod` and the `Entity` class.
+We'll need to import both `tcod` and the `Entity` class.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-+import tcod as libtcod
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
++import tcod
 from random import randint
 
 +from entity import Entity
@@ -80,7 +85,7 @@ from map_objects.tile import Tile
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-    <pre><span class="new-text">import tcod as libtcod</span>
+    <pre><span class="new-text">import tcod</span>
 from random import randint
 
 <span class="new-text">from entity import Entity</span>
@@ -92,7 +97,9 @@ from map_objects.tile import Tile</pre>
 Now let's modify our `make_map` function to include the `place_entities`
 function.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
                         ...
                         self.create_h_tunnel(prev_x, new_x, new_y)
 
@@ -118,7 +125,9 @@ variables, we should modify our `make_map` function definition to
 include
 them.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
 -   def make_map(self, max_rooms, room_min_size, room_max_size, map_width, map_height, player):
 +   def make_map(self, max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities,
 +                max_monsters_per_room):
@@ -133,40 +142,38 @@ them.
 
 We're all set up here; now we have to modify `engine.py` to match this
 new `make_map` function. Also, we'll need to create the
-`max_room_per_monsters` variable before calling the function. Finally,
+`max_monsters_per_room` variable before calling the function. Finally,
 we'll change our `entities` list to include only the player at first,
 and we'll completely remove our dummy NPC from before.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
     ...
     fov_radius = 10
 
 +   max_monsters_per_room = 3
 
     colors = {
-        'dark_wall': libtcod.Color(0, 0, 100),
-        'dark_ground': libtcod.Color(50, 50, 150),
-        'light_wall': libtcod.Color(130, 110, 50),
-        'light_ground': libtcod.Color(200, 180, 50)
+        'dark_wall': (0, 0, 100),
+        'dark_ground': (50, 50, 150),
+        'light_wall': (130, 110, 50),
+        'light_ground': (200, 180, 50)
     }
 
--   player = Entity(int(screen_width / 2), int(screen_height / 2), '@', libtcod.white)
--   npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', libtcod.yellow)
+-   player = Entity(int(screen_width / 2), int(screen_height / 2), '@', (255, 255, 255))
+-   npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', (255, 255, 0))
 -   entities = [npc, player]
-+   player = Entity(0, 0, '@', libtcod.white)
++   player = Entity(0, 0, '@', (255, 255, 255))
 +   entities = [player]
 
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    ...
 
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
+        game_map = GameMap(map_width, map_height)
+-       game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player)
++       game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities, max_monsters_per_room)
 
-    con = libtcod.console_new(screen_width, screen_height)
-
-    game_map = GameMap(map_width, map_height)
--   game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player)
-+   game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities, max_monsters_per_room)
-
-    fov_recompute = True
+        fov_recompute = True
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -177,29 +184,25 @@ and we'll completely remove our dummy NPC from before.
     <span class="new-text">max_monsters_per_room = 3</span>
 
     colors = {
-        'dark_wall': libtcod.Color(0, 0, 100),
-        'dark_ground': libtcod.Color(50, 50, 150),
-        'light_wall': libtcod.Color(130, 110, 50),
-        'light_ground': libtcod.Color(200, 180, 50)
+        'dark_wall': (0, 0, 100),
+        'dark_ground': (50, 50, 150),
+        'light_wall': (130, 110, 50),
+        'light_ground': (200, 180, 50)
     }
 
-    <span class="crossed-out-text">player = Entity(int(screen_width / 2), int(screen_height / 2), '@', libtcod.white)</span>
-    <span class="crossed-out-text">npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', libtcod.yellow)</span>
+    <span class="crossed-out-text">player = Entity(int(screen_width / 2), int(screen_height / 2), '@', (255, 255, 255))</span>
+    <span class="crossed-out-text">npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), '@', (255, 255, 0))</span>
     <span class="crossed-out-text">entities = [npc, player]</span>
-    <span class="new-text">player = Entity(0, 0, '@', libtcod.white)</span>
+    <span class="new-text">player = Entity(0, 0, '@', (255, 255, 255))</span>
     <span class="new-text">entities = [player]</span>
 
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    ...
 
-    libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
+        game_map = GameMap(map_width, map_height)
+        <span class="crossed-out-text">game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player)</span>
+        <span class="new-text">game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities, max_monsters_per_room)</span>
 
-    con = libtcod.console_new(screen_width, screen_height)
-
-    game_map = GameMap(map_width, map_height)
-    <span class="crossed-out-text">game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player)</span>
-    <span class="new-text">game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities, max_monsters_per_room)</span>
-
-    fov_recompute = True
+        fov_recompute = True
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -225,7 +228,9 @@ Let's modify the `Entity` class to include the "blocks" variable. While
 we're modifying this class, we should also pass in a "name" for the
 Entity, which will be useful a little later.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
 class Entity:
 -   def __init__(self, x, y, char, color):
 +   def __init__(self, x, y, char, color, name, blocks=False):
@@ -262,35 +267,39 @@ it will be False by default.
 Go back to `game_map.py` and modify the `place_entities` method, where
 we declare our monsters.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
             if randint(0, 100) < 80:
--               monster = Entity(x, y, 'o', libtcod.desaturated_green)
-+               monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True)
+-               monster = Entity(x, y, 'o', (63, 127, 63))
++               monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True)
             else:
--               monster = Entity(x, y, 'T', libtcod.darker_green)
-+               monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True)
+-               monster = Entity(x, y, 'T', (0, 100, 0))
++               monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>            if randint(0, 100) < 80:
-                <span class="crossed-out-text">monster = Entity(x, y, 'o', libtcod.desaturated_green)</span>
-                <span class="new-text">monster = Entity(x, y, 'o', libtcod.desaturated_green, 'Orc', blocks=True)</span>
+                <span class="crossed-out-text">monster = Entity(x, y, 'o', (63, 127, 63))</span>
+                <span class="new-text">monster = Entity(x, y, 'o', (63, 127, 63), 'Orc', blocks=True)</span>
             else:
-                <span class="crossed-out-text">monster = Entity(x, y, 'T', libtcod.darker_green)</span>
-                <span class="new-text">monster = Entity(x, y, 'T', libtcod.darker_green, 'Troll', blocks=True)</span></pre>
+                <span class="crossed-out-text">monster = Entity(x, y, 'T', (0, 100, 0))</span>
+                <span class="new-text">monster = Entity(x, y, 'T', (0, 100, 0), 'Troll', blocks=True)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 We also need to update the initialization of the player in `engine.py`:
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--   player = Entity(0, 0, '@', libtcod.white)
-+   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True)
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
+-   player = Entity(0, 0, '@', (255, 255, 255))
++   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>    <span class="crossed-out-text">player = Entity(0, 0, '@', libtcod.white)</span>
-    <span class="new-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True)</span></pre>
+<pre>    <span class="crossed-out-text">player = Entity(0, 0, '@', (255, 255, 255))</span>
+    <span class="new-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -305,7 +314,9 @@ class.
 
 Add the function to `entity.py` like this:
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
 class Entity:
     ...
 
@@ -342,52 +353,56 @@ move into the same tile.
 With that in place, let's return to our movement function. Modify the
 code that moves the player in `engine.py` like this:
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-        if move:
-            dx, dy = move
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
+                if move:
+                    dx, dy = move
 
--           player.move(dx, dy)
+-                   player.move(dx, dy)
 -
--           fov_recompute = True
+-                   fov_recompute = True
 
-+           destination_x = player.x + dx
-+           destination_y = player.y + dy
++                   destination_x = player.x + dx
++                   destination_y = player.y + dy
 
--           if not game_map.is_blocked(player.x + dx, player.y + dy):
-+           if not game_map.is_blocked(destination_x, destination_y):
-+               target = get_blocking_entities_at_location(entities, destination_x, destination_y)
+-                   if not game_map.is_blocked(player.x + dx, player.y + dy):
++                   if not game_map.is_blocked(destination_x, destination_y):
++                       target = get_blocking_entities_at_location(entities, destination_x, destination_y)
 +
-+               if target:
-+                   print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
-+               else:
-+                   player.move(dx, dy)
++                       if target:
++                           print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
++                       else:
++                           player.move(dx, dy)
 +
-+                   fov_recompute = True
++                           fov_recompute = True
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        if move:
-            dx, dy = move
-            <span class="new-text">destination_x = player.x + dx
-            destination_y = player.y + dy</span>
+<pre>                if move:
+                    dx, dy = move
+                    <span class="new-text">destination_x = player.x + dx
+                    destination_y = player.y + dy</span>
 
-            <span class="crossed-out-text">if not game_map.is_blocked(player.x + dx, player.y + dy):</span>
-            <span class="new-text">if not game_map.is_blocked(destination_x, destination_y):</span>
-                <span class="new-text">target = get_blocking_entities_at_location(entities, destination_x, destination_y)
+                    <span class="crossed-out-text">if not game_map.is_blocked(player.x + dx, player.y + dy):</span>
+                    <span class="new-text">if not game_map.is_blocked(destination_x, destination_y):</span>
+                        <span class="new-text">target = get_blocking_entities_at_location(entities, destination_x, destination_y)
 
-                if target:
-                    print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
-                else:</span>
-                    <span style="color: blue">player.move(dx, dy)
+                        if target:
+                            print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
+                        else:</span>
+                            <span style="color: blue">player.move(dx, dy)
 
-                    fov_recompute = True</span>
+                            fov_recompute = True</span>
 </pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 Also be sure to import the function `get_blocking_entities_at_location`
 at the top of `engine.py`.
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
 -   from entity import Entity
 +   from entity import Entity, get_blocking_entities_at_location
 {{</ highlight >}}
@@ -435,7 +450,9 @@ able to.*
 Let's put this new `GameStates` enum into action. Start by importing it
 at the top.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
 ...
 from fov_functions import initialize_fov, recompute_fov
 +from game_states import GameStates
@@ -453,25 +470,27 @@ from input_handlers import handle_keys
 {{</ codetab >}}
 
 Then, create a variable called `game_state`, which we'll set initially
-to the player's turn.
+to the player's turn. Put this right before the game loop.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
     ...
-    mouse = libtcod.Mouse()
+    fov_map = initialize_fov(game_map)
 
 +   game_state = GameStates.PLAYERS_TURN
 
-    while not libtcod.console_is_window_closed():
+        while True:
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    mouse = libtcod.Mouse()
+    fov_map = initialize_fov(game_map)
 
     <span class="new-text">game_state = GameStates.PLAYERS_TURN</span>
 
-    while not libtcod.console_is_window_closed():
+        while True:
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -481,44 +500,46 @@ player's movement. The player can only move on the players turn, so
 let's modify our `if move:` section to handle this. After the player
 successfully moves, we'll set the state to `ENEMY_TURN`.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--       if move:
-+       if move and game_state == GameStates.PLAYERS_TURN:
-            dx, dy = move
-            destination_x = player.x + dx
-            destination_y = player.y + dy
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
+-               if move:
++               if move and game_state == GameStates.PLAYERS_TURN:
+                    dx, dy = move
+                    destination_x = player.x + dx
+                    destination_y = player.y + dy
 
-            if not game_map.is_blocked(destination_x, destination_y):
-                target = get_blocking_entities_at_location(entities, destination_x, destination_y)
+                    if not game_map.is_blocked(destination_x, destination_y):
+                        target = get_blocking_entities_at_location(entities, destination_x, destination_y)
 
-                if target:
-                    print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
-                else:
-                    player.move(dx, dy)
+                        if target:
+                            print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
+                        else:
+                            player.move(dx, dy)
 
-                    fov_recompute = True
+                            fov_recompute = True
 
-+               game_state = GameStates.ENEMY_TURN
++                       game_state = GameStates.ENEMY_TURN
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        <span class="crossed-out-text">if move:</span>
-        <span class="new-text">if move and game_state == GameStates.PLAYERS_TURN:</span>
-            dx, dy = move
-            destination_x = player.x + dx
-            destination_y = player.y + dy
+<pre>                <span class="crossed-out-text">if move:</span>
+                <span class="new-text">if move and game_state == GameStates.PLAYERS_TURN:</span>
+                    dx, dy = move
+                    destination_x = player.x + dx
+                    destination_y = player.y + dy
 
-            if not game_map.is_blocked(destination_x, destination_y):
-                target = get_blocking_entities_at_location(entities, destination_x, destination_y)
+                    if not game_map.is_blocked(destination_x, destination_y):
+                        target = get_blocking_entities_at_location(entities, destination_x, destination_y)
 
-                if target:
-                    print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
-                else:
-                    player.move(dx, dy)
+                        if target:
+                            print('You kick the ' + target.name + ' in the shins, much to its annoyance!')
+                        else:
+                            player.move(dx, dy)
 
-                    fov_recompute = True
+                            fov_recompute = True
 
-                <span class="new-text">game_state = GameStates.ENEMY_TURN</span></pre>
+                        <span class="new-text">game_state = GameStates.ENEMY_TURN</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -529,10 +550,15 @@ Note that you *can* exit the game and make it full screen, because we're
 not stopping the player from doing those things when it isn't the
 player's turn.
 
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-        ...
-        if fullscreen:
-            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+Add the enemy turn block at the `while True` level, after the event
+loop:
+
+{{< codetab >}}
+{{< diff-tab >}}
+{{< highlight diff >}}
+                ...
+                if fullscreen:
+                    context.sdl_window.fullscreen = not context.sdl_window.fullscreen
 
 +       if game_state == GameStates.ENEMY_TURN:
 +           for entity in entities:
@@ -543,9 +569,9 @@ player's turn.
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        ...
-        if fullscreen:
-            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+<pre>                ...
+                if fullscreen:
+                    context.sdl_window.fullscreen = not context.sdl_window.fullscreen
 
         <span class="new-text">if game_state == GameStates.ENEMY_TURN:
             for entity in entities:

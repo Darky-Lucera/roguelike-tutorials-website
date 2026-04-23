@@ -35,7 +35,7 @@ map.
 +           y = randint(room.y1 + 1, room.y2 - 1)
 +
 +           if not any([entity for entity in entities if entity.x == x and entity.y == y]):
-+               item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM)
++               item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM)
 +
 +               entities.append(item)
 {{</ highlight >}}
@@ -53,7 +53,7 @@ map.
             y = randint(room.y1 + 1, room.y2 - 1)
 
             if not any([entity for entity in entities if entity.x == x and entity.y == y]):
-                item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM)
+                item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM)
 
                 entities.append(item)</span></pre>
 {{</ original-tab >}}
@@ -230,8 +230,8 @@ In `engine.py`:
     ...
     fighter_component = Fighter(hp=30, defense=2, power=5)
 +   inventory_component = Inventory(26)
--   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR, fighter=fighter_component)
-+   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+-   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR, fighter=fighter_component)
++   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
 +                   fighter=fighter_component, inventory=inventory_component)
     entities = [player]
     ...
@@ -241,8 +241,8 @@ In `engine.py`:
 <pre>    ...
     fighter_component = Fighter(hp=30, defense=2, power=5)
     <span class="new-text">inventory_component = Inventory(26)</span>
-    <span class="crossed-out-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR, fighter=fighter_component)</span>
-    <span class="new-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    <span class="crossed-out-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR, fighter=fighter_component)</span>
+    <span class="new-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
                     fighter=fighter_component, inventory=inventory_component)</span>
     entities = [player]
     ...</pre>
@@ -271,15 +271,15 @@ function.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
 +               item_component = Item()
--               item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM)
-+               item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+-               item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM)
++               item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
 +                             item=item_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>                <span class="new-text">item_component = Item()</span>
-                <span class="crossed-out-text">item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM)</span>
-                <span class="new-text">item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                <span class="crossed-out-text">item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM)</span>
+                <span class="new-text">item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                               item=item_component)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -316,25 +316,25 @@ key:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
-    elif key_char == 'n':
+    elif key == tcod.event.KeySym.n:
         return {'move': (1, 1)}
 
-+   if key_char == 'g':
++   if key == tcod.event.KeySym.g:
 +       return {'pickup': True}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    elif key_char == 'n':
+    elif key == tcod.event.KeySym.n:
         return {'move': (1, 1)}
 
-    <span class="new-text">if key_char == 'g':
+    <span class="new-text">if key == tcod.event.KeySym.g:
         return {'pickup': True}</span>
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -367,7 +367,7 @@ indicates a failure. The engine will then have to determine what to do
 with the item entity.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-+import tcod as libtcod
++import tcod
 
 +from game_messages import Message
 
@@ -383,12 +383,12 @@ class Inventory:
 +       if len(self.items) >= self.capacity:
 +           results.append({
 +               'item_added': None,
-+               'message': Message('You cannot carry any more, your inventory is full', libtcod.yellow)
++               'message': Message('You cannot carry any more, your inventory is full', (255, 255, 0))
 +           })
 +       else:
 +           results.append({
 +               'item_added': item,
-+               'message': Message('You pick up the {0}!'.format(item.name), libtcod.blue)
++               'message': Message('You pick up the {0}!'.format(item.name), (0, 0, 255))
 +           })
 +
 +           self.items.append(item)
@@ -397,7 +397,7 @@ class Inventory:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">import tcod as libtcod
+<pre><span class="new-text">import tcod
 
 from game_messages import Message</span>
 
@@ -413,12 +413,12 @@ class Inventory:
         if len(self.items) >= self.capacity:
             results.append({
                 'item_added': None,
-                'message': Message('You cannot carry any more, your inventory is full', libtcod.yellow)
+                'message': Message('You cannot carry any more, your inventory is full', (255, 255, 0))
             })
         else:
             results.append({
                 'item_added': item,
-                'message': Message('You pick up the {0}!'.format(item.name), libtcod.blue)
+                'message': Message('You pick up the {0}!'.format(item.name), (0, 0, 255))
             })
 
             self.items.append(item)
@@ -442,7 +442,7 @@ item to the inventory.
 +
 +                   break
 +           else:
-+               message_log.add_message(Message('There is nothing here to pick up.', libtcod.yellow))
++               message_log.add_message(Message('There is nothing here to pick up.', (255, 255, 0)))
 
         if exit:
             ...
@@ -460,7 +460,7 @@ item to the inventory.
 
                     break
             else:
-                message_log.add_message(Message('There is nothing here to pick up.', libtcod.yellow))</span>
+                message_log.add_message(Message('There is nothing here to pick up.', (255, 255, 0)))</span>
 
         if exit:
             ...</pre>
@@ -562,64 +562,63 @@ the inventory and any other menus we'll need for this tutorial. Put the
 following code in that file:
 
 {{< highlight py3 >}}
-import tcod as libtcod
+import tcod
 
 
-def menu(con, header, options, width, screen_width, screen_height):
+def menu(con, root_console, header, options, width, screen_width, screen_height):
     if len(options) > 26: raise ValueError('Cannot have a menu with more than 26 options.')
 
     # calculate total height for the header (after auto-wrap) and one line per option
-    header_height = libtcod.console_get_height_rect(con, 0, 0, width, screen_height, header)
+    header_height = con.get_height_rect(0, 0, width, screen_height, header)
     height = len(options) + header_height
 
     # create an off-screen console that represents the menu's window
-    window = libtcod.console_new(width, height)
+    window = tcod.console.Console(width, height, order='F')
 
     # print the header, with auto-wrap
-    libtcod.console_set_default_foreground(window, libtcod.white)
-    libtcod.console_print_rect_ex(window, 0, 0, width, height, libtcod.BKGND_NONE, libtcod.LEFT, header)
+    window.print_box(0, 0, width, height, header, fg=(255, 255, 255))
 
     # print all the options
     y = header_height
     letter_index = ord('a')
     for option_text in options:
         text = '(' + chr(letter_index) + ') ' + option_text
-        libtcod.console_print_ex(window, 0, y, libtcod.BKGND_NONE, libtcod.LEFT, text)
+        window.print(0, y, text, fg=(255, 255, 255))
         y += 1
         letter_index += 1
 
     # blit the contents of "window" to the root console
     x = int(screen_width / 2 - width / 2)
     y = int(screen_height / 2 - height / 2)
-    libtcod.console_blit(window, 0, 0, width, height, 0, x, y, 1.0, 0.7)
+    window.blit(dest=root_console, dest_x=x, dest_y=y, fg_alpha=1.0, bg_alpha=0.7)
 {{</ highlight >}}
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def menu(con, header, options, width, screen_width, screen_height):
+def menu(con, root_console, header, options, width, screen_width, screen_height):
     ...
 
-+def inventory_menu(con, header, inventory, inventory_width, screen_width, screen_height):
++def inventory_menu(con, root_console, header, inventory, inventory_width, screen_width, screen_height):
 +   # show a menu with each item of the inventory as an option
 +   if len(inventory.items) == 0:
 +       options = ['Inventory is empty.']
 +   else:
 +       options = [item.name for item in inventory.items]
 +
-+   menu(con, header, options, inventory_width, screen_width, screen_height)
++   menu(con, root_console, header, options, inventory_width, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def menu(con, header, options, width, screen_width, screen_height):
+<pre>def menu(con, root_console, header, options, width, screen_width, screen_height):
     ...
 
-<span class="new-text">def inventory_menu(con, header, inventory, inventory_width, screen_width, screen_height):
+<span class="new-text">def inventory_menu(con, root_console, header, inventory, inventory_width, screen_width, screen_height):
     # show a menu with each item of the inventory as an option
     if len(inventory.items) == 0:
         options = ['Inventory is empty.']
     else:
         options = [item.name for item in inventory.items]
 
-    menu(con, header, options, inventory_width, screen_width, screen_height)</span></pre>
+    menu(con, root_console, header, options, inventory_width, screen_width, screen_height)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -656,25 +655,25 @@ key to do this.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
-    if key_char == 'g':
+    if key == tcod.event.KeySym.g:
         return {'pickup': True}
 
-+   elif key_char == 'i':
++   elif key == tcod.event.KeySym.i:
 +       return {'show_inventory': True}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    if key_char == 'g':
+    if key == tcod.event.KeySym.g:
         return {'pickup': True}
 
-    <span class="new-text">elif key_char == 'i':
+    <span class="new-text">elif key == tcod.event.KeySym.i:
         return {'show_inventory': True}</span>
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -691,7 +690,7 @@ track of the last game state.
     game_state = GameStates.PLAYERS_TURN
 +   previous_game_state = game_state
 
-    while not libtcod.console_is_window_closed():
+    while True:
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -700,7 +699,7 @@ track of the last game state.
     game_state = GameStates.PLAYERS_TURN
     <span class="new-text">previous_game_state = game_state</span>
 
-    while not libtcod.console_is_window_closed():
+    while True:
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -767,15 +766,15 @@ call in
     `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
--                  screen_height, bar_width, panel_height, panel_y, mouse, colors)
-+render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
-+                  screen_height, bar_width, panel_height, panel_y, mouse, colors, game_state)
+-render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
+-                  screen_height, bar_width, panel_height, panel_y, mouse_pos, colors)
++render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
++                  screen_height, bar_width, panel_height, panel_y, mouse_pos, colors, game_state)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
-                   screen_height, bar_width, panel_height, panel_y, mouse, colors, <span class="new-text">game_state</span>)</pre>
+<pre>render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
+                   screen_height, bar_width, panel_height, panel_y, mouse_pos, colors, <span class="new-text">game_state</span>)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -783,27 +782,27 @@ And now for the
     definition:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
--              bar_width, panel_height, panel_y, mouse, colors):
-+              bar_width, panel_height, panel_y, mouse, colors, game_state):
+def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
+-              bar_width, panel_height, panel_y, mouse_pos, colors):
++              bar_width, panel_height, panel_y, mouse_pos, colors, game_state):
     ...
     ...
-    libtcod.console_blit(panel, 0, 0, screen_width, panel_height, 0, 0, panel_y)
+    panel.blit(dest=root_console, dest_x=0, dest_y=panel_y)
 
 +   if game_state == GameStates.SHOW_INVENTORY:
-+       inventory_menu(con, 'Press the key next to an item to use it, or Esc to cancel.\n',
++       inventory_menu(con, root_console, 'Press the key next to an item to use it, or Esc to cancel.\n',
 +                      player.inventory, 50, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
-               bar_width, panel_height, panel_y, mouse, colors<span class="new-text">, game_state</span>):
+<pre>def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
+               bar_width, panel_height, panel_y, mouse_pos, colors<span class="new-text">, game_state</span>):
     ...
     ...
-    libtcod.console_blit(panel, 0, 0, screen_width, panel_height, 0, 0, panel_y)
+    panel.blit(dest=root_console, dest_x=0, dest_y=panel_y)
 
     <span class="new-text">if game_state == GameStates.SHOW_INVENTORY:
-        inventory_menu(con, 'Press the key next to an item to use it, or Esc to cancel.\n',
+        inventory_menu(con, root_console, 'Press the key next to an item to use it, or Esc to cancel.\n',
                        player.inventory, 50, screen_width, screen_height)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -811,7 +810,7 @@ def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, m
 We'll need to import `GameStates` and `inventory_menu` for this to work.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 from enum import Enum
 
@@ -825,7 +824,7 @@ class RenderOrder(Enum):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 from enum import Enum
 
@@ -855,13 +854,13 @@ the game's state. Rename the `handle_keys` function to
 `handle_player_turn_keys`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--def handle_keys(key):
-+def handle_player_turn_keys(key):
+-def handle_keys(event):
++def handle_player_turn_keys(event):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def handle_keys(key):</span>
-<span class="new-text">def handle_player_turn_keys(key):</span></pre>
+<pre><span class="crossed-out-text">def handle_keys(event):</span>
+<span class="new-text">def handle_player_turn_keys(event):</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -869,36 +868,36 @@ Then, create a new `handle_keys` function, which calls
 `handle_player_turn_keys`
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from game_states import GameStates
 +
 +
-+def handle_keys(key, game_state):
++def handle_keys(event, game_state):
 +   if game_state == GameStates.PLAYERS_TURN:
-+       return handle_player_turn_keys(key)
++       return handle_player_turn_keys(event)
 +
 +   return {}
 
 
-def handle_player_turn_keys(key):
+def handle_player_turn_keys(event):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 <span class="new-text">from game_states import GameStates
 
 
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
 
     return {}</span>
 
 
-def handle_player_turn_keys(key):
+def handle_player_turn_keys(event):
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -906,12 +905,12 @@ def handle_player_turn_keys(key):
 Don't forget to modify the call to `handle_keys` in `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--action = handle_keys(key)
-+action = handle_keys(key, game_state)
+-action = handle_keys(event)
++action = handle_keys(event, game_state)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>action = handle_keys(key<span class="new-text">, game_state</span>)</pre>
+<pre>action = handle_keys(event<span class="new-text">, game_state</span>)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -920,62 +919,60 @@ in a key handler for when the player is dead.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
 ...
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
 +   elif game_state == GameStates.PLAYER_DEAD:
-+       return handle_player_dead_keys(key)
++       return handle_player_dead_keys(event)
 
     return {}
 
 
-def handle_player_turn_keys(key):
+def handle_player_turn_keys(event):
     ...
 
 
-+def handle_player_dead_keys(key):
-+   key_char = chr(key.c)
++def handle_player_dead_keys(event):
++   if isinstance(event, tcod.event.KeyDown):
++       key = event.sym
 +
-+   if key_char == 'i':
-+       return {'show_inventory': True}
++       if key == tcod.event.KeySym.i:
++           return {'show_inventory': True}
 +
-+   if key.vk == libtcod.KEY_ENTER and key.lalt:
-+       # Alt+Enter: toggle full screen
-+       return {'fullscreen': True}
-+   elif key.vk == libtcod.KEY_ESCAPE:
-+       # Exit the menu
-+       return {'exit': True}
++       elif key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
++           return {'fullscreen': True}
++       elif key == tcod.event.KeySym.ESCAPE:
++           return {'exit': True}
 +
 +   return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>...
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     <span class="new-text">elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)</span>
+        return handle_player_dead_keys(event)</span>
 
     return {}
 
 
-def handle_player_turn_keys(key):
+def handle_player_turn_keys(event):
     ...
 
 
-<span class="new-text">def handle_player_dead_keys(key):
-    key_char = chr(key.c)
+<span class="new-text">def handle_player_dead_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
 
-    if key_char == 'i':
-        return {'show_inventory': True}
+        if key == tcod.event.KeySym.i:
+            return {'show_inventory': True}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
-        # Alt+Enter: toggle full screen
-        return {'fullscreen': True}
-    elif key.vk == libtcod.KEY_ESCAPE:
-        # Exit the menu
-        return {'exit': True}
+        elif key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
+            return {'fullscreen': True}
+        elif key == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
 
     return {}</span></pre>
 {{</ original-tab >}}
@@ -986,58 +983,56 @@ will handle our input when the inventory menu is open.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
 ...
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
 +   elif game_state == GameStates.SHOW_INVENTORY:
-+       return handle_inventory_keys(key)
++       return handle_inventory_keys(event)
 
     return {}
 ...
 
-+def handle_inventory_keys(key):
-+   index = key.c - ord('a')
++def handle_inventory_keys(event):
++   if isinstance(event, tcod.event.KeyDown):
++       key = event.sym
 +
-+   if index >= 0:
-+       return {'inventory_index': index}
++       if tcod.event.KeySym.a <= key <= tcod.event.KeySym.z:
++           return {'inventory_index': key - tcod.event.KeySym.a}
 +
-+   if key.vk == libtcod.KEY_ENTER and key.lalt:
-+       # Alt+Enter: toggle full screen
-+       return {'fullscreen': True}
-+   elif key.vk == libtcod.KEY_ESCAPE:
-+       # Exit the menu
-+       return {'exit': True}
++       elif key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
++           return {'fullscreen': True}
++       elif key == tcod.event.KeySym.ESCAPE:
++           return {'exit': True}
 +
 +   return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>...
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     <span class="new-text">elif game_state == GameStates.SHOW_INVENTORY:
-        return handle_inventory_keys(key)</span>
+        return handle_inventory_keys(event)</span>
 
     return {}
 ...
 
-<span class="new-text">def handle_inventory_keys(key):
-    index = key.c - ord('a')
+<span class="new-text">def handle_inventory_keys(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
 
-    if index >= 0:
-        return {'inventory_index': index}
+        if tcod.event.KeySym.a <= key <= tcod.event.KeySym.z:
+            return {'inventory_index': key - tcod.event.KeySym.a}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
-        # Alt+Enter: toggle full screen
-        return {'fullscreen': True}
-    elif key.vk == libtcod.KEY_ESCAPE:
-        # Exit the menu
-        return {'exit': True}
+        elif key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
+            return {'fullscreen': True}
+        elif key == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
 
     return {}</span></pre>
 {{</ original-tab >}}
@@ -1142,8 +1137,6 @@ Create a file, called `item_functions.py`, and put the following
 function in it:
 
 {{< highlight py3 >}}
-import tcod as libtcod
-
 from game_messages import Message
 
 
@@ -1154,10 +1147,10 @@ def heal(*args, **kwargs):
     results = []
 
     if entity.fighter.hp == entity.fighter.max_hp:
-        results.append({'consumed': False, 'message': Message('You are already at full health', libtcod.yellow)})
+        results.append({'consumed': False, 'message': Message('You are already at full health', (255, 255, 0))})
     else:
         entity.fighter.heal(amount)
-        results.append({'consumed': True, 'message': Message('Your wounds start to feel better!', libtcod.green)})
+        results.append({'consumed': True, 'message': Message('Your wounds start to feel better!', (0, 255, 0))})
 
     return results
 {{</ highlight >}}
@@ -1211,7 +1204,7 @@ potions. Let's do that now; in the `place_entities` function in
             if not any([entity for entity in entities if entity.x == x and entity.y == y]):
 -               item_component = Item()
 +               item_component = Item(use_function=heal, amount=4)
-                item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                               item=item_component)
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -1220,7 +1213,7 @@ potions. Let's do that now; in the `place_entities` function in
             if not any([entity for entity in entities if entity.x == x and entity.y == y]):
                 <span class="crossed-out-text">item_component = Item()</span>
                 <span class="new-text">item_component = Item(use_function=heal, amount=4)</span>
-                item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                               item=item_component)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1260,7 +1253,7 @@ function? Add the following functions to `Inventory`:
 +       item_component = item_entity.item
 +
 +       if item_component.use_function is None:
-+           results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})
++           results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})
 +       else:
 +           kwargs = {**item_component.function_kwargs, **kwargs}
 +           item_use_results = item_component.use_function(self.owner, **kwargs)
@@ -1285,7 +1278,7 @@ function? Add the following functions to `Inventory`:
         item_component = item_entity.item
 
         if item_component.use_function is None:
-            results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})
+            results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})
         else:
             kwargs = {**item_component.function_kwargs, **kwargs}
             item_use_results = item_component.use_function(self.owner, **kwargs)
@@ -1396,25 +1389,25 @@ Then, modify `handle_player_turn_keys` to respond to the 'd' key:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
-    elif key_char == 'i':
+    elif key == tcod.event.KeySym.i:
         return {'show_inventory': True}
 
-+   elif key_char == 'd':
++   elif key == tcod.event.KeySym.d:
 +       return {'drop_inventory': True}
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    elif key_char == 'i':
+    elif key == tcod.event.KeySym.i:
         return {'show_inventory': True}
 
-    <span class="new-text">elif key_char == 'd':
+    <span class="new-text">elif key == tcod.event.KeySym.d:
         return {'drop_inventory': True}</span>
 
-    if key.vk == libtcod.KEY_ENTER and key.lalt:
+    if key == tcod.event.KeySym.RETURN and event.mod & tcod.event.Modifier.LALT:
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1477,27 +1470,27 @@ dropping inventory, but we actually don't; we can just use our code for
 in `handle_keys`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_keys(key, game_state):
+def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
 -   elif game_state == GameStates.SHOW_INVENTORY:
 +   elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
 
     return {}
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_keys(key, game_state):
+<pre>def handle_keys(event, game_state):
     if game_state == GameStates.PLAYERS_TURN:
-        return handle_player_turn_keys(key)
+        return handle_player_turn_keys(event)
     elif game_state == GameStates.PLAYER_DEAD:
-        return handle_player_dead_keys(key)
+        return handle_player_dead_keys(event)
     <span class="crossed-out-text">elif game_state == GameStates.SHOW_INVENTORY:</span>
     <span class="new-text">elif game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):</span>
-        return handle_inventory_keys(key)
+        return handle_inventory_keys(event)
 
     return {}</pre>
 {{</ original-tab >}}
@@ -1535,7 +1528,7 @@ title to it.
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
 -   if game_state == GameStates.SHOW_INVENTORY:
--       inventory_menu(con, 'Press the key next to an item to use it, or Esc to cancel.\n',
+-       inventory_menu(con, root_console, 'Press the key next to an item to use it, or Esc to cancel.\n',
 -                      player.inventory, 50, screen_width, screen_height)
 
 +   if game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
@@ -1544,13 +1537,13 @@ title to it.
 +       else:
 +           inventory_title = 'Press the key next to an item to drop it, or Esc to cancel.\n'
 +
-+       inventory_menu(con, inventory_title, player.inventory, 50, screen_width, screen_height)
++       inventory_menu(con, root_console, inventory_title, player.inventory, 50, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
     <span class="crossed-out-text">if game_state == GameStates.SHOW_INVENTORY:</span>
-        <span class="crossed-out-text">inventory_menu(con, 'Press the key next to an item to use it, or Esc to cancel.\n',</span>
+        <span class="crossed-out-text">inventory_menu(con, root_console, 'Press the key next to an item to use it, or Esc to cancel.\n',</span>
                        <span class="crossed-out-text">player.inventory, 50, screen_width, screen_height)</span>
 
     <span class="new-text">if game_state in (GameStates.SHOW_INVENTORY, GameStates.DROP_INVENTORY):
@@ -1559,7 +1552,7 @@ title to it.
         else:
             inventory_title = 'Press the key next to an item to drop it, or Esc to cancel.\n'
 
-        inventory_menu(con, inventory_title, player.inventory, 50, screen_width, screen_height)</span></pre>
+        inventory_menu(con, root_console, inventory_title, player.inventory, 50, screen_width, screen_height)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1612,7 +1605,7 @@ player's feet), and return the results.
 +
 +       self.remove_item(item)
 +       results.append({'item_dropped': item, 'message': Message('You dropped the {0}'.format(item.name),
-+                                                                libtcod.yellow)})
++                                                                (255, 255, 0))})
 +
 +       return results
 {{</ highlight >}}
@@ -1630,7 +1623,7 @@ player's feet), and return the results.
 
         self.remove_item(item)
         results.append({'item_dropped': item, 'message': Message('You dropped the {0}'.format(item.name),
-                                                                 libtcod.yellow)})
+                                                                 (255, 255, 0))})
 
         return results</span></pre>
 {{</ original-tab >}}

@@ -12,7 +12,7 @@ beginning?
 Most roguelikes (not all\!) only let you see within a certain range of
 your character, and ours will be no different. We need to implement a way
 to calculate the "Field of View" for our adventurer, and fortunately,
-libtcod makes that easy\!
+tcod makes that easy\!
 
 We'll need to define a few variables before we get started. Add these in
 the same section as our screen and map variables:
@@ -42,7 +42,7 @@ the same section as our screen and map variables:
 {{</ original-tab >}}
 {{</ codetab >}}
 
-'0' is just the default algorithm that libtcod uses; it has more, and I
+'0' is just the default algorithm that tcod uses; it has more, and I
 encourage you to experiment with them later. `fov_light_walls` just
 tells us whether or not to 'light up' the walls we see; you can change
 it if you don't like the way it looks. `fov_radius` is somewhat obvious,
@@ -55,10 +55,10 @@ outside what we can see.
 
 {{< highlight py3 >}}
     colors = {
-        'dark_wall': libtcod.Color(0, 0, 100),
-        'dark_ground': libtcod.Color(50, 50, 150),
-        'light_wall': libtcod.Color(130, 110, 50),
-        'light_ground': libtcod.Color(200, 180, 50)
+        'dark_wall': (0, 0, 100),
+        'dark_ground': (50, 50, 150),
+        'light_wall': (130, 110, 50),
+        'light_ground': (200, 180, 50)
     }
 {{</ highlight >}}
 
@@ -69,8 +69,8 @@ If you don't like these colors, feel free to change them to your liking.
 
 The thing about field of view is that it doesn't need to be computed
 every turn. In fact, it would be quite a waste to do so\! We really only
-need change it when the player moves. Attacking, using an item, or just
-standing still for a turn doesn't alter FOV. We can handle this by
+need to change it when the player moves. Attacking, using an item, or
+just standing still for a turn doesn't alter FOV. We can handle this by
 having a boolean variable, which we'll call `fov_recompute`, which tells
 us if we need to recompute. We can define it somewhere above our game
 loop (I put mine right after the map initialization).
@@ -81,7 +81,7 @@ loop (I put mine right after the map initialization).
 
 +   fov_recompute = True
 
-    key = libtcod.Key()
+        while True:
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -91,7 +91,7 @@ loop (I put mine right after the map initialization).
 
     <span class="new-text">fov_recompute = True</span>
 
-    key = libtcod.Key()
+        while True:
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -100,27 +100,48 @@ It's `True` by default, because we have to compute it right when the
 game starts.
 
 Now let's initialize our field of view, which we'll store in a variable
-called `fov_map`. `fov_map` will need to not only be initialized, but
-recomputed when the player moves. Let's keep these functions out of
-`engine.py`, and instead, put them in a new file, called
-`fov_functions.py`. In that file, put the following:
+called `fov_map`. Instead of a special object, `fov_map` is simply a
+numpy boolean array: `True` means that tile is currently visible, `False`
+means it is not. Let's keep these functions out of `engine.py`, and
+instead, put them in a new file, called `fov_functions.py`. In that
+file, put the following:
 
 {{< highlight py3 >}}
-import tcod as libtcod
+import numpy as np
+import tcod
 
 
 def initialize_fov(game_map):
-    fov_map = libtcod.map_new(game_map.width, game_map.height)
+    return np.zeros((game_map.width, game_map.height), dtype=bool)
 
-    for y in range(game_map.height):
-        for x in range(game_map.width):
-            libtcod.map_set_properties(fov_map, x, y, not game_map.tiles[x][y].block_sight,
-                                       not game_map.tiles[x][y].blocked)
 
-    return fov_map
+def recompute_fov(fov_map, game_map, x, y, radius, light_walls=True, algorithm=0):
+    transparent = np.array(
+        [[not game_map.tiles[tx][ty].block_sight for ty in range(game_map.height)]
+         for tx in range(game_map.width)],
+        dtype=bool
+    )
+    fov_map[:] = tcod.map.compute_fov(
+        transparent.T,
+        (y, x),
+        radius=radius,
+        light_walls=light_walls,
+        algorithm=algorithm,
+    ).T
 {{</ highlight >}}
 
-Call this function in `engine.py` and store the result in `fov_map`.
+`initialize_fov` returns an all-`False` array the same size as the map —
+nothing is visible when the game starts. `recompute_fov` builds a
+`transparent` array from the tile data (True where a tile doesn't block
+sight), then calls `tcod.map.compute_fov`. The `.T` transposes between
+the `[x, y]` layout we use and the `[y, x]` (row, column) layout tcod
+expects. After recomputing, `fov_map[x, y]` is `True` wherever the
+player can see.
+
+Note that `recompute_fov` now takes `game_map` as a parameter — it needs
+the tile data to build the transparency array.
+
+Call `initialize_fov` in `engine.py` and store the result in `fov_map`.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
@@ -128,7 +149,7 @@ Call this function in `engine.py` and store the result in `fov_map`.
 
 +   fov_map = initialize_fov(game_map)
 
-    key = libtcod.Key()
+        while True:
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -138,7 +159,7 @@ Call this function in `engine.py` and store the result in `fov_map`.
 
     <span class="new-text">fov_map = initialize_fov(game_map)</span>
 
-    key = libtcod.Key()
+        while True:
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -180,63 +201,26 @@ set `fov_recompute` to True.
 {{</ original-tab >}}
 {{</ codetab >}}
 
-But where does the recompute actually *happen*? For that, let's add a
-new function to `fov_functions.py` to do the recomputing. The recompute
-function will modify the `fov_map` variable based on where the player
-is, what the radius for lighting is, whether or not to light the walls,
-and what algorithm we're using.
+But where does the recompute actually *happen*? Put your fov
+recomputation in `engine.py` at the start of the game loop, before the
+render call.
 
-That's a lot of variables, but consider this: in your game, you'll
-probably pick one FOV algorithm and stick with it. Also, whether or not
-you light the walls probably won't change during the course of the game.
-So why not create our function with default arguments? That way, we can
-pass the `light_walls` and `algorithm` variables if we want to, but if
-not, a default is chosen. That looks like this:
-
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def initialize_fov(game_map):
-    ...
-
-+def recompute_fov(fov_map, x, y, radius, light_walls=True, algorithm=0):
-+   libtcod.map_compute_fov(fov_map, x, y, radius, light_walls, algorithm)
-{{</ highlight >}}
-{{</ diff-tab >}}
-{{< original-tab >}}
-<pre>def initialize_fov(game_map):
-    ...
-
-<span class="new-text">def recompute_fov(fov_map, x, y, radius, light_walls=True, algorithm=0):
-    libtcod.map_compute_fov(fov_map, x, y, radius, light_walls, algorithm)</span></pre>
-{{</ original-tab >}}
-{{</ codetab >}}
-
-So when we call the function, we have to give fov\_map, x, y, and
-radius, but we don't necessarily have to pass in light\_walls or
-algorithm. In my `engine.py` file, I'll pass them in anyway, but you
-don't have to if you don't want to (you can also change the defaults I
-gave above to whatever you prefer).
-
-Whatever you decide, put your fov recomputation in `engine.py` like so:
-
-{{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-        ...
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
-+       if fov_recompute:
-+           recompute_fov(fov_map, player.x, player.y, fov_radius, fov_light_walls, fov_algorithm)
-
-        render_all(con, entities, game_map, screen_width, screen_height, colors)
+{{< codetab >}} {{< diff-tab >}}
+{{< highlight diff >}}
+        while True:
++           if fov_recompute:
++               recompute_fov(fov_map, game_map, player.x, player.y, fov_radius, fov_light_walls, fov_algorithm)
++
+            render_all(con, root_console, entities, game_map, screen_width, screen_height, colors)
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        ...
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-
-        <span class="new-text">if fov_recompute:
-            recompute_fov(fov_map, player.x, player.y, fov_radius, fov_light_walls, fov_algorithm)</span>
-
-        render_all(con, entities, game_map, screen_width, screen_height, colors)
+<pre>        while True:
+            <span class="new-text">if fov_recompute:
+                recompute_fov(fov_map, game_map, player.x, player.y, fov_radius, fov_light_walls, fov_algorithm)
+</span>
+            render_all(con, root_console, entities, game_map, screen_width, screen_height, colors)
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -267,11 +251,11 @@ to recalculate, but it won't if we do something else.
 With our field of view calculated, we need to actually *display* it (if
 you run the code now, you won't notice any visible change). Open up
 `render_functions.py` and modify the `render_all` function like
-    this:
+this:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def render_all(con, entities, game_map, screen_width, screen_height, colors):
-+def render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
+-def render_all(con, root_console, entities, game_map, screen_width, screen_height, colors):
++def render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
 -   for y in range(game_map.height):
 +   if fov_recompute:
 -       for x in range(game_map.width):
@@ -279,68 +263,68 @@ def render_all(con, entities, game_map, screen_width, screen_height, colors):
 -           wall = game_map.tiles[x][y].block_sight
 -
 -           if wall:
--               libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
+-               con.bg[x, y] = colors.get('dark_wall')
 -           else:
--               libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)
+-               con.bg[x, y] = colors.get('dark_ground')
 +           for x in range(game_map.width):
-+               visible = libtcod.map_is_in_fov(fov_map, x, y)
++               visible = fov_map[x, y]
 +               wall = game_map.tiles[x][y].block_sight
 
 +               if visible:
 +                   if wall:
-+                       libtcod.console_set_char_background(con, x, y, colors.get('light_wall'), libtcod.BKGND_SET)
++                       con.bg[x, y] = colors.get('light_wall')
 +                   else:
-+                       libtcod.console_set_char_background(con, x, y, colors.get('light_ground'), libtcod.BKGND_SET)
++                       con.bg[x, y] = colors.get('light_ground')
 +               else:
 +                   if wall:
-+                       libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
++                       con.bg[x, y] = colors.get('dark_wall')
 +                   else:
-+                       libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)
++                       con.bg[x, y] = colors.get('dark_ground')
 
     # Draw all entities in the list
     for entity in entities:
         draw_entity(con, entity)
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
+    con.blit(dest=root_console)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def render_all(con, entities, game_map, screen_width, screen_height, colors):</span>
-<span class="new-text">def render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
+<pre><span class="crossed-out-text">def render_all(con, root_console, entities, game_map, screen_width, screen_height, colors):</span>
+<span class="new-text">def render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
     <span class="new-text">if fov_recompute:</span>
         <span style="color: blue">for y in range(game_map.height):
             for x in range(game_map.width):</span>
-                <span class="new-text">visible = libtcod.map_is_in_fov(fov_map, x, y)</span>
+                <span class="new-text">visible = fov_map[x, y]</span>
                 <span style="color: blue">wall = game_map.tiles[x][y].block_sight</span>
 
                 <span class="new-text">if visible:
                     if wall:
-                        libtcod.console_set_char_background(con, x, y, colors.get('light_wall'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('light_wall')
                     else:
-                        libtcod.console_set_char_background(con, x, y, colors.get('light_ground'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('light_ground')
                 else:</span>
                     <span style="color: blue">if wall:
-                        libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('dark_wall')
                     else:
-                        libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)</span>
+                        con.bg[x, y] = colors.get('dark_ground')</span>
 
     # Draw all entities in the list
     for entity in entities:
         draw_entity(con, entity)
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)</pre>
+    con.blit(dest=root_console)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-*\* Note: Blue denotes lines that are exactly the same as before, expect
+*\* Note: Blue denotes lines that are exactly the same as before, except
 for their indentation. The if statements for `fov_recompute` and
 `visible` force certain lines to be indented farther than they were
 before. Remember, this is Python, indentation matters\!*
 
 Now our `render_all` function will display tiles differently, depending
-on if they're in our field of view or not. If a tile falls in the
-`fov_map`, we draw it with the 'light' colors, and if not, we draw the
-'dark' version.
+on if they're in our field of view or not. If a tile's position is
+`True` in `fov_map`, we draw it with the 'light' colors, and if not, we
+draw the 'dark' version.
 
 The definition of `render_all` has changed, so be sure to update it in
 `engine.py`. While we're at it, let's set `fov_recompute` to `False`
@@ -348,16 +332,16 @@ after we call `render_all`.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
         ...
--       render_all(con, entities, game_map, screen_width, screen_height, colors)
-+       render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
+-       render_all(con, root_console, entities, game_map, screen_width, screen_height, colors)
++       render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
 +
 +       fov_recompute = False
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
-        <span class="crossed-out-text">render_all(con, entities, game_map, screen_width, screen_height, colors)</span>
-        <span class="new-text">render_all(con, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
+        <span class="crossed-out-text">render_all(con, root_console, entities, game_map, screen_width, screen_height, colors)</span>
+        <span class="new-text">render_all(con, root_console, entities, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
 
         fov_recompute = False</span></pre>
 {{</ original-tab >}}
@@ -373,21 +357,18 @@ Let's start with our NPC. We should just be able to modify our
 solve our problem.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def draw_entity(con, entity):
+-def draw_entity(con, entity):
 +def draw_entity(con, entity, fov_map):
--   libtcod.console_set_default_foreground(con, entity.color)
--   libtcod.console_put_char(con, entity.x, entity.y, entity.char, libtcod.BKGND_NONE)
-+   if libtcod.map_is_in_fov(fov_map, entity.x, entity.y):
-+       libtcod.console_set_default_foreground(con, entity.color)
-+       libtcod.console_put_char(con, entity.x, entity.y, entity.char, libtcod.BKGND_NONE)
+-   con.print(entity.x, entity.y, entity.char, fg=entity.color)
++   if fov_map[entity.x, entity.y]:
++       con.print(entity.x, entity.y, entity.char, fg=entity.color)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre><span class="crossed-out-text">def draw_entity(con, entity):</span>
 <span class="new-text">def draw_entity(con, entity, fov_map):
-    if libtcod.map_is_in_fov(fov_map, entity.x, entity.y):</span>
-        <span style="color: blue">libtcod.console_set_default_foreground(con, entity.color)
-        libtcod.console_put_char(con, entity.x, entity.y, entity.char, libtcod.BKGND_NONE)</span></pre>
+    if fov_map[entity.x, entity.y]:</span>
+        <span style="color: blue">con.print(entity.x, entity.y, entity.char, fg=entity.color)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -413,7 +394,7 @@ Run the project again, and you won't see the NPC unless it's in your
 field of view.
 
 Now for the map. In traditional roguelikes, your character can only see
-whats inside its field of view, but it will "remember" areas that were
+what's inside its field of view, but it will "remember" areas that were
 explored previously. We can accomplish this effect by adding a variable
 called `explored` to our `Tile` class. Modify the `__init__` function in
 `Tile` to include this new variable:
@@ -440,43 +421,43 @@ field of view if we've explored them previously. Also, any tiles that
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
                 ...
-                visible = libtcod.map_is_in_fov(fov_map, x, y)
+                visible = fov_map[x, y]
                 wall = game_map.tiles[x][y].block_sight
 
                 if visible:
                     if wall:
-                        libtcod.console_set_char_background(con, x, y, colors.get('light_wall'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('light_wall')
                     else:
-                        libtcod.console_set_char_background(con, x, y, colors.get('light_ground'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('light_ground')
 
 +                   game_map.tiles[x][y].explored = True
 -               else:
 +               elif game_map.tiles[x][y].explored:
                     if wall:
-                        libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('dark_wall')
                     else:
-                        libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('dark_ground')
                     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>                ...
-                visible = libtcod.map_is_in_fov(fov_map, x, y)
+                visible = fov_map[x, y]
                 wall = game_map.tiles[x][y].block_sight
 
                 if visible:
                     if wall:
-                        libtcod.console_set_char_background(con, x, y, colors.get('light_wall'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('light_wall')
                     else:
-                        libtcod.console_set_char_background(con, x, y, colors.get('light_ground'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('light_ground')
 
                     <span class="new-text">game_map.tiles[x][y].explored = True</span>
                 <span class="crossed-out-text">else:</span>
                 <span class="new-text">elif game_map.tiles[x][y].explored:</span>
                     if wall:
-                        libtcod.console_set_char_background(con, x, y, colors.get('dark_wall'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('dark_wall')
                     else:
-                        libtcod.console_set_char_background(con, x, y, colors.get('dark_ground'), libtcod.BKGND_SET)
+                        con.bg[x, y] = colors.get('dark_ground')
                     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}

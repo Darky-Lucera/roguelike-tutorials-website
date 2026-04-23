@@ -154,7 +154,7 @@ Like the other components we've created, we'll need to add these new
 ones to the `Entity` class.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 import math
 
@@ -217,7 +217,7 @@ class Entity:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 import math
 
@@ -291,9 +291,9 @@ Let's add the new `Equipment` component to the player, in
     ...
     level_component = Level()
 +   equipment_component = Equipment()
--   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+-   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
 -                   fighter=fighter_component, inventory=inventory_component, level=level_component)
-+   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
++   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
 +                   fighter=fighter_component, inventory=inventory_component, level=level_component,
 +                   equipment=equipment_component)
     entities = [player]
@@ -304,9 +304,9 @@ Let's add the new `Equipment` component to the player, in
 <pre>    ...
     level_component = Level()
     <span class="new-text">equipment_component = Equipment()</span>
-    <span class="crossed-out-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,</span>
+    <span class="crossed-out-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,</span>
                     <span class="crossed-out-text">fighter=fighter_component, inventory=inventory_component, level=level_component)</span>
-    <span class="new-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    <span class="new-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
                     fighter=fighter_component, inventory=inventory_component, level=level_component,
                     equipment=equipment_component)</span>
     entities = [player]
@@ -317,7 +317,7 @@ Let's add the new `Equipment` component to the player, in
 Be sure to import the component in this file as well.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 +from components.equipment import Equipment
 from components.fighter import Fighter
@@ -327,7 +327,7 @@ from components.level import Level
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 <span class="new-text">from components.equipment import Equipment</span>
 from components.fighter import Fighter
@@ -345,13 +345,13 @@ in `Inventory` to equip an item if its equippable, like this:
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
         ...
         if item_component.use_function is None:
--           results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})
+-           results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})
 +           equippable_component = item_entity.equippable
 +
 +           if equippable_component:
 +               results.append({'equip': item_entity})
 +           else:
-+               results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})
++               results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})
         else:
             ...
 {{</ highlight >}}
@@ -359,13 +359,13 @@ in `Inventory` to equip an item if its equippable, like this:
 {{< original-tab >}}
 <pre>        ...
         if item_component.use_function is None:
-            <span class="crossed-out-text">results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})</span>
+            <span class="crossed-out-text">results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})</span>
             <span class="new-text">equippable_component = item_entity.equippable
 
             if equippable_component:
                 results.append({'equip': item_entity})
             else:
-                results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), libtcod.yellow)})</span>
+                results.append({'message': Message('The {0} cannot be used'.format(item_entity.name), (255, 255, 0))})</span>
         else:
             ...
 </pre>
@@ -670,14 +670,14 @@ from components.fighter import Fighter
                ...
                 if item_choice == 'healing_potion':
                     item_component = Item(use_function=heal, amount=40)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
 +               elif item_choice == 'sword':
 +                   equippable_component = Equippable(EquipmentSlots.MAIN_HAND, power_bonus=3)
-+                   item = Entity(x, y, '/', libtcod.sky, 'Sword', equippable=equippable_component)
++                   item = Entity(x, y, '/', (0, 191, 255), 'Sword', equippable=equippable_component)
 +               elif item_choice == 'shield':
 +                   equippable_component = Equippable(EquipmentSlots.OFF_HAND, defense_bonus=1)
-+                   item = Entity(x, y, '[', libtcod.darker_orange, 'Shield', equippable=equippable_component)
++                   item = Entity(x, y, '[', (128, 64, 0), 'Shield', equippable=equippable_component)
                 elif item_choice == 'fireball_scroll':
                     ...
 {{</ highlight >}}
@@ -686,14 +686,14 @@ from components.fighter import Fighter
 <pre>               ...
                 if item_choice == 'healing_potion':
                     item_component = Item(use_function=heal, amount=40)
-                    item = Entity(x, y, '!', libtcod.violet, 'Healing Potion', render_order=RenderOrder.ITEM,
+                    item = Entity(x, y, '!', (127, 0, 255), 'Healing Potion', render_order=RenderOrder.ITEM,
                                   item=item_component)
                 <span class="new-text">elif item_choice == 'sword':
                     equippable_component = Equippable(EquipmentSlots.MAIN_HAND, power_bonus=3)
-                    item = Entity(x, y, '/', libtcod.sky, 'Sword', equippable=equippable_component)
+                    item = Entity(x, y, '/', (0, 191, 255), 'Sword', equippable=equippable_component)
                 elif item_choice == 'shield':
                     equippable_component = Equippable(EquipmentSlots.OFF_HAND, defense_bonus=1)
-                    item = Entity(x, y, '[', libtcod.darker_orange, 'Shield', equippable=equippable_component)</span>
+                    item = Entity(x, y, '[', (128, 64, 0), 'Shield', equippable=equippable_component)</span>
                 elif item_choice == 'fireball_scroll':
                     ...</pre>
 {{</ original-tab >}}
@@ -706,7 +706,7 @@ function in `initialize_new_game.py` to give the player a dagger at the
 start.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 from components.equipment import Equipment
 +from components.equippable import Equippable
@@ -727,13 +727,13 @@ def get_game_variables(constants):
     inventory_component = Inventory(26)
     level_component = Level()
     equipment_component = Equipment()
-    player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
                     fighter=fighter_component, inventory=inventory_component, level=level_component,
                     equipment=equipment_component)
     entities = [player]
 
 +   equippable_component = Equippable(EquipmentSlots.MAIN_HAND, power_bonus=2)
-+   dagger = Entity(0, 0, '-', libtcod.sky, 'Dagger', equippable=equippable_component)
++   dagger = Entity(0, 0, '-', (0, 191, 255), 'Dagger', equippable=equippable_component)
 +   player.inventory.add_item(dagger)
 +   player.equipment.toggle_equip(dagger)
 
@@ -742,7 +742,7 @@ def get_game_variables(constants):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 from components.equipment import Equipment
 <span class="new-text">from components.equippable import Equippable</span>
@@ -763,13 +763,13 @@ def get_game_variables(constants):
     inventory_component = Inventory(26)
     level_component = Level()
     equipment_component = Equipment()
-    player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
                     fighter=fighter_component, inventory=inventory_component, level=level_component,
                     equipment=equipment_component)
     entities = [player]
 
     <span class="new-text">equippable_component = Equippable(EquipmentSlots.MAIN_HAND, power_bonus=2)
-    dagger = Entity(0, 0, '-', libtcod.sky, 'Dagger', equippable=equippable_component)
+    dagger = Entity(0, 0, '-', (0, 191, 255), 'Dagger', equippable=equippable_component)
     player.inventory.add_item(dagger)
     player.equipment.toggle_equip(dagger)</span>
 

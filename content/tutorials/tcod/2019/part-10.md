@@ -28,9 +28,6 @@ Our first function in this new file will return the variables that are
 currently at the top of the `main` function. It looks like this:
 
 {{< highlight py3 >}}
-import tcod as libtcod
-
-
 def get_constants():
     window_title = 'Roguelike Tutorial Revised'
 
@@ -60,10 +57,10 @@ def get_constants():
     max_items_per_room = 2
 
     colors = {
-        'dark_wall': libtcod.Color(0, 0, 100),
-        'dark_ground': libtcod.Color(50, 50, 150),
-        'light_wall': libtcod.Color(130, 110, 50),
-        'light_ground': libtcod.Color(200, 180, 50)
+        'dark_wall': (0, 0, 100),
+        'dark_ground': (50, 50, 150),
+        'light_wall': (130, 110, 50),
+        'light_ground': (200, 180, 50)
     }
 
     constants = {
@@ -210,62 +207,60 @@ to the `constants` dictionary.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
     ...
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet('arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD)
 
--   libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)
-+   libtcod.console_init_root(constants['screen_width'], constants['screen_height'], constants['window_title'], False)
+-   with tcod.context.new(columns=screen_width, rows=screen_height, title='libtcod tutorial revised', tileset=tileset) as context:
++   with tcod.context.new(columns=constants['screen_width'], rows=constants['screen_height'], title=constants['window_title'], tileset=tileset) as context:
+-       root_console = tcod.console.Console(screen_width, screen_height, order='F')
+-       con = tcod.console.Console(screen_width, screen_height, order='F')
+-       panel = tcod.console.Console(screen_width, panel_height, order='F')
++       root_console = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
++       con = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
++       panel = tcod.console.Console(constants['screen_width'], constants['panel_height'], order='F')
 
--   con = libtcod.console_new(screen_width, screen_height)
--   panel = libtcod.console_new(screen_width, panel_height)
-+   con = libtcod.console_new(constants['screen_width'], constants['screen_height'])
-+   panel = libtcod.console_new(constants['screen_width'], constants['panel_height'])
+-       game_map = GameMap(map_width, map_height)
+-       game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities,
+-                         max_monsters_per_room, max_items_per_room)
++       game_map = GameMap(constants['map_width'], constants['map_height'])
++       game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],
++                         constants['map_width'], constants['map_height'], player, entities,
++                         constants['max_monsters_per_room'], constants['max_items_per_room'])
 
--   game_map = GameMap(map_width, map_height)
--   game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities,
--                     max_monsters_per_room, max_items_per_room)
-+   game_map = GameMap(constants['map_width'], constants['map_height'])
-+   game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],
-+                     constants['map_width'], constants['map_height'], player, entities,
-+                     constants['max_monsters_per_room'], constants['max_items_per_room'])
+        fov_recompute = True
 
-    fov_recompute = True
+        fov_map = initialize_fov(game_map)
 
-    fov_map = initialize_fov(game_map)
-
--   message_log = MessageLog(message_x, message_width, message_height)
-+   message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])
-
-    key = libtcod.Key()
+-       message_log = MessageLog(message_x, message_width, message_height)
++       message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet('arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD)
 
-    <span class="crossed-out-text">libtcod.console_init_root(screen_width, screen_height, 'libtcod tutorial revised', False)</span>
-    <span class="new-text">libtcod.console_init_root(constants['screen_width'], constants['screen_height'], constants['window_title'], False)</span>
+    <span class="crossed-out-text">with tcod.context.new(columns=screen_width, rows=screen_height, title='libtcod tutorial revised', tileset=tileset) as context:</span>
+    <span class="new-text">with tcod.context.new(columns=constants['screen_width'], rows=constants['screen_height'], title=constants['window_title'], tileset=tileset) as context:</span>
+        <span class="crossed-out-text">root_console = tcod.console.Console(screen_width, screen_height, order='F')</span>
+        <span class="crossed-out-text">con = tcod.console.Console(screen_width, screen_height, order='F')</span>
+        <span class="crossed-out-text">panel = tcod.console.Console(screen_width, panel_height, order='F')</span>
+        <span class="new-text">root_console = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        con = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        panel = tcod.console.Console(constants['screen_width'], constants['panel_height'], order='F')</span>
 
-    <span class="crossed-out-text">con = libtcod.console_new(screen_width, screen_height)</span>
-    <span class="crossed-out-text">panel = libtcod.console_new(screen_width, panel_height)</span>
-    <span class="new-text">con = libtcod.console_new(constants['screen_width'], constants['screen_height'])
-    panel = libtcod.console_new(constants['screen_width'], constants['panel_height'])</span>
+        <span class="crossed-out-text">game_map = GameMap(map_width, map_height)</span>
+        <span class="crossed-out-text">game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities,</span>
+                          <span class="crossed-out-text">max_monsters_per_room, max_items_per_room)</span>
+        <span class="new-text">game_map = GameMap(constants['map_width'], constants['map_height'])
+        game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],
+                          constants['map_width'], constants['map_height'], player, entities,
+                          constants['max_monsters_per_room'], constants['max_items_per_room'])</span>
 
-    <span class="crossed-out-text">game_map = GameMap(map_width, map_height)</span>
-    <span class="crossed-out-text">game_map.make_map(max_rooms, room_min_size, room_max_size, map_width, map_height, player, entities,</span>
-                      <span class="crossed-out-text">max_monsters_per_room, max_items_per_room)</span>
-    <span class="new-text">game_map = GameMap(constants['map_width'], constants['map_height'])
-    game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],
-                      constants['map_width'], constants['map_height'], player, entities,
-                      constants['max_monsters_per_room'], constants['max_items_per_room'])</span>
+        fov_recompute = True
 
-    fov_recompute = True
+        fov_map = initialize_fov(game_map)
 
-    fov_map = initialize_fov(game_map)
-
-    <span class="crossed-out-text">message_log = MessageLog(message_x, message_width, message_height)</span>
-    <span class="new-text">message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])</span>
-
-    key = libtcod.Key()</pre>
+        <span class="crossed-out-text">message_log = MessageLog(message_x, message_width, message_height)</span>
+        <span class="new-text">message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -277,10 +272,10 @@ to the `constants` dictionary.
 +                         constants['fov_algorithm'])
 
 -       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
--                  screen_height, bar_width, panel_height, panel_y, mouse, colors, game_state)
+-                  screen_height, bar_width, panel_height, panel_y, mouse_pos, colors, game_state, root_console)
 +       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
 +                  constants['screen_width'], constants['screen_height'], constants['bar_width'],
-+                  constants['panel_height'], constants['panel_y'], mouse, constants['colors'], game_state)
++                  constants['panel_height'], constants['panel_y'], mouse_pos, constants['colors'], game_state, root_console)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -291,10 +286,10 @@ to the `constants` dictionary.
                           constants['fov_algorithm'])</span>
 
         <span class="crossed-out-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,</span>
-                   <span class="crossed-out-text">screen_height, bar_width, panel_height, panel_y, mouse, colors, game_state)</span>
+                   <span class="crossed-out-text">screen_height, bar_width, panel_height, panel_y, mouse_pos, colors, game_state, root_console)</span>
         <span class="new-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
                    constants['screen_width'], constants['screen_height'], constants['bar_width'],
-                   constants['panel_height'], constants['panel_y'], mouse, constants['colors'], game_state)</span></pre>
+                   constants['panel_height'], constants['panel_y'], mouse_pos, constants['colors'], game_state, root_console)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -325,7 +320,7 @@ def get_constants():
 +def get_game_variables(constants):
 +   fighter_component = Fighter(hp=30, defense=2, power=5)
 +   inventory_component = Inventory(26)
-+   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
++   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
 +                   fighter=fighter_component, inventory=inventory_component)
 +   entities = [player]
 +
@@ -348,7 +343,7 @@ def get_constants():
 <span class="new-text">def get_game_variables(constants):
     fighter_component = Fighter(hp=30, defense=2, power=5)
     inventory_component = Inventory(26)
-    player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+    player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
                     fighter=fighter_component, inventory=inventory_component)
     entities = [player]
 
@@ -369,8 +364,6 @@ We'll need to include a few imports in `initialize_new_game.py` for
 this:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
-
 +from components.fighter import Fighter
 +from components.inventory import Inventory
 +
@@ -390,9 +383,7 @@ def get_constants():
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
-
-<span class="new-text">from components.fighter import Fighter
+<pre><span class="new-text">from components.fighter import Fighter
 from components.inventory import Inventory
 
 from entity import Entity
@@ -440,76 +431,70 @@ Then modify the `main` function like this:
     ...
 -   fighter_component = Fighter(hp=30, defense=2, power=5)
 -   inventory_component = Inventory(26)
--   player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,
+-   player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,
 -                   fighter=fighter_component, inventory=inventory_component)
 -   entities = [player]
 
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet('arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD)
 
-    libtcod.console_init_root(constants['screen_width'], constants['screen_height'], constants['window_title'], False)
+    with tcod.context.new(columns=constants['screen_width'], rows=constants['screen_height'], title=constants['window_title'], tileset=tileset) as context:
+        root_console = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        con = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        panel = tcod.console.Console(constants['screen_width'], constants['panel_height'], order='F')
 
-    con = libtcod.console_new(constants['screen_width'], constants['screen_height'])
-    panel = libtcod.console_new(constants['screen_width'], constants['panel_height'])
+-       game_map = GameMap(constants['map_width'], constants['map_height'])
+-       game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],
+-                         constants['map_width'], constants['map_height'], player, entities,
+-                         constants['max_monsters_per_room'], constants['max_items_per_room'])
 
--   game_map = GameMap(constants['map_width'], constants['map_height'])
--   game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],
--                     constants['map_width'], constants['map_height'], player, entities,
--                     constants['max_monsters_per_room'], constants['max_items_per_room'])
++       player, entities, game_map, message_log, game_state = get_game_variables(constants)
 
-+   player, entities, game_map, message_log, game_state = get_game_variables(constants)
+        fov_recompute = True
 
-    fov_recompute = True
+        fov_map = initialize_fov(game_map)
 
-    fov_map = initialize_fov(game_map)
+-       message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])
 
--   message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])
+-       game_state = GameStates.PLAYERS_TURN
+        previous_game_state = game_state
 
-    key = libtcod.Key()
-    mouse = libtcod.Mouse()
-
--   game_state = GameStates.PLAYERS_TURN
-    previous_game_state = game_state
-
-    targeting_item = None
-    ...
+        targeting_item = None
+        ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
     <span class="crossed-out-text">fighter_component = Fighter(hp=30, defense=2, power=5)</span>
     <span class="crossed-out-text">inventory_component = Inventory(26)</span>
-    <span class="crossed-out-text">player = Entity(0, 0, '@', libtcod.white, 'Player', blocks=True, render_order=RenderOrder.ACTOR,</span>
+    <span class="crossed-out-text">player = Entity(0, 0, '@', (255, 255, 255), 'Player', blocks=True, render_order=RenderOrder.ACTOR,</span>
                     <span class="crossed-out-text">fighter=fighter_component, inventory=inventory_component)</span>
     <span class="crossed-out-text">entities = [player]</span>
 
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet('arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD)
 
-    libtcod.console_init_root(constants['screen_width'], constants['screen_height'], constants['window_title'], False)
+    with tcod.context.new(columns=constants['screen_width'], rows=constants['screen_height'], title=constants['window_title'], tileset=tileset) as context:
+        root_console = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        con = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        panel = tcod.console.Console(constants['screen_width'], constants['panel_height'], order='F')
 
-    con = libtcod.console_new(constants['screen_width'], constants['screen_height'])
-    panel = libtcod.console_new(constants['screen_width'], constants['panel_height'])
+        <span class="crossed-out-text">game_map = GameMap(constants['map_width'], constants['map_height'])</span>
+        <span class="crossed-out-text">game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],</span>
+                          <span class="crossed-out-text">constants['map_width'], constants['map_height'], player, entities,</span>
+                          <span class="crossed-out-text">constants['max_monsters_per_room'], constants['max_items_per_room'])</span>
 
-    <span class="crossed-out-text">game_map = GameMap(constants['map_width'], constants['map_height'])</span>
-    <span class="crossed-out-text">game_map.make_map(constants['max_rooms'], constants['room_min_size'], constants['room_max_size'],</span>
-                      <span class="crossed-out-text">constants['map_width'], constants['map_height'], player, entities,</span>
-                      <span class="crossed-out-text">constants['max_monsters_per_room'], constants['max_items_per_room'])</span>
+        <span class="new-text">player, entities, game_map, message_log, game_state = get_game_variables(constants)</span>
 
-    <span class="new-text">player, entities, game_map, message_log, game_state = get_game_variables(constants)</span>
+        fov_recompute = True
 
-    fov_recompute = True
+        fov_map = initialize_fov(game_map)
 
-    fov_map = initialize_fov(game_map)
+        <span class="crossed-out-text">message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])</span>
 
-    <span class="crossed-out-text">message_log = MessageLog(constants['message_x'], constants['message_width'], constants['message_height'])</span>
+        <span class="crossed-out-text">game_state = GameStates.PLAYERS_TURN</span>
+        previous_game_state = game_state
 
-    key = libtcod.Key()
-    mouse = libtcod.Mouse()
-
-    <span class="crossed-out-text">game_state = GameStates.PLAYERS_TURN</span>
-    previous_game_state = game_state
-
-    targeting_item = None
-    ...</pre>
+        targeting_item = None
+        ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -518,13 +503,13 @@ the imports we did before. Modify your import section at the top of
 `engine.py` to look like this:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 -from components.fighter import Fighter
 -from components.inventory import Inventory
 from death_functions import kill_monster, kill_player
 -from entity import Entity, get_blocking_entities_at_location
-+from entity get_blocking_entities_at_location
++from entity import get_blocking_entities_at_location
 from fov_functions import initialize_fov, recompute_fov
 -from game_messages import Message, MessageLog
 +from game_messages import Message
@@ -537,14 +522,14 @@ from loader_functions.initialize_new_game import get_constants, get_game_variabl
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 <span class="crossed-out-text">from components.fighter import Fighter</span>
 <span class="crossed-out-text">from components.inventory import Inventory</span>
 from death_functions import kill_monster, kill_player
-from entity import <span class="crossed-out-text">Entity</span>, get_blocking_entities_at_location
+from entity import <span class="crossed-out-text">Entity, </span>get_blocking_entities_at_location
 from fov_functions import initialize_fov, recompute_fov
-from game_messages import Message, <span class="crossed-out-text">MessageLog</span>
+from game_messages import Message<span class="crossed-out-text">, MessageLog</span>
 from game_states import GameStates
 from input_handlers import handle_keys, handle_mouse
 from loader_functions.initialize_new_game import get_constants, get_game_variables
@@ -673,37 +658,31 @@ We'll need a new menu function to display our main menu. Open up
     it:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def inventory_menu(con, header, inventory, inventory_width, screen_width, screen_height):
+def inventory_menu(con, root_console, header, inventory, inventory_width, screen_width, screen_height):
     ...
 
 
-+def main_menu(con, background_image, screen_width, screen_height):
-+   libtcod.image_blit_2x(background_image, 0, 0, 0)
++def main_menu(con, root_console, screen_width, screen_height):
++   root_console.print(int(screen_width / 2), int(screen_height / 2) - 4, 'TOMBS OF THE ANCIENT KINGS',
++                      fg=(255, 255, 63))
++   root_console.print(int(screen_width / 2), int(screen_height - 2), 'By (Your name here)',
++                      fg=(255, 255, 63))
 +
-+   libtcod.console_set_default_foreground(0, libtcod.light_yellow)
-+   libtcod.console_print_ex(0, int(screen_width / 2), int(screen_height / 2) - 4, libtcod.BKGND_NONE, libtcod.CENTER,
-+                            'TOMBS OF THE ANCIENT KINGS')
-+   libtcod.console_print_ex(0, int(screen_width / 2), int(screen_height - 2), libtcod.BKGND_NONE, libtcod.CENTER,
-+                            'By (Your name here)')
-+
-+   menu(con, '', ['Play a new game', 'Continue last game', 'Quit'], 24, screen_width, screen_height)
++   menu(con, root_console, '', ['Play a new game', 'Continue last game', 'Quit'], 24, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def inventory_menu(con, header, inventory, inventory_width, screen_width, screen_height):
+<pre>def inventory_menu(con, root_console, header, inventory, inventory_width, screen_width, screen_height):
     ...
 
 
-<span class="new-text">def main_menu(con, background_image, screen_width, screen_height):
-    libtcod.image_blit_2x(background_image, 0, 0, 0)
+<span class="new-text">def main_menu(con, root_console, screen_width, screen_height):
+    root_console.print(int(screen_width / 2), int(screen_height / 2) - 4, 'TOMBS OF THE ANCIENT KINGS',
+                       fg=(255, 255, 63))
+    root_console.print(int(screen_width / 2), int(screen_height - 2), 'By (Your name here)',
+                       fg=(255, 255, 63))
 
-    libtcod.console_set_default_foreground(0, libtcod.light_yellow)
-    libtcod.console_print_ex(0, int(screen_width / 2), int(screen_height / 2) - 4, libtcod.BKGND_NONE, libtcod.CENTER,
-                             'TOMBS OF THE ANCIENT KINGS')
-    libtcod.console_print_ex(0, int(screen_width / 2), int(screen_height - 2), libtcod.BKGND_NONE, libtcod.CENTER,
-                             'By (Your name here)')
-
-    menu(con, '', ['Play a new game', 'Continue last game', 'Quit'], 24, screen_width, screen_height)</span></pre>
+    menu(con, root_console, '', ['Play a new game', 'Continue last game', 'Quit'], 24, screen_width, screen_height)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -721,38 +700,43 @@ much to
     cover.*
 
 {{< highlight py3 >}}
-def play_game(player, entities, game_map, message_log, game_state, con, panel, constants):
+def play_game(player, entities, game_map, message_log, game_state, con, panel, root_console, context, constants):
     fov_recompute = True
 
     fov_map = initialize_fov(game_map)
 
-    key = libtcod.Key()
-    mouse = libtcod.Mouse()
+    mouse_pos = (0, 0)
 
     game_state = GameStates.PLAYERS_TURN
     previous_game_state = game_state
 
     targeting_item = None
 
-    while not libtcod.console_is_window_closed():
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS | libtcod.EVENT_MOUSE, key, mouse)
-
+    while True:
         if fov_recompute:
             recompute_fov(fov_map, player.x, player.y, constants['fov_radius'], constants['fov_light_walls'],
                           constants['fov_algorithm'])
 
         render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
                    constants['screen_width'], constants['screen_height'], constants['bar_width'],
-                   constants['panel_height'], constants['panel_y'], mouse, constants['colors'], game_state)
+                   constants['panel_height'], constants['panel_y'], mouse_pos, constants['colors'], game_state,
+                   root_console)
 
         fov_recompute = False
 
-        libtcod.console_flush()
+        context.present(root_console)
 
         clear_all(con, entities)
 
-        action = handle_keys(key, game_state)
-        mouse_action = handle_mouse(mouse)
+        action = {}
+        mouse_action = {}
+
+        for event in tcod.event.wait():
+            if isinstance(event, tcod.event.MouseMotion):
+                mouse_pos = (event.tile.x, event.tile.y)
+            elif isinstance(event, tcod.event.MouseButtonDown):
+                mouse_action = handle_mouse(event)
+            action = handle_keys(event, game_state)
 
         move = action.get('move')
         pickup = action.get('pickup')
@@ -793,7 +777,7 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
 
                     break
             else:
-                message_log.add_message(Message('There is nothing here to pick up.', libtcod.yellow))
+                message_log.add_message(Message('There is nothing here to pick up.', (255, 255, 0)))
 
         if show_inventory:
             previous_game_state = game_state
@@ -833,7 +817,7 @@ def play_game(player, entities, game_map, message_log, game_state, con, panel, c
                 return True
 
         if fullscreen:
-            libtcod.console_set_fullscreen(not libtcod.console_is_fullscreen())
+            context.sdl_window.fullscreen = not context.sdl_window.fullscreen
 
         for player_turn_result in player_turn_results:
             message = player_turn_result.get('message')
@@ -924,74 +908,74 @@ an existing one, or exit the program.
 def main():
     constants = get_constants()
 
-    libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | libtcod.FONT_LAYOUT_TCOD)
+    tileset = tcod.tileset.load_tilesheet('arial10x10.png', 32, 8, tcod.tileset.CHARMAP_TCOD)
 
-    libtcod.console_init_root(constants['screen_width'], constants['screen_height'], constants['window_title'], False)
+    with tcod.context.new(
+        columns=constants['screen_width'],
+        rows=constants['screen_height'],
+        title=constants['window_title'],
+        tileset=tileset,
+    ) as context:
+        root_console = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        con = tcod.console.Console(constants['screen_width'], constants['screen_height'], order='F')
+        panel = tcod.console.Console(constants['screen_width'], constants['panel_height'], order='F')
 
-    con = libtcod.console_new(constants['screen_width'], constants['screen_height'])
-    panel = libtcod.console_new(constants['screen_width'], constants['panel_height'])
+        player = None
+        entities = []
+        game_map = None
+        message_log = None
+        game_state = None
 
-    player = None
-    entities = []
-    game_map = None
-    message_log = None
-    game_state = None
+        show_main_menu = True
+        show_load_error_message = False
 
-    show_main_menu = True
-    show_load_error_message = False
+        while True:
+            root_console.clear()
 
-    main_menu_background_image = libtcod.image_load('menu_background.png')
+            if show_main_menu:
+                main_menu(con, root_console, constants['screen_width'], constants['screen_height'])
 
-    key = libtcod.Key()
-    mouse = libtcod.Mouse()
+                if show_load_error_message:
+                    message_box(con, root_console, 'No save game to load', 50, constants['screen_width'],
+                                constants['screen_height'])
 
-    while not libtcod.console_is_window_closed():
-        libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS | libtcod.EVENT_MOUSE, key, mouse)
+                context.present(root_console)
 
-        if show_main_menu:
-            main_menu(con, main_menu_background_image, constants['screen_width'],
-                      constants['screen_height'])
+                action = {}
+                for event in tcod.event.wait():
+                    action = handle_main_menu(event)
+                    if action:
+                        break
 
-            if show_load_error_message:
-                message_box(con, 'No save game to load', 50, constants['screen_width'], constants['screen_height'])
+                new_game = action.get('new_game')
+                load_saved_game = action.get('load_game')
+                exit_game = action.get('exit')
 
-            libtcod.console_flush()
+                if show_load_error_message and (new_game or load_saved_game or exit_game):
+                    show_load_error_message = False
+                elif new_game:
+                    player, entities, game_map, message_log, game_state = get_game_variables(constants)
+                    game_state = GameStates.PLAYERS_TURN
 
-            action = handle_main_menu(key)
-
-            new_game = action.get('new_game')
-            load_saved_game = action.get('load_game')
-            exit_game = action.get('exit')
-
-            if show_load_error_message and (new_game or load_saved_game or exit_game):
-                show_load_error_message = False
-            elif new_game:
-                player, entities, game_map, message_log, game_state = get_game_variables(constants)
-                game_state = GameStates.PLAYERS_TURN
-
-                show_main_menu = False
-            elif load_saved_game:
-                try:
-                    player, entities, game_map, message_log, game_state = load_game()
                     show_main_menu = False
-                except FileNotFoundError:
-                    show_load_error_message = True
-            elif exit_game:
-                break
+                elif load_saved_game:
+                    try:
+                        player, entities, game_map, message_log, game_state = load_game()
+                        show_main_menu = False
+                    except FileNotFoundError:
+                        show_load_error_message = True
+                elif exit_game:
+                    break
 
-        else:
-            libtcod.console_clear(con)
-            play_game(player, entities, game_map, message_log, game_state, con, panel, constants)
+            else:
+                con.clear()
+                play_game(player, entities, game_map, message_log, game_state, con, panel, root_console, context,
+                          constants)
 
-            show_main_menu = True
+                show_main_menu = True
 {{</ highlight >}}
 
-We're loading a background image with `image_load` to display in our
-main menu. The sample image used for this tutorial can be [found
-here](http://roguecentral.org/doryen/files/menu_background1.png).
-Download it and put in in your project's directory.
-
-Other than that, a lot of this should look familiar. We're displaying
+A lot of this should look familiar. We're displaying
 the main menu with three options, and accepting keyboard input to
 determine which option to go with. If the user starts a new game, we use
 our `get_game_variables` function from earlier, and if an old game is
@@ -1005,13 +989,13 @@ yet, so let's do so now. We'll start with `message_box` and we'll put it
 in `menus.py`, at the bottom of the file:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-+def message_box(con, header, width, screen_width, screen_height):
-+   menu(con, header, [], width, screen_width, screen_height)
++def message_box(con, root_console, header, width, screen_width, screen_height):
++   menu(con, root_console, header, [], width, screen_width, screen_height)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">def message_box(con, header, width, screen_width, screen_height):
-    menu(con, header, [], width, screen_width, screen_height)</span></pre>
+<pre><span class="new-text">def message_box(con, root_console, header, width, screen_width, screen_height):
+    menu(con, root_console, header, [], width, screen_width, screen_height)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1021,44 +1005,44 @@ basically.
 Now on to `handle_main_menu`, which goes in `input_handlers.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-def handle_inventory_keys(key):
+def handle_inventory_keys(event):
     ...
 
-+def handle_main_menu(key):
-+   key_char = chr(key.c)
-+
-+   if key_char == 'a':
-+       return {'new_game': True}
-+   elif key_char == 'b':
-+       return {'load_game': True}
-+   elif key_char == 'c' or  key.vk == libtcod.KEY_ESCAPE:
-+       return {'exit': True}
++def handle_main_menu(event):
++   if isinstance(event, tcod.event.KeyDown):
++       key = event.sym
++       if key == tcod.event.KeySym.a:
++           return {'new_game': True}
++       elif key == tcod.event.KeySym.b:
++           return {'load_game': True}
++       elif key == tcod.event.KeySym.c or key == tcod.event.KeySym.ESCAPE:
++           return {'exit': True}
 +
 +   return {}
 
 
-def handle_mouse(mouse):
+def handle_mouse(event):
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>def handle_inventory_keys(key):
+<pre>def handle_inventory_keys(event):
     ...
 
-<span class="new-text">def handle_main_menu(key):
-    key_char = chr(key.c)
-
-    if key_char == 'a':
-        return {'new_game': True}
-    elif key_char == 'b':
-        return {'load_game': True}
-    elif key_char == 'c' or  key.vk == libtcod.KEY_ESCAPE:
-        return {'exit': True}
+<span class="new-text">def handle_main_menu(event):
+    if isinstance(event, tcod.event.KeyDown):
+        key = event.sym
+        if key == tcod.event.KeySym.a:
+            return {'new_game': True}
+        elif key == tcod.event.KeySym.b:
+            return {'load_game': True}
+        elif key == tcod.event.KeySym.c or key == tcod.event.KeySym.ESCAPE:
+            return {'exit': True}
 
     return {}</span>
 
 
-def handle_mouse(mouse):
+def handle_mouse(event):
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1070,7 +1054,7 @@ option can be done through the 'c' key or 'Escape'.
 Remember to import these new functions into `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
+import tcod
 
 from death_functions import kill_monster, kill_player
 from entity import get_blocking_entities_at_location
@@ -1087,7 +1071,7 @@ from render_functions import clear_all, render_all
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
+<pre>import tcod
 
 from death_functions import kill_monster, kill_player
 from entity import get_blocking_entities_at_location

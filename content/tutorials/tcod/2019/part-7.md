@@ -27,8 +27,8 @@ variables in `engine.py`:
 -   map_height = 45
 +   map_height = 43
     ...
-    con = libtcod.console_new(screen_width, screen_height)
-+   panel = libtcod.console_new(screen_width, panel_height)
+    con = tcod.console.Console(screen_width, screen_height, order='F')
++   panel = tcod.console.Console(screen_width, panel_height, order='F')
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -43,8 +43,8 @@ variables in `engine.py`:
     <span class="crossed-out-text">map_height = 45</span>
     <span class="new-text">map_height = 43</span>
     ...
-    con = libtcod.console_new(screen_width, screen_height)
-    <span class="new-text">panel = libtcod.console_new(screen_width, panel_height)</span></pre>
+    con = tcod.console.Console(screen_width, screen_height, order='F')
+    <span class="new-text">panel = tcod.console.Console(screen_width, panel_height, order='F')</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -63,16 +63,12 @@ but above
 def render_bar(panel, x, y, total_width, name, value, maximum, bar_color, back_color):
     bar_width = int(float(value) / maximum * total_width)
 
-    libtcod.console_set_default_background(panel, back_color)
-    libtcod.console_rect(panel, x, y, total_width, 1, False, libtcod.BKGND_SCREEN)
-
-    libtcod.console_set_default_background(panel, bar_color)
+    panel.bg[x:x + total_width, y] = back_color
     if bar_width > 0:
-        libtcod.console_rect(panel, x, y, bar_width, 1, False, libtcod.BKGND_SCREEN)
+        panel.bg[x:x + bar_width, y] = bar_color
 
-    libtcod.console_set_default_foreground(panel, libtcod.white)
-    libtcod.console_print_ex(panel, int(x + total_width / 2), y, libtcod.BKGND_NONE, libtcod.CENTER,
-                             '{0}: {1}/{2}'.format(name, value, maximum))
+    panel.print(int(x + total_width / 2), y, '{0}: {1}/{2}'.format(name, value, maximum),
+                fg=(255, 255, 255), alignment=tcod.CENTER)
 {{</ highlight >}}
 
 Now let's use this function in `render_all`. Remove the HP indicator we
@@ -81,43 +77,39 @@ the
     function.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--def render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
-+def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, bar_width,
-+              panel_height, panel_y, colors):
+-def render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):
++def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
++              bar_width, panel_height, panel_y, colors):
             ...
--   libtcod.console_set_default_foreground(con, libtcod.white)
--   libtcod.console_print_ex(con, 1, screen_height - 2, libtcod.BKGND_NONE, libtcod.LEFT,
--                            'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp))
+-   con.print(1, screen_height - 2, 'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp),
+-             fg=(255, 255, 255))
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
+    con.blit(dest=root_console)
 
-+   libtcod.console_set_default_background(panel, libtcod.black)
-+   libtcod.console_clear(panel)
++   panel.clear()
 +
 +   render_bar(panel, 1, 1, bar_width, 'HP', player.fighter.hp, player.fighter.max_hp,
-+              libtcod.light_red, libtcod.darker_red)
++              (255, 114, 114), (127, 0, 0))
 +
-+   libtcod.console_blit(panel, 0, 0, screen_width, panel_height, 0, 0, panel_y)
++   panel.blit(dest=root_console, dest_x=0, dest_y=panel_y)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
-<span class="new-text">def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, bar_width,
-               panel_height, panel_y, colors):</span>
+<pre><span class="crossed-out-text">def render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors):</span>
+<span class="new-text">def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
+               bar_width, panel_height, panel_y, colors):</span>
             ...
-    <span class="crossed-out-text">libtcod.console_set_default_foreground(con, libtcod.white)</span>
-    <span class="crossed-out-text">libtcod.console_print_ex(con, 1, screen_height - 2, libtcod.BKGND_NONE, libtcod.LEFT,</span>
-                             <span class="crossed-out-text">'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp))</span>
+    <span class="crossed-out-text">con.print(1, screen_height - 2, 'HP: {0:02}/{1:02}'.format(player.fighter.hp, player.fighter.max_hp),</span>
+              <span class="crossed-out-text">fg=(255, 255, 255))</span>
 
-    libtcod.console_blit(con, 0, 0, screen_width, screen_height, 0, 0, 0)
+    con.blit(dest=root_console)
 
-    <span class="new-text">libtcod.console_set_default_background(panel, libtcod.black)
-    libtcod.console_clear(panel)
+    <span class="new-text">panel.clear()
 
     render_bar(panel, 1, 1, bar_width, 'HP', player.fighter.hp, player.fighter.max_hp,
-               libtcod.light_red, libtcod.darker_red)
+               (255, 114, 114), (127, 0, 0))
 
-    libtcod.console_blit(panel, 0, 0, screen_width, panel_height, 0, 0, panel_y)</span></pre>
+    panel.blit(dest=root_console, dest_x=0, dest_y=panel_y)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -125,14 +117,14 @@ Be sure to update the call to `render_all` in
 `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--       render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
-+       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
+-       render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)
++       render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
 +                  bar_width, panel_height, panel_y, colors)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        <span class="crossed-out-text">render_all(con, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)</span>
-        <span class="new-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
+<pre>        <span class="crossed-out-text">render_all(con, root_console, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, colors)</span>
+        <span class="new-text">render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
                    bar_width, panel_height, panel_y, colors)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -174,13 +166,11 @@ and one for the messages inside it. Start by creating a new file, called
 `game_messages.py`. Put the following code inside it:
 
 {{< highlight py3 >}}
-import tcod as libtcod
-
 import textwrap
 
 
 class Message:
-    def __init__(self, text, color=libtcod.white):
+    def __init__(self, text, color=(255, 255, 255)):
         self.text = text
         self.color = color
 
@@ -229,16 +219,14 @@ log to `engine.py`:
     fov_map = initialize_fov(game_map)
 
 +   message_log = MessageLog(message_x, message_width, message_height)
-
-    key = libtcod.Key()
++   mouse_pos = (0, 0)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    fov_map = initialize_fov(game_map)
 
-    <span class="new-text">message_log = MessageLog(message_x, message_width, message_height)</span>
-
-    key = libtcod.Key()</pre>
+    <span class="new-text">message_log = MessageLog(message_x, message_width, message_height)
+    mouse_pos = (0, 0)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -263,8 +251,6 @@ all the `print` statements, replacing them with the message log.
 Let's start with the death functions. In `death_functions.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-import tcod as libtcod
-
 +from game_messages import Message
 
 from game_states import GameStates
@@ -274,22 +260,20 @@ from render_functions import RenderOrder
 
 def kill_player(player):
     player.char = '%'
-    player.color = libtcod.dark_red
+    player.color = (139, 0, 0)
 
 -   return 'You died!', GameStates.PLAYER_DEAD
-+   return Message('You died!', libtcod.red), GameStates.PLAYER_DEAD
++   return Message('You died!', (255, 0, 0)), GameStates.PLAYER_DEAD
 
 
 def kill_monster(monster):
 -   death_message = '{0} is dead!'.format(monster.name.capitalize())
-+   death_message = Message('{0} is dead!'.format(monster.name.capitalize()), libtcod.orange)
++   death_message = Message('{0} is dead!'.format(monster.name.capitalize()), (255, 127, 0))
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>import tcod as libtcod
-
-<span class="new-text">from game_messages import Message</span>
+<pre><span class="new-text">from game_messages import Message</span>
 
 from game_states import GameStates
 
@@ -298,15 +282,15 @@ from render_functions import RenderOrder
 
 def kill_player(player):
     player.char = '%'
-    player.color = libtcod.dark_red
+    player.color = (139, 0, 0)
 
     <span class="crossed-out-text">return 'You died!', GameStates.PLAYER_DEAD</span>
-    <span class="new-text">return Message('You died!', libtcod.red), GameStates.PLAYER_DEAD</span>
+    <span class="new-text">return Message('You died!', (255, 0, 0)), GameStates.PLAYER_DEAD</span>
 
 
 def kill_monster(monster):
     <span class="crossed-out-text">death_message = '{0} is dead!'.format(monster.name.capitalize())</span>
-    <span class="new-text">death_message = Message('{0} is dead!'.format(monster.name.capitalize()), libtcod.orange)</span>
+    <span class="new-text">death_message = Message('{0} is dead!'.format(monster.name.capitalize()), (255, 127, 0))</span>
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -375,13 +359,13 @@ Now for our action messages. In `fighter.py`:
 -           results.append({'message': '{0} attacks {1} for {2} hit points.'.format(self.owner.name.capitalize(),
 -                                                                                   target.name, str(damage))})
 +           results.append({'message': Message('{0} attacks {1} for {2} hit points.'.format(
-+               self.owner.name.capitalize(), target.name, str(damage)), libtcod.white)})
++               self.owner.name.capitalize(), target.name, str(damage)), (255, 255, 255))})
             results.extend(target.fighter.take_damage(damage))
         else:
 -           results.append({'message': '{0} attacks {1} but does no damage.'.format(self.owner.name.capitalize(),
 -                                                                                   target.name)})
 +           results.append({'message': Message('{0} attacks {1} but does no damage.'.format(
-+               self.owner.name.capitalize(), target.name), libtcod.white)})
++               self.owner.name.capitalize(), target.name), (255, 255, 255))})
 
         return results
 {{</ highlight >}}
@@ -392,23 +376,21 @@ Now for our action messages. In `fighter.py`:
             <span class="crossed-out-text">results.append({'message': '{0} attacks {1} for {2} hit points.'.format(self.owner.name.capitalize(),</span>
                                                                                     <span class="crossed-out-text">target.name, str(damage))})</span>
             <span class="new-text">results.append({'message': Message('{0} attacks {1} for {2} hit points.'.format(
-                self.owner.name.capitalize(), target.name, str(damage)), libtcod.white)})</span>
+                self.owner.name.capitalize(), target.name, str(damage)), (255, 255, 255))})</span>
             results.extend(target.fighter.take_damage(damage))
         else:
             <span class="crossed-out-text">results.append({'message': '{0} attacks {1} but does no damage.'.format(self.owner.name.capitalize(),</span>
                                                                                     <span class="crossed-out-text">target.name)})</span>
             <span class="new-text">results.append({'message': Message('{0} attacks {1} but does no damage.'.format(
-                self.owner.name.capitalize(), target.name), libtcod.white)})</span>
+                self.owner.name.capitalize(), target.name), (255, 255, 255))})</span>
 
         return results</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
-You'll need to import both libtcod and Message for this to work:
+You'll need to import `Message` for this to work:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-+import tcod as libtcod
-
 +from game_messages import Message
 
 
@@ -417,9 +399,7 @@ class Fighter:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">import tcod as libtcod
-
-from game_messages import Message</span>
+<pre><span class="new-text">from game_messages import Message</span>
 
 
 class Fighter:
@@ -465,35 +445,33 @@ shows up yet. Let's modify `render_all` to display the message log we've
 created.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, bar_width,
--              panel_height, panel_y, colors):
-+def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
-+              bar_width, panel_height, panel_y, colors):
+-def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
+-              bar_width, panel_height, panel_y, colors):
++def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
++              screen_height, bar_width, panel_height, panel_y, colors):
     ...
-    libtcod.console_clear(panel)
+    panel.clear()
 
 +   # Print the game messages, one line at a time
 +   y = 1
 +   for message in message_log.messages:
-+       libtcod.console_set_default_foreground(panel, message.color)
-+       libtcod.console_print_ex(panel, message_log.x, y, libtcod.BKGND_NONE, libtcod.LEFT, message.text)
++       panel.print(message_log.x, y, message.text, fg=message.color)
 +       y += 1
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height, bar_width,</span>
-               <span class="crossed-out-text">panel_height, panel_y, colors):</span>
-<span class="new-text">def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
-               bar_width, panel_height, panel_y, colors):</span>
+<pre><span class="crossed-out-text">def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,</span>
+               <span class="crossed-out-text">bar_width, panel_height, panel_y, colors):</span>
+<span class="new-text">def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
+               screen_height, bar_width, panel_height, panel_y, colors):</span>
     ...
-    libtcod.console_clear(panel)
+    panel.clear()
 
     <span class="new-text"># Print the game messages, one line at a time
     y = 1
     for message in message_log.messages:
-        libtcod.console_set_default_foreground(panel, message.color)
-        libtcod.console_print_ex(panel, message_log.x, y, libtcod.BKGND_NONE, libtcod.LEFT, message.text)
+        panel.print(message_log.x, y, message.text, fg=message.color)
         y += 1</span>
     ...</pre>
 {{</ original-tab >}}
@@ -504,17 +482,17 @@ message
 log:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,
--                  bar_width, panel_height, panel_y, colors)
-+       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
-+                  screen_height, bar_width, panel_height, panel_y, colors)
+-       render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width,
+-                  screen_height, bar_width, panel_height, panel_y, colors)
++       render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
++                  screen_width, screen_height, bar_width, panel_height, panel_y, colors)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        <span class="crossed-out-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, screen_width, screen_height,</span>
-                   <span class="crossed-out-text">bar_width, panel_height, panel_y, colors)</span>
-        <span class="new-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
-                   screen_height, bar_width, panel_height, panel_y, colors)</span></pre>
+<pre>        <span class="crossed-out-text">render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, screen_width,</span>
+                   <span class="crossed-out-text">screen_height, bar_width, panel_height, panel_y, colors)</span>
+        <span class="new-text">render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
+                   screen_width, screen_height, bar_width, panel_height, panel_y, colors)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -528,30 +506,33 @@ orcs and trolls right now, but perhaps someday it will have dozens
 (hundreds?) of different monster and item types. It would be nice if we
 could see what they are by moving our mouse over them.
 
-Lucky for us, we're already capturing Mouse input, in the `mouse`
-variable right above the game loop. All we need to do is adjust our call
-to `libtcod.sys_check_for_event` to respond to the mouse, and write the
-code that displays the name when we move the mouse over something.
+The `tcod.event.wait()` loop already receives all events including mouse
+movement. We just need to handle `tcod.event.MouseMotion` events to track
+the current tile position. Update the event loop in `engine.py`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--       libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)
-+       libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS | libtcod.EVENT_MOUSE, key, mouse)
+            for event in tcod.event.wait():
++               if isinstance(event, tcod.event.MouseMotion):
++                   mouse_pos = (event.tile.x, event.tile.y)
+                action = handle_keys(event)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        <span class="crossed-out-text">libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS, key, mouse)</span>
-        <span class="new-text">libtcod.sys_check_for_event(libtcod.EVENT_KEY_PRESS | libtcod.EVENT_MOUSE, key, mouse)</span></pre>
+<pre>            for event in tcod.event.wait():
+                <span class="new-text">if isinstance(event, tcod.event.MouseMotion):
+                    mouse_pos = (event.tile.x, event.tile.y)</span>
+                action = handle_keys(event)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 Put the following function in `render_functions.py`, above `render_bar`:
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
-+def get_names_under_mouse(mouse, entities, fov_map):
-+   (x, y) = (mouse.cx, mouse.cy)
++def get_names_under_mouse(mouse_pos, entities, fov_map):
++   (x, y) = mouse_pos
 
 +   names = [entity.name for entity in entities
-+            if entity.x == x and entity.y == y and libtcod.map_is_in_fov(fov_map, entity.x, entity.y)]
++            if entity.x == x and entity.y == y and fov_map[entity.x, entity.y]]
 +   names = ', '.join(names)
 
 +   return names.capitalize()
@@ -562,11 +543,11 @@ def render_bar(panel, x, y, total_width, name, value, maximum, bar_color, back_c
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">def get_names_under_mouse(mouse, entities, fov_map):
-    (x, y) = (mouse.cx, mouse.cy)
+<pre><span class="new-text">def get_names_under_mouse(mouse_pos, entities, fov_map):
+    (x, y) = mouse_pos
 
     names = [entity.name for entity in entities
-             if entity.x == x and entity.y == y and libtcod.map_is_in_fov(fov_map, entity.x, entity.y)]
+             if entity.x == x and entity.y == y and fov_map[entity.x, entity.y]]
     names = ', '.join(names)
 
     return names.capitalize()</span>
@@ -583,35 +564,31 @@ take advantage of our new
     function.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
--              bar_width, panel_height, panel_y, colors):
-+def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
-+              bar_width, panel_height, panel_y, mouse, colors):
+-def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
+-              screen_height, bar_width, panel_height, panel_y, colors):
++def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
++              screen_height, bar_width, panel_height, panel_y, mouse_pos, colors):
     ...
     render_bar(panel, 1, 1, bar_width, 'HP', player.fighter.hp, player.fighter.max_hp,
-               libtcod.light_red, libtcod.darker_red)
+               (255, 114, 114), (127, 0, 0))
 
-+   libtcod.console_set_default_foreground(panel, libtcod.light_gray)
-+   libtcod.console_print_ex(panel, 1, 0, libtcod.BKGND_NONE, libtcod.LEFT,
-+                            get_names_under_mouse(mouse, entities, fov_map))
++   panel.print(1, 0, get_names_under_mouse(mouse_pos, entities, fov_map), fg=(191, 191, 191))
 
-    libtcod.console_blit(panel, 0, 0, screen_width, panel_height, 0, 0, panel_y)
+    panel.blit(dest=root_console, dest_x=0, dest_y=panel_y)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,</span>
-               <span class="crossed-out-text">bar_width, panel_height, panel_y, colors):</span>
-<span class="new-text">def render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width, screen_height,
-               bar_width, panel_height, panel_y, mouse, colors):</span>
+<pre><span class="crossed-out-text">def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,</span>
+               <span class="crossed-out-text">screen_height, bar_width, panel_height, panel_y, colors):</span>
+<span class="new-text">def render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
+               screen_height, bar_width, panel_height, panel_y, mouse_pos, colors):</span>
     ...
     render_bar(panel, 1, 1, bar_width, 'HP', player.fighter.hp, player.fighter.max_hp,
-               libtcod.light_red, libtcod.darker_red)
+               (255, 114, 114), (127, 0, 0))
 
-    <span class="new-text">libtcod.console_set_default_foreground(panel, libtcod.light_gray)
-    libtcod.console_print_ex(panel, 1, 0, libtcod.BKGND_NONE, libtcod.LEFT,
-                             get_names_under_mouse(mouse, entities, fov_map))</span>
+    <span class="new-text">panel.print(1, 0, get_names_under_mouse(mouse_pos, entities, fov_map), fg=(191, 191, 191))</span>
 
-    libtcod.console_blit(panel, 0, 0, screen_width, panel_height, 0, 0, panel_y)</pre>
+    panel.blit(dest=root_console, dest_x=0, dest_y=panel_y)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -620,17 +597,17 @@ And, of course, we'll need to modify the call to `render_all` in
 definition.
 
 {{< codetab >}} {{< diff-tab >}} {{< highlight diff >}}
--       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
--                  screen_height, bar_width, panel_height, panel_y, colors)
-+       render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
-+                  screen_height, bar_width, panel_height, panel_y, mouse, colors)
+-       render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
+-                  screen_width, screen_height, bar_width, panel_height, panel_y, colors)
++       render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
++                  screen_width, screen_height, bar_width, panel_height, panel_y, mouse_pos, colors)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        <span class="crossed-out-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,</span>
-                   <span class="crossed-out-text">screen_height, bar_width, panel_height, panel_y, colors)</span>
-        <span class="new-text">render_all(con, panel, entities, player, game_map, fov_map, fov_recompute, message_log, screen_width,
-                   screen_height, bar_width, panel_height, panel_y, mouse, colors)</span></pre>
+<pre>        <span class="crossed-out-text">render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log,</span>
+                   <span class="crossed-out-text">screen_width, screen_height, bar_width, panel_height, panel_y, colors)</span>
+        <span class="new-text">render_all(con, root_console, panel, entities, player, game_map, fov_map, fov_recompute, message_log,
+                   screen_width, screen_height, bar_width, panel_height, panel_y, mouse_pos, colors)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
