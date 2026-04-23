@@ -296,14 +296,14 @@ Open up `input_handlers.py` and add the following contents:
 {{< highlight diff >}}
 ...
 WAIT_KEYS = {
-    tcod.event.K_PERIOD,
-    tcod.event.K_KP_5,
-    tcod.event.K_CLEAR,
+    tcod.event.KeySym.PERIOD,
+    tcod.event.KeySym.KP_5,
+    tcod.event.KeySym.CLEAR,
 }
 
 +CONFIRM_KEYS = {
-+   tcod.event.K_RETURN,
-+   tcod.event.K_KP_ENTER,
++   tcod.event.KeySym.RETURN,
++   tcod.event.KeySym.KP_ENTER,
 +}
 
 ...
@@ -320,23 +320,23 @@ class InventoryDropHandler(InventoryEventHandler):
 +       player = self.engine.player
 +       engine.mouse_location = player.x, player.y
 
-+   def on_render(self, console: tcod.Console) -> None:
++   def on_render(self, console: tcod.console.Console) -> None:
 +       """Highlight the tile under the cursor."""
 +       super().on_render(console)
 +       x, y = self.engine.mouse_location
-+       console.tiles_rgb["bg"][x, y] = color.white
-+       console.tiles_rgb["fg"][x, y] = color.black
++       console.rgb["bg"][x, y] = color.white
++       console.rgb["fg"][x, y] = color.black
 
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
 +       """Check for key movement or confirmation keys."""
 +       key = event.sym
 +       if key in MOVE_KEYS:
 +           modifier = 1  # Holding modifier keys will speed up key movement.
-+           if event.mod & (tcod.event.KMOD_LSHIFT | tcod.event.KMOD_RSHIFT):
++           if event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
 +               modifier *= 5
-+           if event.mod & (tcod.event.KMOD_LCTRL | tcod.event.KMOD_RCTRL):
++           if event.mod & (tcod.event.Modifier.LCTRL | tcod.event.Modifier.RCTRL):
 +               modifier *= 10
-+           if event.mod & (tcod.event.KMOD_LALT | tcod.event.KMOD_RALT):
++           if event.mod & (tcod.event.Modifier.LALT | tcod.event.Modifier.RALT):
 +               modifier *= 20
 
 +           x, y = self.engine.mouse_location
@@ -354,9 +354,10 @@ class InventoryDropHandler(InventoryEventHandler):
 
 +   def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[Action]:
 +       """Left click confirms a selection."""
-+       if self.engine.game_map.in_bounds(*event.tile):
-+           if event.button == 1:
-+               return self.on_index_selected(*event.tile)
++       x, y = int(event.position[0]), int(event.position[1])
++       if self.engine.game_map.in_bounds(x, y):
++           if event.button == tcod.event.MouseButton.LEFT:
++               return self.on_index_selected(x, y)
 +       return super().ev_mousebuttondown(event)
 
 +   def on_index_selected(self, x: int, y: int) -> Optional[Action]:
@@ -379,14 +380,14 @@ class MainGameEventHandler(EventHandler):
 {{< original-tab >}}
 <pre>...
 WAIT_KEYS = {
-    tcod.event.K_PERIOD,
-    tcod.event.K_KP_5,
-    tcod.event.K_CLEAR,
+    tcod.event.KeySym.PERIOD,
+    tcod.event.KeySym.KP_5,
+    tcod.event.KeySym.CLEAR,
 }
 
 <span class="new-text">CONFIRM_KEYS = {
-    tcod.event.K_RETURN,
-    tcod.event.K_KP_ENTER,
+    tcod.event.KeySym.RETURN,
+    tcod.event.KeySym.KP_ENTER,
 }</span>
 
 ...
@@ -403,23 +404,23 @@ class InventoryDropHandler(InventoryEventHandler):
         player = self.engine.player
         engine.mouse_location = player.x, player.y
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         """Highlight the tile under the cursor."""
         super().on_render(console)
         x, y = self.engine.mouse_location
-        console.tiles_rgb["bg"][x, y] = color.white
-        console.tiles_rgb["fg"][x, y] = color.black
+        console.rgb["bg"][x, y] = color.white
+        console.rgb["fg"][x, y] = color.black
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
         """Check for key movement or confirmation keys."""
         key = event.sym
         if key in MOVE_KEYS:
             modifier = 1  # Holding modifier keys will speed up key movement.
-            if event.mod & (tcod.event.KMOD_LSHIFT | tcod.event.KMOD_RSHIFT):
+            if event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
                 modifier *= 5
-            if event.mod & (tcod.event.KMOD_LCTRL | tcod.event.KMOD_RCTRL):
+            if event.mod & (tcod.event.Modifier.LCTRL | tcod.event.Modifier.RCTRL):
                 modifier *= 10
-            if event.mod & (tcod.event.KMOD_LALT | tcod.event.KMOD_RALT):
+            if event.mod & (tcod.event.Modifier.LALT | tcod.event.Modifier.RALT):
                 modifier *= 20
 
             x, y = self.engine.mouse_location
@@ -437,9 +438,10 @@ class InventoryDropHandler(InventoryEventHandler):
 
     def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[Action]:
         """Left click confirms a selection."""
-        if self.engine.game_map.in_bounds(*event.tile):
-            if event.button == 1:
-                return self.on_index_selected(*event.tile)
+        x, y = int(event.position[0]), int(event.position[1])
+        if self.engine.game_map.in_bounds(x, y):
+            if event.button == tcod.event.MouseButton.LEFT:
+                return self.on_index_selected(x, y)
         return super().ev_mousebuttondown(event)
 
     def on_index_selected(self, x: int, y: int) -> Optional[Action]:
@@ -479,11 +481,11 @@ We can utilize `LookHandler` by adding this to `ev_keydown` in `MainGameEventHan
 {{< diff-tab >}}
 {{< highlight diff >}}
         ...
-        elif key == tcod.event.K_i:
+        elif key == tcod.event.KeySym.i:
             self.engine.event_handler = InventoryActivateHandler(self.engine)
-        elif key == tcod.event.K_d:
+        elif key == tcod.event.KeySym.d:
             self.engine.event_handler = InventoryDropHandler(self.engine)
-+       elif key == tcod.event.K_SLASH:
++       elif key == tcod.event.KeySym.SLASH:
 +           self.engine.event_handler = LookHandler(self.engine)
 
         # No valid key was pressed
@@ -492,11 +494,11 @@ We can utilize `LookHandler` by adding this to `ev_keydown` in `MainGameEventHan
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
-        elif key == tcod.event.K_i:
+        elif key == tcod.event.KeySym.i:
             self.engine.event_handler = InventoryActivateHandler(self.engine)
-        elif key == tcod.event.K_d:
+        elif key == tcod.event.KeySym.d:
             self.engine.event_handler = InventoryDropHandler(self.engine)
-        <span class="new-text">elif key == tcod.event.K_SLASH:
+        <span class="new-text">elif key == tcod.event.KeySym.SLASH:
             self.engine.event_handler = LookHandler(self.engine)</span>
 
         # No valid key was pressed

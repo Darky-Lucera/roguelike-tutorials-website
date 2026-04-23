@@ -4,7 +4,7 @@ date: 2020-06-23
 draft: false
 ---
 
-*Note: This part of the tutorial relies on TCOD version 11.14 or higher. You might need to upgrade the library (and your requirements.txt file, if you're using one).*
+*Note: This part of the tutorial has been reviewed with tcod 21.2.0 and numpy 2.4.2. If you're following along with an older environment, upgrade your dependencies before continuing.*
 
 Remember how we created a wall in the last part? We won't need that anymore. Additionally, our dungeon generator will start by filling the entire map with "wall" tiles and "carving" out rooms, so we can modify our `GameMap` class to fill in walls instead of floors.
 
@@ -54,8 +54,8 @@ class RectangularRoom:
 
     @property
     def center(self) -> Tuple[int, int]:
-        center_x = int((self.x1 + self.x2) / 2)
-        center_y = int((self.y1 + self.y2) / 2)
+        center_x = (self.x1 + self.x2) // 2
+        center_y = (self.y1 + self.y2) // 2
 
         return center_x, center_y
 
@@ -142,7 +142,7 @@ class RectangularRoom:
         return slice(self.x1 + 1, self.x2), slice(self.y1 + 1, self.y2)
 
 
-+def generate_dungeon(map_width, map_height) -> GameMap:
++def generate_dungeon(map_width: int, map_height: int) -> GameMap:
 +   dungeon = GameMap(map_width, map_height)
 
 +   room_1 = RectangularRoom(x=20, y=15, width=10, height=15)
@@ -174,7 +174,7 @@ class RectangularRoom:
         return slice(self.x1 + 1, self.x2), slice(self.y1 + 1, self.y2)
 
 
-<span class="new-text">def generate_dungeon(map_width, map_height) -> GameMap:
+<span class="new-text">def generate_dungeon(map_width: int, map_height: int) -> GameMap:
     dungeon = GameMap(map_width, map_height)
 
     room_1 = RectangularRoom(x=20, y=15, width=10, height=15)
@@ -280,7 +280,7 @@ import tile_types
 +       yield x, y
 
 
-def generate_dungeon(map_width, map_height) -> GameMap:
+def generate_dungeon(map_width: int, map_height: int) -> GameMap:
     ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -320,7 +320,7 @@ import tile_types
         yield x, y</span>
 
 
-def generate_dungeon(map_width, map_height) -> GameMap:
+def generate_dungeon(map_width: int, map_height: int) -> GameMap:
     ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -422,8 +422,8 @@ class RectangularRoom:
 
     @property
     def center(self) -> Tuple[int, int]:
-        center_x = int((self.x1 + self.x2) / 2)
-        center_y = int((self.y1 + self.y2) / 2)
+        center_x = (self.x1 + self.x2) // 2
+        center_y = (self.y1 + self.y2) // 2
 
         return center_x, center_y
 
@@ -467,8 +467,8 @@ class RectangularRoom:
 
     @property
     def center(self) -> Tuple[int, int]:
-        center_x = int((self.x1 + self.x2) / 2)
-        center_y = int((self.y1 + self.y2) / 2)
+        center_x = (self.x1 + self.x2) // 2
+        center_y = (self.y1 + self.y2) // 2
 
         return center_x, center_y
 
@@ -539,7 +539,7 @@ import tile_types
 
 ...
 
--def generate_dungeon(map_width, map_height) -> GameMap:
+-def generate_dungeon(map_width: int, map_height: int) -> GameMap:
 -   dungeon = GameMap(map_width, map_height)
 
 -   room_1 = RectangularRoom(x=20, y=15, width=10, height=15)
@@ -614,7 +614,7 @@ import tile_types
 
 ...
 
-<span class="crossed-out-text">def generate_dungeon(map_width, map_height) -> GameMap:</span>
+<span class="crossed-out-text">def generate_dungeon(map_width: int, map_height: int) -> GameMap:</span>
     <span class="crossed-out-text">dungeon = GameMap(map_width, map_height)</span>
 
     <span class="crossed-out-text">room_1 = RectangularRoom(x=20, y=15, width=10, height=15)</span>

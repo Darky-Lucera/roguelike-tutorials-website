@@ -10,16 +10,18 @@ Welcome to part 1 of this tutorial! This series will help you create your very f
 This tutorial is largely based off the [one found on Roguebasin](http://www.roguebasin.com/index.php?title=Complete_Roguelike_Tutorial,_using_python%2Blibtcod). Many of the design decisions were mainly to keep this tutorial in lockstep
 with that one (at least in terms of chapter composition and general direction). This tutorial would not have been possible without the guidance of those who wrote that tutorial, along with all the wonderful contributors to tcod and python-tcod over the years.
 
-This part assumes that you have either checked [Part 0](/tutorials/tcod/part-0) and are already set up and ready to go. If not, be sure to check that page, and make sure that you've got Python and TCOD installed, and a file called `main.py` created in the directory that you want to work in.
+This part assumes that you have either checked [Part 0](/tutorials/tcod/v2/part-0) and are already set up and ready to go. If not, be sure to check that page, and make sure that you've got Python and TCOD installed, and a file called `main.py` created in the directory that you want to work in.
 
 Assuming that you've done all that, let's get started. Modify (or create, if you haven't already) the file `main.py` to look like this:
 
 {{< highlight py3 >}}
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import tcod
 
 
-def main():
+def main() -> None:
     print("Hello World!")
 
 
@@ -27,9 +29,9 @@ if __name__ == "__main__":
     main()
 {{</ highlight >}}
 
-You can run the program like any other Python program, but for those who are brand new, you do that by typing `python main.py` in the terminal. If you have both Python 2 and 3 installed on your machine, you might have to use `python3 main.py` to run (it depends on your default python, and whether you're using a virtualenv or not).
+You can run the program like any other Python program, but for those who are brand new, you do that by typing `python main.py` in the terminal. On some systems, you might have to use `python3 main.py` instead, depending on how Python is installed and whether you're using a virtual environment.
 
-Alternatively, because of the first line, `#!usr/bin/env python`, you can run the program by typing `./main.py`, assuming you've either activated your virtual environment, or installed tcod on your base Python installation. This line is called a "shebang".
+Alternatively, because of the first line, `#!/usr/bin/env python3`, you can run the program by typing `./main.py`, assuming you've either activated your virtual environment, or installed tcod on your base Python installation. This line is called a "shebang".
 
 Okay, not the most exciting program in the world, I admit, but we've already got our first major difference from the other tutorial. Namely, this funky looking thing here:
 
@@ -46,6 +48,10 @@ Modify `main.py` to look like this:
 
 {{< highlight py3 >}}
 #!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 
@@ -54,25 +60,29 @@ def main() -> None:
     screen_height = 50
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
-    with tcod.context.new_terminal(
-        screen_width,
-        screen_height,
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
     ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        console = tcod.console.Console(screen_width, screen_height, order="F")
         while True:
-            root_console.print(x=1, y=1, string="@")
+            console.print(x=1, y=1, text="@")
 
-            context.present(root_console)
+            context.present(console)
 
             for event in tcod.event.wait():
-                if event.type == "QUIT":
-                    raise SystemExit()
+                match event:
+                    case tcod.event.Quit():
+                        raise SystemExit()
 
 
 if __name__ == "__main__":
@@ -94,26 +104,33 @@ Eventually, we'll load these values from a JSON file rather than hard coding the
 
 {{< highlight py3 >}}
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 {{</ highlight >}}
 
-Here, we're telling tcod which font to use. The `"dejavu10x10_gs_tc.png"` bit is the actual file we're reading from (this should exist in your project folder).
+Here, we're telling tcod which font to use. `Path(__file__).with_name("dejavu10x10_gs_tc.png")` points to the image file sitting next to `main.py`, which is a little more robust than relying on the terminal's current working directory.
+
+> **Updated from the original:** The original tutorial passed `"dejavu10x10_gs_tc.png"` as a plain string, which requires the script to be launched from the project folder. `Path(__file__).with_name(...)` resolves the path relative to the script itself, so it works regardless of the working directory.
 
 {{< highlight py3 >}}
-    with tcod.context.new_terminal(
-        screen_width,
-        screen_height,
-        tileset=tileset
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
+        tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
     ) as context:
 {{</ highlight >}}
 
-This part is what actually creates the screen. We're giving it the `screen_width` and `screen_height` values from before (80 and 50, respectively), along with a title (change this if you've already got your game's name figured out). `tileset` uses the tileset we defined earlier. and `vsync` will either enable or disable vsync, which shouldn't matter too much in our case.
+This part is what actually creates the screen. We're giving it the `screen_width` and `screen_height` values from before (80 and 50, respectively), along with a title (change this if you've already got your game's name figured out). `tileset` uses the tileset we defined earlier, and `vsync` will either enable or disable vsync, which shouldn't matter too much in our case.
+
+Older versions of tcod often used `tcod.context.new_terminal`, but `tcod.context.new` is the modern API and is what the current documentation recommends.
 
 {{< highlight py3 >}}
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        console = tcod.console.Console(screen_width, screen_height, order="F")
 {{</ highlight >}}
 
 This creates our "console" which is what we'll be drawing to. We also set this console's width and height to the same as our new terminal. The "order" argument affects the order of our x and y variables in numpy (an underlying library that tcod uses). By default, numpy accesses 2D arrays in [y, x] order, which is fairly unintuitive. By setting `order="F"`, we can change this to be [x, y] instead. This will make more sense once we start drawing the map.
@@ -125,24 +142,25 @@ This creates our "console" which is what we'll be drawing to. We also set this c
 This is what's called our 'game loop'. Basically, this is a loop that won't ever end, until we close the screen. Every game has some sort of game loop or another.
 
 {{< highlight py3 >}}
-            root_console.print(x=1, y=1, string="@")
+            console.print(x=1, y=1, text="@")
 {{</ highlight >}}
 
-This line is what tells the program to actually put the "@" symbol on the screen in its proper place. We're telling the `root_console` we created to `print` the "@" symbol at the given x and y coordinates. Try changing the x and y values and see what happens, if you feel so inclined.
+This line is what tells the program to actually put the "@" symbol on the screen in its proper place. We're telling the `console` we created to `print` the "@" symbol at the given x and y coordinates. Try changing the x and y values and see what happens, if you feel so inclined.
 
 {{< highlight py3 >}}
-            context.present(root_console)
+            context.present(console)
 {{</ highlight >}}
 
 Without this line, nothing would actually print out on the screen. This is because `context.present` is what actually updates the screen with what we've told it to display so far.
 
 {{< highlight py3 >}}
             for event in tcod.event.wait():
-                if event.type == "QUIT":
-                    raise SystemExit()
+                match event:
+                    case tcod.event.Quit():
+                        raise SystemExit()
 {{</ highlight >}}
 
-This part gives us a way to gracefully exit (i.e. not crashing) the program by hitting the `X` button in the console's window. The line `for event in tcod.event.wait()` will wait for some sort of input from the user (mouse clicks, keyboard strokes, etc.) and loop through each event that happened. `SystemExit()` tells Python to quit the current running program.
+This part gives us a way to gracefully exit (i.e. not crashing) the program by hitting the `X` button in the console's window. The line `for event in tcod.event.wait()` will wait for some sort of input from the user (mouse clicks, keyboard strokes, etc.) and loop through each event that happened. The `match` statement is a clean way to handle tcod's event types with modern Python. `SystemExit()` tells Python to quit the current running program.
 
 Alright, our "@" symbol is successfully displayed on the screen, but we can't rest just yet. We still need to get it moving around\!
 
@@ -154,11 +172,14 @@ We need to keep track of the player's position at all times. Since this is a 2D 
     ...
     screen_height = 50
 +
-+   player_x = int(screen_width / 2)
-+   player_y = int(screen_height / 2)
++   player_x = screen_width // 2
++   player_y = screen_height // 2
 +
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
     ...
 {{</ highlight >}}
@@ -167,11 +188,14 @@ We need to keep track of the player's position at all times. Since this is a 2D 
 <pre>    ...
     screen_height = 50
     <span class="new-text">
-    player_x = int(screen_width / 2)
-    player_y = int(screen_height / 2)
+    player_x = screen_width // 2
+    player_y = screen_height // 2
     </span>
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
     ...</pre>
 {{</ original-tab >}}
@@ -179,10 +203,7 @@ We need to keep track of the player's position at all times. Since this is a 2D 
 
 *Note: Ellipses denote omitted parts of the code. I'll include lines around the code to be inserted so that you'll know exactly where to put new pieces of code, but I won't be showing the entire file every time. The green lines denote code that you should be adding.*
 
-We're placing the player right in the middle of the screen. What's with the `int()` function though? Well, Python 3 doesn't automatically
-truncate division like Python 2 does, so we have to cast the division result (a float) to an integer. If we don't, tcod will give an error.
-
-*Note: It's been pointed out that you could divide with `//` instead of `/` and achieve the same effect. This is true, except in cases where, for whatever reason, one of the numbers given is a decimal. For example, `screen_width // 2.0` will give an error. That shouldn't happen in this case, but wrapping the function in `int()` gives us certainty that this won't ever happen.*
+We're placing the player right in the middle of the screen. `//` is Python's integer division operator, which gives us an integer result right away without going through a floating-point number first.
 
 We also have to modify the command to put the '@' symbol to use these new coordinates.
 
@@ -191,20 +212,20 @@ We also have to modify the command to put the '@' symbol to use these new coordi
 {{< highlight diff >}}
         ...
         while True:
--           root_console.print(x=1, y=1, string="@")
-+           root_console.print(x=player_x, y=player_y, string="@")
+-           console.print(x=1, y=1, text="@")
++           console.print(x=player_x, y=player_y, text="@")
 
-            context.present(root_console)
+            context.present(console)
             ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
         while True:
-            <span class="crossed-out-text">root_console.print(x=1, y=1, string="@")</span>
-            <span class="new-text">root_console.print(x=player_x, y=player_y, string="@")</span>
+            <span class="crossed-out-text">console.print(x=1, y=1, text="@")</span>
+            <span class="new-text">console.print(x=player_x, y=player_y, text="@")</span>
 
-            context.present(root_console)
+            context.present(console)
             ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -228,6 +249,9 @@ To handle the keyboard inputs and the actions associated with them, let's actual
 Create two new Python files in your project's directory, one called `input_handlers.py`, and the other called `actions.py`. Let's fill out `actions.py` first:
 
 {{< highlight py3 >}}
+from __future__ import annotations
+
+
 class Action:
     pass
 
@@ -237,9 +261,7 @@ class EscapeAction(Action):
 
 
 class MovementAction(Action):
-    def __init__(self, dx: int, dy: int):
-        super().__init__()
-
+    def __init__(self, dx: int, dy: int) -> None:
         self.dx = dx
         self.dy = dy
 {{</ highlight >}}
@@ -253,32 +275,41 @@ There might be instances where we need to know more than just the "type" of acti
 That's all we need to do in `actions.py` right now. Let's fill out `input_handlers.py`, which will use the `Action` class and subclasses we just created:
 
 {{< highlight py3 >}}
-from typing import Optional
+from __future__ import annotations
 
 import tcod.event
 
 from actions import Action, EscapeAction, MovementAction
 
 
-class EventHandler(tcod.event.EventDispatch[Action]):
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
+class EventHandler:
+    def dispatch(self, event: tcod.event.Event) -> Action | None:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None
+
+    def ev_quit(self, event: tcod.event.Quit) -> Action | None:
         raise SystemExit()
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
-        action: Optional[Action] = None
+    def ev_keydown(self, event: tcod.event.KeyDown) -> Action | None:
+        action: Action | None = None
 
         key = event.sym
 
-        if key == tcod.event.K_UP:
+        if key == tcod.event.KeySym.UP:
             action = MovementAction(dx=0, dy=-1)
-        elif key == tcod.event.K_DOWN:
+        elif key == tcod.event.KeySym.DOWN:
             action = MovementAction(dx=0, dy=1)
-        elif key == tcod.event.K_LEFT:
+        elif key == tcod.event.KeySym.LEFT:
             action = MovementAction(dx=-1, dy=0)
-        elif key == tcod.event.K_RIGHT:
+        elif key == tcod.event.KeySym.RIGHT:
             action = MovementAction(dx=1, dy=0)
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction()
 
         # No valid key was pressed
@@ -289,10 +320,10 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 Let's go over what we've added.
 
 {{< highlight py3 >}}
-from typing import Optional
+        action: Action | None = None
 {{</ highlight >}}
 
-This is part of Python's type hinting system (which you don't have to include in your project). `Optional` denotes something that could be set to `None`.
+This is part of Python's type hinting system (which you don't have to include in your project). `Action | None` denotes something that can hold either an `Action` or `None`.
 
 {{< highlight py3 >}}
 import tcod.event
@@ -305,26 +336,32 @@ We're importing `tcod.event` so that we can use tcod's event system. We don't ne
 The next line imports the `Action` class and its subclasses that we just created.
 
 {{< highlight py3 >}}
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
 {{</ highlight >}}
 
-We're creating a class called `EventHandler`, which is a subclass of tcod's `EventDispatch` class. `EventDispatch` is a class that allows us to send an event to its proper method based on what type of event it is. Let's take a look at the methods we're creating for `EventHandler` to see a few examples of this.
+We're creating a class called `EventHandler`. Older tcod examples often subclassed `EventDispatch`, but that API is deprecated in recent versions. We'll keep a small handler class of our own, and route events through its `dispatch` method instead.
 
 {{< highlight py3 >}}
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
+    def dispatch(self, event: tcod.event.Event) -> Action | None:
+{{</ highlight >}}
+
+`dispatch` takes a tcod event and sends it to the method that should handle it. If the event is a quit event, it goes to `ev_quit`. If it's a key press, it goes to `ev_keydown`. Any other event returns `None` for now.
+
+{{< highlight py3 >}}
+    def ev_quit(self, event: tcod.event.Quit) -> Action | None:
         raise SystemExit()
 {{</ highlight >}}
 
-Here's an example of us using a method of `EventDispatch`: `ev_quit` is a method defined in `EventDispatch`, which we're overriding in `EventHandler`. `ev_quit` is called when we receive a "quit" event, which happens when we click the "X" in the window of the program. In that case, we want to quit the program, so we raise `SystemExit()` to do so.
+`ev_quit` is called when we receive a "quit" event, which happens when we click the "X" in the window of the program. In that case, we want to quit the program, so we raise `SystemExit()` to do so.
 
 {{< highlight py3 >}}
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
+    def ev_keydown(self, event: tcod.event.KeyDown) -> Action | None:
 {{</ highlight >}}
 
 This method will receive key press events, and return either an `Action` subclass, or `None`, if no valid key was pressed.
 
 {{< highlight py3 >}}
-        action: Optional[Action] = None
+        action: Action | None = None
 
         key = event.sym
 {{</ highlight >}}
@@ -336,14 +373,14 @@ This method will receive key press events, and return either an `Action` subclas
 From there, we go down a list of possible keys pressed. For example:
 
 {{< highlight py3 >}}
-        if key == tcod.event.K_UP:
+        if key == tcod.event.KeySym.UP:
             action = MovementAction(dx=0, dy=-1)
 {{</ highlight >}}
 
 In this case, the user pressed the up-arrow key, so we're creating a `MovementAction`. Notice that here (and in all the other cases of `MovementAction`) we provide `dx` and `dy`. These describe which direction our character will move in.
 
 {{< highlight py3 >}}
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction()
 {{</ highlight >}}
 
@@ -361,6 +398,10 @@ Let's put our new actions and input handlers to use in `main.py`. Edit `main.py`
 {{< diff-tab >}}
 {{< highlight diff >}}
 #!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 +from actions import EscapeAction, MovementAction
@@ -371,23 +412,23 @@ def main() -> None:
     screen_width = 80
     screen_height = 50
 
-    player_x = int(screen_width / 2)
-    player_y = int(screen_height / 2)
+    player_x = screen_width // 2
+    player_y = screen_height // 2
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
 +   event_handler = EventHandler()
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
 
             ...
             for event in tcod.event.wait():
--               if event.type == "QUIT":
--                   raise SystemExit()
-
 +               action = event_handler.dispatch(event)
 
 +               if action is None:
@@ -407,6 +448,10 @@ if __name__ == "__main__":
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 <span class="new-text">from actions import EscapeAction, MovementAction
@@ -417,22 +462,23 @@ def main() -> None:
     screen_width = 80
     screen_height = 50
 
-    player_x = int(screen_width / 2)
-    player_y = int(screen_height / 2)
+    player_x = screen_width // 2
+    player_y = screen_height // 2
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     <span class="new-text">event_handler = EventHandler()</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
 
             ...
             for event in tcod.event.wait():
-                <span class="crossed-out-text">if event.type == "QUIT":</span>
-                    <span class="crossed-out-text">raise SystemExit()</span>
                 <span class="new-text">
                 action = event_handler.dispatch(event)
 
@@ -471,7 +517,7 @@ We're importing the `EscapeAction` and `MovementAction` from `actions`, and `Eve
                 action = event_handler.dispatch(event)
 {{</ highlight >}}
 
-We send the `event` to our `event_handler`'s "dispatch" method, which sends the event to its proper place. In this case, a keyboard event will be sent to the `ev_keydown` method we wrote. The `Action` returned from that method is assigned to our local `action` variable.
+We send the `event` to our `event_handler`'s `dispatch` method, which routes the event to its proper place. In this case, a keyboard event will be sent to the `ev_keydown` method we wrote. The `Action` returned from that method is assigned to our local `action` variable.
 
 {{< highlight py3 >}}
                 if action is None:
@@ -511,11 +557,11 @@ Turns out, we need to "clear" the console after we've drawn it, or we'll get the
 {{< highlight diff >}}
     ...
         while True:
-            root_console.print(x=player_x, y=player_y, string="@")
+            console.print(x=player_x, y=player_y, text="@")
 
-            context.present(root_console)
+            context.present(console)
 
-+           root_console.clear()
++           console.clear()
 
             for event in tcod.event.wait():
                 ...
@@ -524,11 +570,11 @@ Turns out, we need to "clear" the console after we've drawn it, or we'll get the
 {{< original-tab >}}
 <pre>    ...
         while True:
-            root_console.print(x=player_x, y=player_y, string="@")
+            console.print(x=player_x, y=player_y, text="@")
 
-            context.present(root_console)
+            context.present(console)
 
-            <span class="new-text">root_console.clear()</span>
+            <span class="new-text">console.clear()</span>
 
             for event in tcod.event.wait():
                 ...</pre>

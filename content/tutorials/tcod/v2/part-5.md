@@ -98,8 +98,8 @@ Because we've modified the definition of `Engine.__init__`, we need to modify `m
 {{< diff-tab >}}
 {{< highlight diff >}}
     ...
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
--   npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+-   npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
 -   entities = {npc, player}
 
     game_map = generate_dungeon(
@@ -114,14 +114,14 @@ Because we've modified the definition of `Engine.__init__`, we need to modify `m
 -   engine = Engine(entities=entities, event_handler=event_handler, game_map=game_map, player=player)
 +   engine = Engine(event_handler=event_handler, game_map=game_map, player=player)
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>    ...
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-    <span class="crossed-out-text">npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))</span>
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+    <span class="crossed-out-text">npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))</span>
     <span class="crossed-out-text">entities = {npc, player}</span>
 
     game_map = generate_dungeon(
@@ -136,7 +136,7 @@ Because we've modified the definition of `Engine.__init__`, we need to modify `m
     <span class="crossed-out-text">engine = Engine(entities=entities, event_handler=event_handler, game_map=game_map, player=player)</span>
     <span class="new-text">engine = Engine(event_handler=event_handler, game_map=game_map, player=player)</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -203,7 +203,7 @@ class GameMap:
 +       for entity in self.entities:
 +           # Only print entities that are in the FOV
 +           if self.visible[entity.x, entity.y]:
-+               console.print(x=entity.x, y=entity.y, string=entity.char, fg=entity.color)
++               console.print(x=entity.x, y=entity.y, text=entity.char, fg=entity.color)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -227,7 +227,7 @@ class GameMap:
         <span class="new-text">for entity in self.entities:
             # Only print entities that are in the FOV
             if self.visible[entity.x, entity.y]:
-                console.print(x=entity.x, y=entity.y, string=entity.char, fg=entity.color)</span></pre>
+                console.print(x=entity.x, y=entity.y, text=entity.char, fg=entity.color)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -290,7 +290,7 @@ In order to specify the maximum number of monsters that can be spawned into a ro
 
     event_handler = EventHandler()
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
 
     game_map = generate_dungeon(
         max_rooms=max_rooms,
@@ -318,7 +318,7 @@ In order to specify the maximum number of monsters that can be spawned into a ro
 
     event_handler = EventHandler()
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
 
     game_map = generate_dungeon(
         max_rooms=max_rooms,
@@ -647,7 +647,7 @@ from procgen import generate_dungeon
     ...
     event_handler = EventHandler()
 
--   player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
+-   player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
 +   player = copy.deepcopy(entity_factories.player)
 
     game_map = generate_dungeon(
@@ -670,7 +670,7 @@ from procgen import generate_dungeon
     ...
     event_handler = EventHandler()
 
-    <span class="crossed-out-text">player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))</span>
+    <span class="crossed-out-text">player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))</span>
     <span class="new-text">player = copy.deepcopy(entity_factories.player)</span>
 
     game_map = generate_dungeon(
@@ -1012,7 +1012,7 @@ Now that our new actions are in place, we need to modify our `input_handlers.py`
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-from typing import Optional
+from __future__ import annotations
 
 import tcod.event
 
@@ -1020,29 +1020,28 @@ import tcod.event
 +from actions import Action, BumpAction, EscapeAction
 
 
-class EventHandler(tcod.event.EventDispatch[Action]):
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
-        raise SystemExit()
+class EventHandler:
+    ...
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
-        action: Optional[Action] = None
+    def ev_keydown(self, event: tcod.event.KeyDown) -> Action | None:
+        action: Action | None = None
 
         key = event.sym
 
-        if key == tcod.event.K_UP:
+        if key == tcod.event.KeySym.UP:
 -           action = MovementAction(dx=0, dy=-1)
 +           action = BumpAction(dx=0, dy=-1)
-        elif key == tcod.event.K_DOWN:
+        elif key == tcod.event.KeySym.DOWN:
 -           action = MovementAction(dx=0, dy=1)
 +           action = BumpAction(dx=0, dy=1)
-        elif key == tcod.event.K_LEFT:
+        elif key == tcod.event.KeySym.LEFT:
 -           action = MovementAction(dx=-1, dy=0)
 +           action = BumpAction(dx=-1, dy=0)
-        elif key == tcod.event.K_RIGHT:
+        elif key == tcod.event.KeySym.RIGHT:
 -           action = MovementAction(dx=1, dy=0)
 +           action = BumpAction(dx=1, dy=0)
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction()
 
         # No valid key was pressed
@@ -1050,7 +1049,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>from typing import Optional
+<pre>from __future__ import annotations
 
 import tcod.event
 
@@ -1058,29 +1057,28 @@ import tcod.event
 <span class="new-text">from actions import Action, BumpAction, EscapeAction</span>
 
 
-class EventHandler(tcod.event.EventDispatch[Action]):
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
-        raise SystemExit()
+class EventHandler:
+    ...
 
-    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
-        action: Optional[Action] = None
+    def ev_keydown(self, event: tcod.event.KeyDown) -> Action | None:
+        action: Action | None = None
 
         key = event.sym
 
-        if key == tcod.event.K_UP:
+        if key == tcod.event.KeySym.UP:
             <span class="crossed-out-text">action = MovementAction(dx=0, dy=-1)</span>
             <span class="new-text">action = BumpAction(dx=0, dy=-1)</span>
-        elif key == tcod.event.K_DOWN:
+        elif key == tcod.event.KeySym.DOWN:
             <span class="crossed-out-text">action = MovementAction(dx=0, dy=1)</span>
             <span class="new-text">action = BumpAction(dx=0, dy=1)</span>
-        elif key == tcod.event.K_LEFT:
+        elif key == tcod.event.KeySym.LEFT:
             <span class="crossed-out-text">action = MovementAction(dx=-1, dy=0)</span>
             <span class="new-text">action = BumpAction(dx=-1, dy=0)</span>
-        elif key == tcod.event.K_RIGHT:
+        elif key == tcod.event.KeySym.RIGHT:
             <span class="crossed-out-text">action = MovementAction(dx=1, dy=0)</span>
             <span class="new-text">action = BumpAction(dx=1, dy=0)</span>
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction()
 
         # No valid key was pressed
