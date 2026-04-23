@@ -460,8 +460,9 @@ class MainGameEventHandler(EventHandler):
 
         player = self.engine.player
 
-+       if key == tcod.event.K_PERIOD and modifier & (
-+           tcod.event.KMOD_LSHIFT | tcod.event.KMOD_RSHIFT
++       if key == tcod.event.KeySym.GREATER or (
++           key == tcod.event.KeySym.PERIOD
++           and modifier & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT)
 +       ):
 +           return actions.TakeStairsAction(player)
 
@@ -479,8 +480,9 @@ class MainGameEventHandler(EventHandler):
 
         player = self.engine.player
 
-        <span class="new-text">if key == tcod.event.K_PERIOD and modifier & (
-            tcod.event.KMOD_LSHIFT | tcod.event.KMOD_RSHIFT
+        <span class="new-text">if key == tcod.event.KeySym.GREATER or (
+            key == tcod.event.KeySym.PERIOD
+            and modifier & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT)
         ):
             return actions.TakeStairsAction(player)</span>
 
@@ -526,7 +528,7 @@ def render_bar(
 +   """
 +   x, y = location
 
-+   console.print(x=x, y=y, string=f"Dungeon level: {dungeon_level}")
++   console.print(x=x, y=y, text=f"Dungeon level: {dungeon_level}")
 
 
 def render_names_at_mouse_location(
@@ -559,7 +561,7 @@ def render_bar(
     """
     x, y = location
 
-    console.print(x=x, y=y, string=f"Dungeon level: {dungeon_level}")</span>
+    console.print(x=x, y=y, text=f"Dungeon level: {dungeon_level}")</span>
 
 
 def render_names_at_mouse_location(
@@ -1097,29 +1099,29 @@ class AskUserEventHandler(EventHandler):
 +           bg=(0, 0, 0),
 +       )
 
-+       console.print(x=x + 1, y=1, string="Congratulations! You level up!")
-+       console.print(x=x + 1, y=2, string="Select an attribute to increase.")
++       console.print(x=x + 1, y=1, text="Congratulations! You level up!")
++       console.print(x=x + 1, y=2, text="Select an attribute to increase.")
 
 +       console.print(
 +           x=x + 1,
 +           y=4,
-+           string=f"a) Constitution (+20 HP, from {self.engine.player.fighter.max_hp})",
++           text=f"a) Constitution (+20 HP, from {self.engine.player.fighter.max_hp})",
 +       )
 +       console.print(
 +           x=x + 1,
 +           y=5,
-+           string=f"b) Strength (+1 attack, from {self.engine.player.fighter.power})",
++           text=f"b) Strength (+1 attack, from {self.engine.player.fighter.power})",
 +       )
 +       console.print(
 +           x=x + 1,
 +           y=6,
-+           string=f"c) Agility (+1 defense, from {self.engine.player.fighter.defense})",
++           text=f"c) Agility (+1 defense, from {self.engine.player.fighter.defense})",
 +       )
 
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
 +       player = self.engine.player
 +       key = event.sym
-+       index = key - tcod.event.K_a
++       index = key - tcod.event.KeySym.a
 
 +       if 0 <= index <= 2:
 +           if index == 0:
@@ -1155,7 +1157,7 @@ class InventoryEventHandler(AskUserEventHandler):
 <span class="new-text">class LevelUpEventHandler(AskUserEventHandler):
     TITLE = "Level Up"
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
         if self.engine.player.x <= 30:
@@ -1174,29 +1176,29 @@ class InventoryEventHandler(AskUserEventHandler):
             bg=(0, 0, 0),
         )
 
-        console.print(x=x + 1, y=1, string="Congratulations! You level up!")
-        console.print(x=x + 1, y=2, string="Select an attribute to increase.")
+        console.print(x=x + 1, y=1, text="Congratulations! You level up!")
+        console.print(x=x + 1, y=2, text="Select an attribute to increase.")
 
         console.print(
             x=x + 1,
             y=4,
-            string=f"a) Constitution (+20 HP, from {self.engine.player.fighter.max_hp})",
+            text=f"a) Constitution (+20 HP, from {self.engine.player.fighter.max_hp})",
         )
         console.print(
             x=x + 1,
             y=5,
-            string=f"b) Strength (+1 attack, from {self.engine.player.fighter.power})",
+            text=f"b) Strength (+1 attack, from {self.engine.player.fighter.power})",
         )
         console.print(
             x=x + 1,
             y=6,
-            string=f"c) Agility (+1 defense, from {self.engine.player.fighter.defense})",
+            text=f"c) Agility (+1 defense, from {self.engine.player.fighter.defense})",
         )
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
         player = self.engine.player
         key = event.sym
-        index = key - tcod.event.K_a
+        index = key - tcod.event.KeySym.a
 
         if 0 <= index <= 2:
             if index == 0:
@@ -1290,22 +1292,22 @@ class AskUserEventHandler(EventHandler):
 +       )
 
 +       console.print(
-+           x=x + 1, y=y + 1, string=f"Level: {self.engine.player.level.current_level}"
++           x=x + 1, y=y + 1, text=f"Level: {self.engine.player.level.current_level}"
 +       )
 +       console.print(
-+           x=x + 1, y=y + 2, string=f"XP: {self.engine.player.level.current_xp}"
++           x=x + 1, y=y + 2, text=f"XP: {self.engine.player.level.current_xp}"
 +       )
 +       console.print(
 +           x=x + 1,
 +           y=y + 3,
-+           string=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
++           text=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
 +       )
 
 +       console.print(
-+           x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.fighter.power}"
++           x=x + 1, y=y + 4, text=f"Attack: {self.engine.player.fighter.power}"
 +       )
 +       console.print(
-+           x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.fighter.defense}"
++           x=x + 1, y=y + 5, text=f"Defense: {self.engine.player.fighter.defense}"
 +       )
 
 class LevelUpEventHandler(AskUserEventHandler):
@@ -1319,7 +1321,7 @@ class LevelUpEventHandler(AskUserEventHandler):
 <span class="new-text">class CharacterScreenEventHandler(AskUserEventHandler):
     TITLE = "Character Information"
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
         if self.engine.player.x <= 30:
@@ -1343,22 +1345,22 @@ class LevelUpEventHandler(AskUserEventHandler):
         )
 
         console.print(
-            x=x + 1, y=y + 1, string=f"Level: {self.engine.player.level.current_level}"
+            x=x + 1, y=y + 1, text=f"Level: {self.engine.player.level.current_level}"
         )
         console.print(
-            x=x + 1, y=y + 2, string=f"XP: {self.engine.player.level.current_xp}"
+            x=x + 1, y=y + 2, text=f"XP: {self.engine.player.level.current_xp}"
         )
         console.print(
             x=x + 1,
             y=y + 3,
-            string=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
+            text=f"XP for next Level: {self.engine.player.level.experience_to_next_level}",
         )
 
         console.print(
-            x=x + 1, y=y + 4, string=f"Attack: {self.engine.player.fighter.power}"
+            x=x + 1, y=y + 4, text=f"Attack: {self.engine.player.fighter.power}"
         )
         console.print(
-            x=x + 1, y=y + 5, string=f"Defense: {self.engine.player.fighter.defense}"
+            x=x + 1, y=y + 5, text=f"Defense: {self.engine.player.fighter.defense}"
         )</span>
 
 class LevelUpEventHandler(AskUserEventHandler):
@@ -1373,20 +1375,20 @@ To open the screen, we'll have the player press the `c` key. Add the following t
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-        elif key == tcod.event.K_d:
+        elif key == tcod.event.KeySym.d:
             return InventoryDropHandler(self.engine)
-+       elif key == tcod.event.K_c:
++       elif key == tcod.event.KeySym.c:
 +           return CharacterScreenEventHandler(self.engine)
-        elif key == tcod.event.K_SLASH:
+        elif key == tcod.event.KeySym.SLASH:
             return LookHandler(self.engine)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        elif key == tcod.event.K_d:
+<pre>        elif key == tcod.event.KeySym.d:
             return InventoryDropHandler(self.engine)
-        <span class="new-text">elif key == tcod.event.K_c:
+        <span class="new-text">elif key == tcod.event.KeySym.c:
             return CharacterScreenEventHandler(self.engine)</span>
-        elif key == tcod.event.K_SLASH:
+        elif key == tcod.event.KeySym.SLASH:
             return LookHandler(self.engine)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}

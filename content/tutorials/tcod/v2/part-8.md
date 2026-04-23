@@ -75,7 +75,7 @@ class MessageLog:
     ...
 
     def render(
-        self, console: tcod.Console, x: int, y: int, width: int, height: int,
+        self, console: tcod.console.Console, x: int, y: int, width: int, height: int,
     ) -> None:
         """Render this log over the given area.
 
@@ -96,7 +96,7 @@ class MessageLog:
 +   @classmethod
     def render_messages(
 +       cls,
-        console: tcod.Console,
+        console: tcod.console.Console,
         x: int,
         y: int,
         width: int,
@@ -113,7 +113,7 @@ class MessageLog:
         for message in reversed(messages):
 -           for line in reversed(textwrap.wrap(message.full_text, width)):
 +           for line in reversed(list(cls.wrap(message.full_text, width))):
-                console.print(x=x, y=y + y_offset, string=line, fg=message.fg)
+                console.print(x=x, y=y + y_offset, text=line, fg=message.fg)
                 y_offset -= 1
                 if y_offset < 0:
                     return  # No more space to print messages.
@@ -134,7 +134,7 @@ class MessageLog:
     ...
 
     def render(
-        self, console: tcod.Console, x: int, y: int, width: int, height: int,
+        self, console: tcod.console.Console, x: int, y: int, width: int, height: int,
     ) -> None:
         """Render this log over the given area.
 
@@ -155,7 +155,7 @@ class MessageLog:
     <span class="new-text">@classmethod</span>
     def render_messages(
         <span class="new-text">cls,</span>
-        console: tcod.Console,
+        console: tcod.console.Console,
         x: int,
         y: int,
         width: int,
@@ -172,7 +172,7 @@ class MessageLog:
         for message in reversed(messages):
             <span class="crossed-out-text">for line in reversed(textwrap.wrap(message.full_text, width)):</span>
             <span class="new-text">for line in reversed(list(cls.wrap(message.full_text, width))):</span>
-                console.print(x=x, y=y + y_offset, string=line, fg=message.fg)
+                console.print(x=x, y=y + y_offset, text=line, fg=message.fg)
                 y_offset -= 1
                 if y_offset < 0:
                     return  # No more space to print messages.</pre>
@@ -730,7 +730,7 @@ import tcod
 
 +           try:
 +               for event in tcod.event.wait():
-+                   context.convert_event(event)
++                   event = context.convert_event(event)
 +                   engine.event_handler.handle_events(event)
 +           except Exception:  # Handle exceptions in game.
 +               traceback.print_exc()  # Print error to stderr.
@@ -752,7 +752,7 @@ import tcod
 
             <span class="new-text">try:
                 for event in tcod.event.wait():
-                    context.convert_event(event)
+                    event = context.convert_event(event)
                     engine.event_handler.handle_events(event)
             except Exception:  # Handle exceptions in game.
                 traceback.print_exc()  # Print error to stderr.
@@ -763,6 +763,8 @@ import tcod
 {{</ codetab >}}
 
 This is a generalized, catch all solution, which will print *all* exceptions to the message log, not just instances of `Impossible`. This can be helpful for debugging your game, or getting error reports from users.
+
+> **Updated from the original:** The original tutorial called `context.convert_event(event)` inside each `handle_events` method without capturing the return value, so the converted event (which carries mouse-position information) was silently discarded. This has been corrected throughout: `event = context.convert_event(event)` is now used so the converted event is actually passed to `dispatch`.
 
 However, this solution doesn't mesh with our current implementation of the `EventHandler`. `EventHandler` currently loops through the events and converts them (to get the mouse information). We'll need to edit a few things in `input_handlers.py` to get back on track.
 
@@ -782,9 +784,26 @@ import tcod
 -from actions import Action, BumpAction, EscapeAction, WaitAction
 
 
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
+
++   def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
++       match event:
++           case tcod.event.Quit():
++               return self.ev_quit(event)
++           case tcod.event.MouseMotion():
++               self.ev_mousemotion(event)
++               return None
++           case tcod.event.MouseButtonDown():
++               return self.ev_mousebuttondown(event)
++           case tcod.event.KeyDown():
++               return self.ev_keydown(event)
++           case _:
++               return None
++
++   def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[Action]:
++       return None
 
 +   def handle_events(self, event: tcod.event.Event) -> None:
 +       self.handle_action(self.dispatch(event))
@@ -810,7 +829,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 
 -   def handle_events(self, context: tcod.context.Context) -> None:
 -       for event in tcod.event.wait():
--           context.convert_event(event)
+-           event = context.convert_event(event)
 -           self.dispatch(event)
 
     ...
@@ -819,7 +838,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 class MainGameEventHandler(EventHandler):
 -   def handle_events(self, context: tcod.context.Context) -> None:
 -       for event in tcod.event.wait():
--           context.convert_event(event)
+-           event = context.convert_event(event)
 
 -           action = self.dispatch(event)
 
@@ -849,13 +868,13 @@ class GameOverEventHandler(EventHandler):
 
 -       key = event.sym
 
--       if key == tcod.event.K_ESCAPE:
+-       if key == tcod.event.KeySym.ESCAPE:
 -           action = EscapeAction(self.engine.player)
 
 -       # No valid key was pressed
 -       return action
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> None:
-+       if event.sym == tcod.event.K_ESCAPE:
++       if event.sym == tcod.event.KeySym.ESCAPE:
 +           raise SystemExit()
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -873,9 +892,26 @@ import exceptions</span>
 <span class="crossed-out-text">from actions import Action, BumpAction, EscapeAction, WaitAction</span>
 
 
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
+
+    def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.MouseMotion():
+                self.ev_mousemotion(event)
+                return None
+            case tcod.event.MouseButtonDown():
+                return self.ev_mousebuttondown(event)
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None
+
+    def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[Action]:
+        return None
 
     <span class="new-text">def handle_events(self, event: tcod.event.Event) -> None:
         self.handle_action(self.dispatch(event))
@@ -901,7 +937,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 
     <span class="crossed-out-text">def handle_events(self, context: tcod.context.Context) -> None:</span>
         <span class="crossed-out-text">for event in tcod.event.wait():</span>
-            <span class="crossed-out-text">context.convert_event(event)</span>
+            <span class="crossed-out-text">event = context.convert_event(event)</span>
             <span class="crossed-out-text">self.dispatch(event)</span>
 
     ...
@@ -910,7 +946,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 class MainGameEventHandler(EventHandler):
     <span class="crossed-out-text">def handle_events(self, context: tcod.context.Context) -> None:</span>
         <span class="crossed-out-text">for event in tcod.event.wait():</span>
-            <span class="crossed-out-text">context.convert_event(event)</span>
+            <span class="crossed-out-text">event = context.convert_event(event)</span>
 
             <span class="crossed-out-text">action = self.dispatch(event)</span>
 
@@ -940,16 +976,18 @@ class GameOverEventHandler(EventHandler):
 
         <span class="crossed-out-text">key = event.sym</span>
 
-        <span class="crossed-out-text">if key == tcod.event.K_ESCAPE:</span>
+        <span class="crossed-out-text">if key == tcod.event.KeySym.ESCAPE:</span>
             <span class="crossed-out-text">action = EscapeAction(self.engine.player)</span>
 
         <span class="crossed-out-text"># No valid key was pressed</span>
         <span class="crossed-out-text">return action</span>
     <span class="new-text">def ev_keydown(self, event: tcod.event.KeyDown) -> None:
-        if event.sym == tcod.event.K_ESCAPE:
+        if event.sym == tcod.event.KeySym.ESCAPE:
             raise SystemExit()</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
+
+> **Updated from the original:** The original tutorial kept `EventHandler` inheriting from `tcod.event.EventDispatch[Action]`, which handled event routing automatically. Because `EventDispatch` is deprecated in recent tcod releases, this version adds an explicit `dispatch` method using Python's `match` statement. Mouse events (`MouseMotion`, `MouseButtonDown`) are added to the dispatch here so they are available for the targeting system introduced later in this chapter.
 
 Now that we've got our event handlers updated, let's actually put the `Impossible` exception to good use. We can start by editing `actions.py` to make use of it when the player tries to move into an invalid area:
 
@@ -1925,10 +1963,10 @@ from actions import (
 ...
 
         ...
-        elif key == tcod.event.K_v:
+        elif key == tcod.event.KeySym.v:
             self.engine.event_handler = HistoryViewer(self.engine)
 
-+       elif key == tcod.event.K_g:
++       elif key == tcod.event.KeySym.g:
 +           action = PickupAction(player)
 
         # No valid key was pressed
@@ -1946,10 +1984,10 @@ from actions import (
 ...
 
         ...
-        elif key == tcod.event.K_v:
+        elif key == tcod.event.KeySym.v:
             self.engine.event_handler = HistoryViewer(self.engine)
 
-        <span class="new-text">elif key == tcod.event.K_g:
+        <span class="new-text">elif key == tcod.event.KeySym.g:
             action = PickupAction(player)</span>
 
         # No valid key was pressed
@@ -1968,7 +2006,7 @@ To start, let's create a new event handler, which will return to the `MainGameEv
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
     ...
 
 
@@ -1985,12 +2023,12 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
 +       """By default any key exits this input handler."""
 +       if event.sym in {  # Ignore modifier keys.
-+           tcod.event.K_LSHIFT,
-+           tcod.event.K_RSHIFT,
-+           tcod.event.K_LCTRL,
-+           tcod.event.K_RCTRL,
-+           tcod.event.K_LALT,
-+           tcod.event.K_RALT,
++           tcod.event.KeySym.LSHIFT,
++           tcod.event.KeySym.RSHIFT,
++           tcod.event.KeySym.LCTRL,
++           tcod.event.KeySym.RCTRL,
++           tcod.event.KeySym.LALT,
++           tcod.event.KeySym.RALT,
 +       }:
 +           return None
 +       return self.on_exit()
@@ -2009,7 +2047,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>class EventHandler(tcod.event.EventDispatch[Action]):
+<pre>class EventHandler:
     ...
 
 
@@ -2026,12 +2064,12 @@ class EventHandler(tcod.event.EventDispatch[Action]):
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
         """By default any key exits this input handler."""
         if event.sym in {  # Ignore modifier keys.
-            tcod.event.K_LSHIFT,
-            tcod.event.K_RSHIFT,
-            tcod.event.K_LCTRL,
-            tcod.event.K_RCTRL,
-            tcod.event.K_LALT,
-            tcod.event.K_RALT,
+            tcod.event.KeySym.LSHIFT,
+            tcod.event.KeySym.RSHIFT,
+            tcod.event.KeySym.LCTRL,
+            tcod.event.KeySym.RCTRL,
+            tcod.event.KeySym.LALT,
+            tcod.event.KeySym.RALT,
         }:
             return None
         return self.on_exit()
@@ -2075,7 +2113,7 @@ class AskUserEventHandler(EventHandler):
 
 +   TITLE = "<missing title>"
 
-+   def on_render(self, console: tcod.Console) -> None:
++   def on_render(self, console: tcod.console.Console) -> None:
 +       """Render an inventory menu, which displays the items in the inventory, and the letter to select them.
 +       Will move to a different position based on where the player is located, so the player can always see where
 +       they are.
@@ -2118,9 +2156,9 @@ class AskUserEventHandler(EventHandler):
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
 +       player = self.engine.player
 +       key = event.sym
-+       index = key - tcod.event.K_a
++       index = key - tcod.event.KeySym.a
 
-+       if 0 <= index <= 26:
++       if 0 <= index < 26:
 +           try:
 +               selected_item = player.inventory.items[index]
 +           except IndexError:
@@ -2153,7 +2191,7 @@ class AskUserEventHandler(EventHandler):
 
     TITLE = "&lt;missing title&gt;"
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         """Render an inventory menu, which displays the items in the inventory, and the letter to select them.
         Will move to a different position based on where the player is located, so the player can always see where
         they are.
@@ -2196,9 +2234,9 @@ class AskUserEventHandler(EventHandler):
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[Action]:
         player = self.engine.player
         key = event.sym
-        index = key - tcod.event.K_a
+        index = key - tcod.event.KeySym.a
 
-        if 0 <= index <= 26:
+        if 0 <= index < 26:
             try:
                 selected_item = player.inventory.items[index]
             except IndexError:
@@ -2349,12 +2387,12 @@ All that's left now is to utilize these event handlers, based on the key we pres
 {{< diff-tab >}}
 {{< highlight diff >}}
         ...
-        elif key == tcod.event.K_g:
+        elif key == tcod.event.KeySym.g:
             action = PickupAction(player)
 
-+       elif key == tcod.event.K_i:
++       elif key == tcod.event.KeySym.i:
 +           self.engine.event_handler = InventoryActivateHandler(self.engine)
-+       elif key == tcod.event.K_d:
++       elif key == tcod.event.KeySym.d:
 +           self.engine.event_handler = InventoryDropHandler(self.engine)
 
         # No valid key was pressed
@@ -2363,12 +2401,12 @@ All that's left now is to utilize these event handlers, based on the key we pres
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
-        elif key == tcod.event.K_g:
+        elif key == tcod.event.KeySym.g:
             action = PickupAction(player)
 
-        <span class="new-text">elif key == tcod.event.K_i:
+        <span class="new-text">elif key == tcod.event.KeySym.i:
             self.engine.event_handler = InventoryActivateHandler(self.engine)
-        elif key == tcod.event.K_d:
+        elif key == tcod.event.KeySym.d:
             self.engine.event_handler = InventoryDropHandler(self.engine)</span>
 
         # No valid key was pressed
@@ -2599,10 +2637,10 @@ from actions import (
 ...
 
         ...
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
 -           action = EscapeAction(player)
 +           raise SystemExit()
-        elif key == tcod.event.K_v:
+        elif key == tcod.event.KeySym.v:
             self.engine.event_handler = HistoryViewer(self.engine)
         ...
 {{</ highlight >}}
@@ -2619,10 +2657,10 @@ from actions import (
 ...
 
         ...
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             <span class="crossed-out-text">action = EscapeAction(player)</span>
             <span class="new-text">raise SystemExit()</span>
-        elif key == tcod.event.K_v:
+        elif key == tcod.event.KeySym.v:
             self.engine.event_handler = HistoryViewer(self.engine)
         ...</pre>
 {{</ original-tab >}}

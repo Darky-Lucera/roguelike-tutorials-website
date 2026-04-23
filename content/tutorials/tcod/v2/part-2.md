@@ -54,6 +54,10 @@ Let's put our fancy new class into action\! Modify the first part of
 {{< diff-tab >}}
 {{< highlight diff >}}
 #!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 from actions import EscapeAction, MovementAction
@@ -65,25 +69,32 @@ def main() -> None:
     screen_width = 80
     screen_height = 50
 
--   player_x = int(screen_width / 2)
--   player_y = int(screen_height / 2)
+-   player_x = screen_width // 2
+-   player_y = screen_height // 2
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     event_handler = EventHandler()
 
-+   player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-+   npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
++   player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
++   npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
 +   entities = {npc, player}
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 from actions import EscapeAction, MovementAction
@@ -95,20 +106,23 @@ def main() -> None:
     screen_width = 80
     screen_height = 50
 
-    <span class="crossed-out-text">player_x = int(screen_width / 2)</span>
-    <span class="crossed-out-text">player_y = int(screen_height / 2)</span>
+    <span class="crossed-out-text">player_x = screen_width // 2</span>
+    <span class="crossed-out-text">player_y = screen_height // 2</span>
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     event_handler = EventHandler()
 
-    <span class="new-text">player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
+    <span class="new-text">player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+    npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
     entities = {npc, player}</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -144,18 +158,18 @@ Lastly, update the drawing functions to use the new player object:
 {{< diff-tab >}}
 {{< highlight diff >}}
         while True:
--           root_console.print(x=player_x, y=player_y, string="@")
-+           root_console.print(x=player.x, y=player.y, string=player.char, fg=player.color)
+-           console.print(x=player_x, y=player_y, text="@")
++           console.print(x=player.x, y=player.y, text=player.char, fg=player.color)
 
-            context.present(root_console)
+            context.present(console)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        while True:
-            <span class="crossed-out-text">root_console.print(x=player_x, y=player_y, string="@")</span>
-            <span class="new-text">root_console.print(x=player.x, y=player.y, string=player.char, fg=player.color)</span>
+            <span class="crossed-out-text">console.print(x=player_x, y=player_y, text="@")</span>
+            <span class="new-text">console.print(x=player.x, y=player.y, text=player.char, fg=player.color)</span>
 
-            context.present(root_console)</pre>
+            context.present(console)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -265,6 +279,10 @@ To make use of our new `Engine` class, we'll need to modify `main.py` quite a bi
 {{< diff-tab >}}
 {{< highlight diff >}}
 #!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 -from actions import EscapeAction, MovementAction
@@ -278,34 +296,36 @@ def main() -> None:
     screen_height = 50
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     event_handler = EventHandler()
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+    npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
     entities = {npc, player}
 
 +   engine = Engine(entities=entities, event_handler=event_handler, player=player)
 
-    with tcod.context.new_terminal(
-        screen_width,
-        screen_height,
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
     ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        console = tcod.console.Console(screen_width, screen_height, order="F")
         while True:
--           root_console.print(x=player_x, y=player_y, string="@")
-+           engine.render(console=root_console, context=context)
+-           console.print(x=player.x, y=player.y, text=player.char, fg=player.color)
++           engine.render(console=console, context=context)
 
--           context.present(root_console)
 +           events = tcod.event.wait()
 
 +           engine.handle_events(events)
--           root_console.clear()
+-           console.clear()
 
 -           for event in tcod.event.wait():
 -               action = event_handler.dispatch(event)
@@ -327,6 +347,10 @@ if __name__ == "__main__":
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 <span class="crossed-out-text">from actions import EscapeAction, MovementAction</span>
@@ -340,34 +364,36 @@ def main() -> None:
     screen_height = 50
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     event_handler = EventHandler()
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+    npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
     entities = {npc, player}
 
     <span class="new-text">engine = Engine(entities=entities, event_handler=event_handler, player=player)</span>
 
-    with tcod.context.new_terminal(
-        screen_width,
-        screen_height,
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
     ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        console = tcod.console.Console(screen_width, screen_height, order="F")
         while True:
-            <span class="crossed-out-text">root_console.print(x=player_x, y=player_y, string="@")</span>
-            <span class="new-text">engine.render(console=root_console, context=context)</span>
+            <span class="crossed-out-text">console.print(x=player.x, y=player.y, text=player.char, fg=player.color)</span>
+            <span class="new-text">engine.render(console=console, context=context)</span>
 
-            <span class="crossed-out-text">context.present(root_console)</span>
             <span class="new-text">events = tcod.event.wait()</span>
 
             <span class="new-text">engine.handle_events(events)</span>
-            <span class="crossed-out-text">root_console.clear()</span>
+            <span class="crossed-out-text">console.clear()</span>
 
             <span class="crossed-out-text">for event in tcod.event.wait():</span>
                 <span class="crossed-out-text">action = event_handler.dispatch(event)</span>
@@ -417,8 +443,8 @@ graphic_dt = np.dtype(
 # Tile struct used for statically defined tile data.
 tile_dt = np.dtype(
     [
-        ("walkable", np.bool),  # True if this tile can be walked over.
-        ("transparent", np.bool),  # True if this tile doesn't block FOV.
+        ("walkable", np.bool_),  # True if this tile can be walked over.
+        ("transparent", np.bool_),  # True if this tile doesn't block FOV.
         ("dark", graphic_dt),  # Graphics for when this tile is not in FOV.
     ]
 )
@@ -467,8 +493,8 @@ We take this new data type and use it in the next bit:
 # Tile struct used for statically defined tile data.
 tile_dt = np.dtype(
     [
-        ("walkable", np.bool),  # True if this tile can be walked over.
-        ("transparent", np.bool),  # True if this tile doesn't block FOV.
+        ("walkable", np.bool_),  # True if this tile can be walked over.
+        ("transparent", np.bool_),  # True if this tile doesn't block FOV.
         ("dark", graphic_dt),  # Graphics for when this tile is not in FOV.
     ]
 )
@@ -479,6 +505,8 @@ This is yet another `dtype`, which we'll use in the actual tile itself. It's als
 * `walkable`: A boolean that describes if the player can walk across this tile.
 * `transparent`: A boolean that describes if this tile does or does not block the field of view. Not used in this chapter, but will be in chapter 4.
 * `dark`: This uses our previously defined `dtype`, which holds the character to print, the foreground color, and the background color. Why is it called `dark`? Because later on, we'll want to differentiate between tiles that are and aren't in the field of view. `dark` will represent tiles that are not in the current field of view. Again, we'll cover that in part 4.
+
+We're using `np.bool_` here because that is the current NumPy boolean scalar type. Older code sometimes used `np.bool`, but that alias is no longer appropriate on modern NumPy releases.
 
 ```py3
 def new_tile(
@@ -569,6 +597,10 @@ With our `GameMap` class ready to go, let's modify `main.py` to make use of it. 
 {{< diff-tab >}}
 {{< highlight diff >}}
 #!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 from engine import Engine
@@ -585,13 +617,16 @@ def main() -> None:
 +   map_height = 45
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     event_handler = EventHandler()
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+    npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
     entities = {npc, player}
 
 +   game_map = GameMap(map_width, map_height)
@@ -599,9 +634,9 @@ def main() -> None:
 -   engine = Engine(entities=entities, event_handler=event_handler, player=player)
 +   engine = Engine(entities=entities, event_handler=event_handler, game_map=game_map, player=player)
 
-    with tcod.context.new_terminal(
-        screen_width,
-        screen_height,
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
@@ -610,6 +645,10 @@ def main() -> None:
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>#!/usr/bin/env python3
+from __future__ import annotations
+
+from pathlib import Path
+
 import tcod
 
 from engine import Engine
@@ -626,13 +665,16 @@ def main() -> None:
     map_height = 45</span>
 
     tileset = tcod.tileset.load_tilesheet(
-        "dejavu10x10_gs_tc.png", 32, 8, tcod.tileset.CHARMAP_TCOD
+        Path(__file__).with_name("dejavu10x10_gs_tc.png"),
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
     )
 
     event_handler = EventHandler()
 
-    player = Entity(int(screen_width / 2), int(screen_height / 2), "@", (255, 255, 255))
-    npc = Entity(int(screen_width / 2 - 5), int(screen_height / 2), "@", (255, 255, 0))
+    player = Entity(screen_width // 2, screen_height // 2, "@", (255, 255, 255))
+    npc = Entity(screen_width // 2 - 5, screen_height // 2, "@", (255, 255, 0))
     entities = {npc, player}
 
     <span class="new-text">game_map = GameMap(map_width, map_height)</span>
@@ -640,9 +682,9 @@ def main() -> None:
     <span class="crossed-out-text">engine = Engine(entities=entities, event_handler=event_handler, player=player)</span>
     <span class="new-text">engine = Engine(entities=entities, event_handler=event_handler, game_map=game_map, player=player)</span>
 
-    with tcod.context.new_terminal(
-        screen_width,
-        screen_height,
+    with tcod.context.new(
+        columns=screen_width,
+        rows=screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,

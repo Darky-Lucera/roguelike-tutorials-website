@@ -989,7 +989,7 @@ Modify `input_handlers.py` like this:
 {{< diff-tab >}}
 {{< highlight diff >}}
 class InventoryEventHandler(AskUserEventHandler):
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         ...
 
         if number_of_items_in_inventory > 0:
@@ -1033,7 +1033,7 @@ class InventoryDropHandler(InventoryEventHandler):
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>class InventoryEventHandler(AskUserEventHandler):
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         ...
 
         if number_of_items_in_inventory > 0:

@@ -19,9 +19,10 @@ paragraph if you're feeling bold\!
 
 #### Installation
 
-To do this tutorial, you'll need Python version 3.7 or higher. The
-latest version of Python is recommended (currently 3.8 as of June
-2020). **Note: Python 2 is not compatible.**
+To do this tutorial, you'll need Python 3.11 or higher. This updated
+version of the tutorial has been reviewed with **Python 3.14.4**,
+**tcod 21.2.0**, and **numpy 2.4.2** on **April 21, 2026**.
+**Note: Python 2 is not compatible.**
 
 [Download Python here](https://www.python.org/downloads/).
 
@@ -34,28 +35,36 @@ here.](https://python-tcod.readthedocs.io/en/latest/installation.html)
 While you can certainly install TCOD and complete this tutorial without
 it, I'd highly recommend using a virtual environment. [Documentation on
 how to do that can be found
-here.](https://docs.python.org/3/library/venv.html)
+here.](https://docs.python.org/3/library/venv.html) A typical setup
+looks like this:
+
+{{< highlight text >}}
+python -m venv .venv
+{{</ highlight >}}
+
+Activate the environment however your shell expects, and then run the
+remaining commands from that environment.
 
 Additionally, if you are going to use a virtual environment, you may want to take the time to set up a `requirements.txt` file. This will allow you to track your project dependencies if you add any in the future, and more easily install them if you need to (for example, if you pull from a remote git repository).
 
 You can set up your `requirements.txt` file in the same directory that you plan on working in for the project. Create the file `requirements.txt` and put the following in it:
 
 {{< highlight text >}}
-tcod>=11.13
-numpy>=1.18
+tcod>=21.2,<22
+numpy>=2.4,<3
 {{</ highlight >}}
 
 Once that's done, with your virtual environment activated, type the following command:
 
-`pip install -r requirements.txt`
+`python -m pip install -r requirements.txt`
 
 This should install the TCOD library, along with its dependency, numpy.
 
-Depending on your computer, you might also need to install SDL2.
-Check the instructions for installing it based on your operating system.
-For example, Ubuntu can install it with the following command:
+Depending on your operating system, you may also need platform-specific
+build dependencies. For example, on Debian-based Linux distributions,
+the current python-tcod installation guide recommends:
 
-`sudo apt-get install libsdl2-dev`
+`sudo apt install build-essential python3-dev python3-pip python3-numpy libsdl2-dev libffi-dev`
 
 #### Editors
 
@@ -75,10 +84,12 @@ tutorial) called `main.py`, and enter the following text into it:
 
 ```py3
 #!/usr/bin/env python3
+from __future__ import annotations
+
 import tcod
 
 
-def main():
+def main() -> None:
     print("Hello World!")
 
 
@@ -91,10 +102,9 @@ possible):
 
 `python main.py`
 
-If you're not using `virtualenv`, the command will probably look like
-this:
-
-`python3 main.py`
+On some systems, the command may be `python3 main.py` instead. If you're
+using a virtual environment, make sure it is activated before running
+the script.
 
 You should see "Hello World\!" printed out to the terminal. If you
 receive an error, there is probably an issue with either your Python or

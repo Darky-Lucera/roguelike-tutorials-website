@@ -75,8 +75,8 @@ import tcod
 
 ...
 CONFIRM_KEYS = {
-    tcod.event.K_RETURN,
-    tcod.event.K_KP_ENTER,
+    tcod.event.KeySym.RETURN,
+    tcod.event.KeySym.KP_ENTER,
 }
 
 
@@ -89,7 +89,7 @@ CONFIRM_KEYS = {
 +"""
 
 
-+class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
++class BaseEventHandler:
 +   def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
 +       """Handle an event and return the next active event handler."""
 +       state = self.dispatch(event)
@@ -98,10 +98,34 @@ CONFIRM_KEYS = {
 +       assert not isinstance(state, Action), f"{self!r} can not handle actions."
 +       return self
 
-+   def on_render(self, console: tcod.Console) -> None:
++   def dispatch(self, event: tcod.event.Event) -> Optional[ActionOrHandler]:
++       match event:
++           case tcod.event.Quit():
++               return self.ev_quit(event)
++           case tcod.event.KeyDown():
++               return self.ev_keydown(event)
++           case tcod.event.MouseMotion():
++               return self.ev_mousemotion(event)
++           case tcod.event.MouseButtonDown():
++               return self.ev_mousebuttondown(event)
++           case _:
++               return None
++
++   def on_render(self, console: tcod.console.Console) -> None:
 +       raise NotImplementedError()
 
-+   def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
++   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
++       return None
++
++   def ev_mousemotion(self, event: tcod.event.MouseMotion) -> Optional[ActionOrHandler]:
++       return None
++
++   def ev_mousebuttondown(
++       self, event: tcod.event.MouseButtonDown
++   ) -> Optional[ActionOrHandler]:
++       return None
++
++   def ev_quit(self, event: tcod.event.Quit) -> Optional[ActionOrHandler]:
 +       raise SystemExit()
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -116,8 +140,8 @@ import tcod
 
 ...
 CONFIRM_KEYS = {
-    tcod.event.K_RETURN,
-    tcod.event.K_KP_ENTER,
+    tcod.event.KeySym.RETURN,
+    tcod.event.KeySym.KP_ENTER,
 }
 
 
@@ -130,7 +154,7 @@ MainGameEventHandler will become the active handler.
 """</span>
 
 
-<span class="new-text">class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
+<span class="new-text">class BaseEventHandler:
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
         """Handle an event and return the next active event handler."""
         state = self.dispatch(event)
@@ -139,10 +163,34 @@ MainGameEventHandler will become the active handler.
         assert not isinstance(state, Action), f"{self!r} can not handle actions."
         return self
 
-    def on_render(self, console: tcod.Console) -> None:
+    def dispatch(self, event: tcod.event.Event) -> Optional[ActionOrHandler]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case tcod.event.MouseMotion():
+                return self.ev_mousemotion(event)
+            case tcod.event.MouseButtonDown():
+                return self.ev_mousebuttondown(event)
+            case _:
+                return None
+
+    def on_render(self, console: tcod.console.Console) -> None:
         raise NotImplementedError()
 
-    def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
+    def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
+        return None
+
+    def ev_mousemotion(self, event: tcod.event.MouseMotion) -> Optional[ActionOrHandler]:
+        return None
+
+    def ev_mousebuttondown(
+        self, event: tcod.event.MouseButtonDown
+    ) -> Optional[ActionOrHandler]:
+        return None
+
+    def ev_quit(self, event: tcod.event.Quit) -> Optional[ActionOrHandler]:
         raise SystemExit()</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -156,7 +204,7 @@ We also need to adjust `EventHandler`:
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
--class EventHandler(tcod.event.EventDispatch[Action]):
+-class EventHandler:
 +class EventHandler(BaseEventHandler):
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -182,12 +230,29 @@ We also need to adjust `EventHandler`:
 -   def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
 -       raise SystemExit()
 
-    def on_render(self, console: tcod.Console) -> None:
+-   def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+-       match event:
+-           case tcod.event.Quit():
+-               return self.ev_quit(event)
+-           case tcod.event.MouseMotion():
+-               self.ev_mousemotion(event)
+-               return None
+-           case tcod.event.MouseButtonDown():
+-               return self.ev_mousebuttondown(event)
+-           case tcod.event.KeyDown():
+-               return self.ev_keydown(event)
+-           case _:
+-               return None
+
+-   def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[Action]:
+-       return None
+
+    def on_render(self, console: tcod.console.Console) -> None:
         self.engine.render(console)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="crossed-out-text">class EventHandler(tcod.event.EventDispatch[Action]):</span>
+<pre><span class="crossed-out-text">class EventHandler:</span>
 <span class="new-text">class EventHandler(BaseEventHandler):</span>
     def __init__(self, engine: Engine):
         self.engine = engine
@@ -213,12 +278,31 @@ We also need to adjust `EventHandler`:
     <span class="crossed-out-text">def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:</span>
         <span class="crossed-out-text">raise SystemExit()</span>
 
-    def on_render(self, console: tcod.Console) -> None:
+    <span class="crossed-out-text">def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.MouseMotion():
+                self.ev_mousemotion(event)
+                return None
+            case tcod.event.MouseButtonDown():
+                return self.ev_mousebuttondown(event)
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None</span>
+
+    <span class="crossed-out-text">def ev_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Optional[Action]:
+        return None</span>
+
+    def on_render(self, console: tcod.console.Console) -> None:
         self.engine.render(console)</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
 The `handle_events` method of `EventHandler` is similar to `BaseEventHandler`, except it includes logic to handle actions as well. It also contains the logic for changing our handler to a game over if the player is dead.
+
+> **Updated from the original:** `dispatch` and `ev_mousebuttondown` are removed from `EventHandler` here because `BaseEventHandler` now provides them. Keeping both would leave `EventHandler.dispatch` silently overriding `BaseEventHandler.dispatch` with identical logic — redundant dead code. After this step, all event routing for `EventHandler` and its subclasses flows through `BaseEventHandler.dispatch`.
 
 To adjust our existing handlers, we'll need to continue editing `input_handlers`. This next code section is quite long, but the idea is consistent throughout: We want to modify our return types to return `Optional[ActionOrHandler]` instead of `Optional[Action]`, and instead of setting `self.engine.event_handler` to change the handler, we'll return the handler instead.
 
@@ -239,12 +323,12 @@ class AskUserEventHandler(EventHandler):
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
         """By default any key exits this input handler."""
         if event.sym in {  # Ignore modifier keys.
-            tcod.event.K_LSHIFT,
-            tcod.event.K_RSHIFT,
-            tcod.event.K_LCTRL,
-            tcod.event.K_RCTRL,
-            tcod.event.K_LALT,
-            tcod.event.K_RALT,
+            tcod.event.KeySym.LSHIFT,
+            tcod.event.KeySym.RSHIFT,
+            tcod.event.KeySym.LCTRL,
+            tcod.event.KeySym.RCTRL,
+            tcod.event.KeySym.LALT,
+            tcod.event.KeySym.RALT,
         }:
             return None
         return self.on_exit()
@@ -274,9 +358,9 @@ class InventoryEventHandler(AskUserEventHandler):
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:
         player = self.engine.player
         key = event.sym
-        index = key - tcod.event.K_a
+        index = key - tcod.event.KeySym.a
 
-        if 0 <= index <= 26:
+        if 0 <= index < 26:
             try:
                 selected_item = player.inventory.items[index]
             except IndexError:
@@ -358,22 +442,22 @@ class MainGameEventHandler(EventHandler):
         elif key in WAIT_KEYS:
             action = WaitAction(player)
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             raise SystemExit()
-        elif key == tcod.event.K_v:
+        elif key == tcod.event.KeySym.v:
 -           self.engine.event_handler = HistoryViewer(self.engine)
 +           return HistoryViewer(self.engine)
 
-        elif key == tcod.event.K_g:
+        elif key == tcod.event.KeySym.g:
             action = PickupAction(player)
 
-        elif key == tcod.event.K_i:
+        elif key == tcod.event.KeySym.i:
 -           self.engine.event_handler = InventoryActivateHandler(self.engine)
 +           return InventoryActivateHandler(self.engine)
-        elif key == tcod.event.K_d:
+        elif key == tcod.event.KeySym.d:
 -           self.engine.event_handler = InventoryDropHandler(self.engine)
 +           return InventoryDropHandler(self.engine)
-        elif key == tcod.event.K_SLASH:
+        elif key == tcod.event.KeySym.SLASH:
 -           self.engine.event_handler = LookHandler(self.engine)
 +           return LookHandler(self.engine)
 
@@ -399,9 +483,9 @@ class HistoryViewer(EventHandler):
             else:
                 # Otherwise move while staying clamped to the bounds of the history log.
                 self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1))
-        elif event.sym == tcod.event.K_HOME:
+        elif event.sym == tcod.event.KeySym.HOME:
             self.cursor = 0  # Move directly to the top message.
-        elif event.sym == tcod.event.K_END:
+        elif event.sym == tcod.event.KeySym.END:
             self.cursor = self.log_length - 1  # Move directly to the last message.
         else:  # Any other key moves back to the main game state.
 -           self.engine.event_handler = MainGameEventHandler(self.engine)
@@ -424,12 +508,12 @@ class HistoryViewer(EventHandler):
     <span class="new-text">def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:</span>
         """By default any key exits this input handler."""
         if event.sym in {  # Ignore modifier keys.
-            tcod.event.K_LSHIFT,
-            tcod.event.K_RSHIFT,
-            tcod.event.K_LCTRL,
-            tcod.event.K_RCTRL,
-            tcod.event.K_LALT,
-            tcod.event.K_RALT,
+            tcod.event.KeySym.LSHIFT,
+            tcod.event.KeySym.RSHIFT,
+            tcod.event.KeySym.LCTRL,
+            tcod.event.KeySym.RCTRL,
+            tcod.event.KeySym.LALT,
+            tcod.event.KeySym.RALT,
         }:
             return None
         return self.on_exit()
@@ -459,9 +543,9 @@ class InventoryEventHandler(AskUserEventHandler):
     <span class="new-text">def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[ActionOrHandler]:</span>
         player = self.engine.player
         key = event.sym
-        index = key - tcod.event.K_a
+        index = key - tcod.event.KeySym.a
 
-        if 0 <= index <= 26:
+        if 0 <= index < 26:
             try:
                 selected_item = player.inventory.items[index]
             except IndexError:
@@ -543,22 +627,22 @@ class MainGameEventHandler(EventHandler):
         elif key in WAIT_KEYS:
             action = WaitAction(player)
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             raise SystemExit()
-        elif key == tcod.event.K_v:
+        elif key == tcod.event.KeySym.v:
             <span class="crossed-out-text">self.engine.event_handler = HistoryViewer(self.engine)</span>
             <span class="new-text">return HistoryViewer(self.engine)</span>
 
-        elif key == tcod.event.K_g:
+        elif key == tcod.event.KeySym.g:
             action = PickupAction(player)
 
-        elif key == tcod.event.K_i:
+        elif key == tcod.event.KeySym.i:
             <span class="crossed-out-text">self.engine.event_handler = InventoryActivateHandler(self.engine)</span>
             <span class="new-text">return InventoryActivateHandler(self.engine)</span>
-        elif key == tcod.event.K_d:
+        elif key == tcod.event.KeySym.d:
             <span class="crossed-out-text">self.engine.event_handler = InventoryDropHandler(self.engine)</span>
             <span class="new-text">return InventoryDropHandler(self.engine)</span>
-        elif key == tcod.event.K_SLASH:
+        elif key == tcod.event.KeySym.SLASH:
             <span class="crossed-out-text">self.engine.event_handler = LookHandler(self.engine)</span>
             <span class="new-text">return LookHandler(self.engine)</span>
 
@@ -584,9 +668,9 @@ class HistoryViewer(EventHandler):
             else:
                 # Otherwise move while staying clamped to the bounds of the history log.
                 self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1))
-        elif event.sym == tcod.event.K_HOME:
+        elif event.sym == tcod.event.KeySym.HOME:
             self.cursor = 0  # Move directly to the top message.
-        elif event.sym == tcod.event.K_END:
+        elif event.sym == tcod.event.KeySym.END:
             self.cursor = self.log_length - 1  # Move directly to the last message.
         else:  # Any other key moves back to the main game state.
             <span class="crossed-out-text">self.engine.event_handler = MainGameEventHandler(self.engine)</span>
@@ -811,14 +895,14 @@ def main() -> None:
 
 +   handler: input_handlers.BaseEventHandler = input_handlers.MainGameEventHandler(engine)
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         screen_width,
         screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
     ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        root_console = tcod.console.Console(screen_width, screen_height, order="F")
 -       while True:
 -           root_console.clear()
 -           engine.event_handler.on_render(console=root_console)
@@ -826,7 +910,7 @@ def main() -> None:
 
 -           try:
 -               for event in tcod.event.wait():
--                   context.convert_event(event)
+-                   event = context.convert_event(event)
 -                   engine.event_handler.handle_events(event)
 -           except Exception:  # Handle exceptions in game.
 -               traceback.print_exc()  # Print error to stderr.
@@ -840,7 +924,7 @@ def main() -> None:
 
 +               try:
 +                   for event in tcod.event.wait():
-+                       context.convert_event(event)
++                       event = context.convert_event(event)
 +                       handler = handler.handle_events(event)
 +               except Exception:  # Handle exceptions in game.
 +                   traceback.print_exc()  # Print error to stderr.
@@ -881,14 +965,14 @@ def main() -> None:
 
     <span class="new-text">handler: input_handlers.BaseEventHandler = input_handlers.MainGameEventHandler(engine)</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         screen_width,
         screen_height,
         tileset=tileset,
         title="Yet Another Roguelike Tutorial",
         vsync=True,
     ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        root_console = tcod.console.Console(screen_width, screen_height, order="F")
         <span class="crossed-out-text">while True:</span>
             <span class="crossed-out-text">root_console.clear()</span>
             <span class="crossed-out-text">engine.event_handler.on_render(console=root_console)</span>
@@ -896,7 +980,7 @@ def main() -> None:
 
             <span class="crossed-out-text">try:</span>
                 <span class="crossed-out-text">for event in tcod.event.wait():</span>
-                    <span class="crossed-out-text">context.convert_event(event)</span>
+                    <span class="crossed-out-text">event = context.convert_event(event)</span>
                     <span class="crossed-out-text">engine.event_handler.handle_events(event)</span>
             <span class="crossed-out-text">except Exception:  # Handle exceptions in game.</span>
                 <span class="crossed-out-text">traceback.print_exc()  # Print error to stderr.</span>
@@ -910,7 +994,7 @@ def main() -> None:
 
                 try:
                     for event in tcod.event.wait():
-                        context.convert_event(event)
+                        event = context.convert_event(event)
                         handler = handler.handle_events(event)
                 except Exception:  # Handle exceptions in game.
                     traceback.print_exc()  # Print error to stderr.
@@ -1068,7 +1152,7 @@ def new_game() -> Engine:
 class MainMenu(input_handlers.BaseEventHandler):
     """Handle the main menu rendering and input."""
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         """Render the main menu on a background image."""
         console.draw_semigraphics(background_image, 0, 0)
 
@@ -1077,14 +1161,14 @@ class MainMenu(input_handlers.BaseEventHandler):
             console.height // 2 - 4,
             "TOMBS OF THE ANCIENT KINGS",
             fg=color.menu_title,
-            alignment=tcod.CENTER,
+            alignment=tcod.constants.CENTER,
         )
         console.print(
             console.width // 2,
             console.height - 2,
             "By (Your name here)",
             fg=color.menu_title,
-            alignment=tcod.CENTER,
+            alignment=tcod.constants.CENTER,
         )
 
         menu_width = 24
@@ -1097,19 +1181,19 @@ class MainMenu(input_handlers.BaseEventHandler):
                 text.ljust(menu_width),
                 fg=color.menu_text,
                 bg=color.black,
-                alignment=tcod.CENTER,
-                bg_blend=tcod.BKGND_ALPHA(64),
+                alignment=tcod.constants.CENTER,
+                bg_blend=tcod.libtcodpy.BKGND_ALPHA(64),
             )
 
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
+        if event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
             raise SystemExit()
-        elif event.sym == tcod.event.K_c:
+        elif event.sym == tcod.event.KeySym.c:
             # TODO: Load the game here
             pass
-        elif event.sym == tcod.event.K_n:
+        elif event.sym == tcod.event.KeySym.n:
             return input_handlers.MainGameEventHandler(new_game())
 
         return None
@@ -1168,7 +1252,7 @@ This should all look very familiar: it's the same code we used to initialize our
 class MainMenu(input_handlers.BaseEventHandler):
     """Handle the main menu rendering and input."""
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         """Render the main menu on a background image."""
         console.draw_semigraphics(background_image, 0, 0)
 
@@ -1177,14 +1261,14 @@ class MainMenu(input_handlers.BaseEventHandler):
             console.height // 2 - 4,
             "TOMBS OF THE ANCIENT KINGS",
             fg=color.menu_title,
-            alignment=tcod.CENTER,
+            alignment=tcod.constants.CENTER,
         )
         console.print(
             console.width // 2,
             console.height - 2,
             "By (Your name here)",
             fg=color.menu_title,
-            alignment=tcod.CENTER,
+            alignment=tcod.constants.CENTER,
         )
 
         menu_width = 24
@@ -1197,19 +1281,19 @@ class MainMenu(input_handlers.BaseEventHandler):
                 text.ljust(menu_width),
                 fg=color.menu_text,
                 bg=color.black,
-                alignment=tcod.CENTER,
-                bg_blend=tcod.BKGND_ALPHA(64),
+                alignment=tcod.constants.CENTER,
+                bg_blend=tcod.libtcodpy.BKGND_ALPHA(64),
             )
 
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
+        if event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
             raise SystemExit()
-        elif event.sym == tcod.event.K_c:
+        elif event.sym == tcod.event.KeySym.c:
             # TODO: Load the game here
             pass
-        elif event.sym == tcod.event.K_n:
+        elif event.sym == tcod.event.KeySym.n:
             return input_handlers.MainGameEventHandler(new_game())
 
         return None
@@ -1289,7 +1373,7 @@ def main() -> None:
 -   handler: input_handlers.BaseEventHandler = input_handlers.MainGameEventHandler(engine)
 +   handler: input_handlers.BaseEventHandler = setup_game.MainMenu()
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -1350,7 +1434,7 @@ def main() -> None:
     <span class="crossed-out-text">handler: input_handlers.BaseEventHandler = input_handlers.MainGameEventHandler(engine)</span>
     <span class="new-text">handler: input_handlers.BaseEventHandler = setup_game.MainMenu()</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...</pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -1494,7 +1578,7 @@ Add this class to `input_handlers.py`:
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
+class BaseEventHandler:
     ...
 
 
@@ -1505,11 +1589,11 @@ class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
 +       self.parent = parent_handler
 +       self.text = text
 
-+   def on_render(self, console: tcod.Console) -> None:
++   def on_render(self, console: tcod.console.Console) -> None:
 +       """Render the parent and dim the result, then print the message on top."""
 +       self.parent.on_render(console)
-+       console.tiles_rgb["fg"] //= 8
-+       console.tiles_rgb["bg"] //= 8
++       console.rgb["fg"] //= 8
++       console.rgb["bg"] //= 8
 
 +       console.print(
 +           console.width // 2,
@@ -1517,7 +1601,7 @@ class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
 +           self.text,
 +           fg=color.white,
 +           bg=color.black,
-+           alignment=tcod.CENTER,
++           alignment=tcod.constants.CENTER,
 +       )
 
 +   def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[BaseEventHandler]:
@@ -1530,7 +1614,7 @@ class EventHandler(BaseEventHandler):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>class BaseEventHandler(tcod.event.EventDispatch[ActionOrHandler]):
+<pre>class BaseEventHandler:
     ...
 
 
@@ -1541,11 +1625,11 @@ class EventHandler(BaseEventHandler):
         self.parent = parent_handler
         self.text = text
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         """Render the parent and dim the result, then print the message on top."""
         self.parent.on_render(console)
-        console.tiles_rgb["fg"] //= 8
-        console.tiles_rgb["bg"] //= 8
+        console.rgb["fg"] //= 8
+        console.rgb["bg"] //= 8
 
         console.print(
             console.width // 2,
@@ -1553,7 +1637,7 @@ class EventHandler(BaseEventHandler):
             self.text,
             fg=color.white,
             bg=color.black,
-            alignment=tcod.CENTER,
+            alignment=tcod.constants.CENTER,
         )
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> Optional[BaseEventHandler]:
@@ -1603,9 +1687,9 @@ class MainMenu(input_handlers.BaseEventHandler):
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
+        if event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
             raise SystemExit()
-        elif event.sym == tcod.event.K_c:
+        elif event.sym == tcod.event.KeySym.c:
 -           # TODO: Load the game here
 -           pass
 +           try:
@@ -1615,7 +1699,7 @@ class MainMenu(input_handlers.BaseEventHandler):
 +           except Exception as exc:
 +               traceback.print_exc()  # Print to stderr.
 +               return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")
-        elif event.sym == tcod.event.K_n:
+        elif event.sym == tcod.event.KeySym.n:
             return input_handlers.MainGameEventHandler(new_game())
 
         return None
@@ -1652,9 +1736,9 @@ class MainMenu(input_handlers.BaseEventHandler):
     def ev_keydown(
         self, event: tcod.event.KeyDown
     ) -> Optional[input_handlers.BaseEventHandler]:
-        if event.sym in (tcod.event.K_q, tcod.event.K_ESCAPE):
+        if event.sym in (tcod.event.KeySym.q, tcod.event.KeySym.ESCAPE):
             raise SystemExit()
-        elif event.sym == tcod.event.K_c:
+        elif event.sym == tcod.event.KeySym.c:
             <span class="crossed-out-text"># TODO: Load the game here</span>
             <span class="crossed-out-text">pass</span>
             <span class="new-text">try:
@@ -1664,7 +1748,7 @@ class MainMenu(input_handlers.BaseEventHandler):
             except Exception as exc:
                 traceback.print_exc()  # Print to stderr.
                 return input_handlers.PopupMessage(self, f"Failed to load save:\n{exc}")</span>
-        elif event.sym == tcod.event.K_n:
+        elif event.sym == tcod.event.KeySym.n:
             return input_handlers.MainGameEventHandler(new_game())
 
         return None</pre>
@@ -1701,7 +1785,7 @@ class GameOverEventHandler(EventHandler):
 +       self.on_quit()
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> None:
-        if event.sym == tcod.event.K_ESCAPE:
+        if event.sym == tcod.event.KeySym.ESCAPE:
 -           raise SystemExit()
 +           self.on_quit()
 {{</ highlight >}}
@@ -1726,7 +1810,7 @@ class GameOverEventHandler(EventHandler):
         self.on_quit()</span>
 
     def ev_keydown(self, event: tcod.event.KeyDown) -> None:
-        if event.sym == tcod.event.K_ESCAPE:
+        if event.sym == tcod.event.KeySym.ESCAPE:
             <span class="crossed-out-text">raise SystemExit()</span>
             <span class="new-text">self.on_quit()</span></pre>
 {{</ original-tab >}}

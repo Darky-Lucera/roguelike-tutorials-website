@@ -6,25 +6,20 @@ draft: false
 
 ## Check your TCOD installation
 
-Before proceeding any further, you'll want to upgrade to TCOD version 11.15, if you don't already have it. This version of TCOD was released *during* the tutorial event, so if you're following along on a weekly basis, you probably *don't* have this version installed!
+This updated version of the tutorial has been reviewed with **Python 3.14.4** and **tcod 21.2.0**. If your local environment is older, upgrade before continuing.
 
 ## Refactoring previous code
 
-After parts 1-5 for this tutorial were written, we decided to change a few things around, to hopefully make the codebase a bit cleaner and easier to extend in the future. Unfortunately, this means that code written in previous parts now has to be modified.
+The original 2020 tutorial introduced a larger refactor at this point because the earlier chapters had been written incrementally during the event. In this updated version, parts 1-5 already use the modernized base APIs, but we still want the same architectural cleanup before combat gets more involved.
 
-I would go back and edit the tutorial text and Github branches to reflect these changes, except for two things:
-
-1. I don't have time at the moment. Writing the sections that get published every week is taking all of my time as it is.
-2. It wouldn't be fair to those who are following this tutorial on a weekly basis.
-
-Someday, when the event is over, the previous parts will be rewritten, and all will be well. But until then, there's several changes that need to be made before proceeding with Part 6.
-
-I won't explain all of the changes (again, time is a limiting factor), but here's the basic ideas:
+Here are the main ideas behind the refactor:
 
 * Event handlers will have the `handle_events` method instead of `Engine`.
 * The game map will have a reference to `Engine`, and entities will have a reference to the map.
 * Actions will be initialized with the entity doing the action
 * Because of the above points, Actions will have a reference to the `Engine`, through `Entity`->`GameMap`->`Engine`
+
+> **Updated from the original:** The original 2020 tutorial used `tcod.event.EventDispatch[Action]` as the base class for `EventHandler`, which was tcod's built-in mechanism for routing events to typed handler methods. That class has been deprecated in recent tcod releases. In this version `EventHandler` defines its own `dispatch` method using Python's `match` statement to achieve the same routing without the deprecated base class.
 
 Make the changes to each file, and when you're finished, verify the project works as it did before.
 
@@ -34,35 +29,43 @@ Make the changes to each file, and when you're finished, verify the project work
 {{< diff-tab >}}
 {{< highlight diff >}}
 +from __future__ import annotations
-
--from typing import Optional
++
 +from typing import Optional, TYPE_CHECKING
-
-import tcod.event
-
-from actions import Action, BumpAction, EscapeAction
-
++
++import tcod.event
++
++from actions import Action, BumpAction, EscapeAction
++
 +if TYPE_CHECKING:
 +   from engine import Engine
-
-
-class EventHandler(tcod.event.EventDispatch[Action]):
++
++
++class EventHandler:
 +   def __init__(self, engine: Engine):
 +       self.engine = engine
-
++
++   def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
++       match event:
++           case tcod.event.Quit():
++               return self.ev_quit(event)
++           case tcod.event.KeyDown():
++               return self.ev_keydown(event)
++           case _:
++               return None
++
 +   def handle_events(self) -> None:
 +       for event in tcod.event.wait():
 +           action = self.dispatch(event)
-
++
 +           if action is None:
 +               continue
-
++
 +           action.perform()
-
++
 +           self.engine.handle_enemy_turns()
 +           self.engine.update_fov()  # Update the FOV before the players next action.
-
-
++
++
     def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
         ...
 
@@ -72,42 +75,50 @@ class EventHandler(tcod.event.EventDispatch[Action]):
         key = event.sym
 
 +       player = self.engine.player
-
-        if key == tcod.event.K_UP:
++
+        if key == tcod.event.KeySym.UP:
 -           action = BumpAction(dx=0, dy=-1)
 +           action = BumpAction(player, dx=0, dy=-1)
-        elif key == tcod.event.K_DOWN:
+        elif key == tcod.event.KeySym.DOWN:
 -           action = BumpAction(dx=0, dy=1)
 +           action = BumpAction(player, dx=0, dy=1)
-        elif key == tcod.event.K_LEFT:
+        elif key == tcod.event.KeySym.LEFT:
 -           action = BumpAction(dx=-1, dy=0)
 +           action = BumpAction(player, dx=-1, dy=0)
-        elif key == tcod.event.K_RIGHT:
+        elif key == tcod.event.KeySym.RIGHT:
 -           action = BumpAction(dx=1, dy=0)
 +           action = BumpAction(player, dx=1, dy=0)
-
-        elif key == tcod.event.K_ESCAPE:
++
+        elif key == tcod.event.KeySym.ESCAPE:
 -           action = EscapeAction()
 +           action = EscapeAction(player)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre><span class="new-text">from __future__ import annotations</span>
+<pre>from __future__ import annotations
 
-<span class="crossed-out-text">from typing import Optional</span>
-<span class="new-text">from typing import Optional, TYPE_CHECKING</span>
+from typing import Optional, TYPE_CHECKING
 
 import tcod.event
 
 from actions import Action, BumpAction, EscapeAction
 
-<span class="new-text">if TYPE_CHECKING:
-    from engine import Engine</span>
+if TYPE_CHECKING:
+    from engine import Engine
 
 
-class EventHandler(tcod.event.EventDispatch[Action]):
-    <span class="new-text">def __init__(self, engine: Engine):
+class EventHandler:
+    def __init__(self, engine: Engine):
         self.engine = engine
+
+    def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None
 
     def handle_events(self) -> None:
         for event in tcod.event.wait():
@@ -119,7 +130,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
             action.perform()
 
             self.engine.handle_enemy_turns()
-            self.engine.update_fov()  # Update the FOV before the players next action.</span>
+            self.engine.update_fov()  # Update the FOV before the players next action.
 
 
     def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
@@ -130,22 +141,22 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 
         key = event.sym
 
-        <span class="new-text">player = self.engine.player</span>
+        player = self.engine.player
 
-        if key == tcod.event.K_UP:
+        if key == tcod.event.KeySym.UP:
             <span class="crossed-out-text">action = BumpAction(dx=0, dy=-1)</span>
             <span class="new-text">action = BumpAction(player, dx=0, dy=-1)</span>
-        elif key == tcod.event.K_DOWN:
+        elif key == tcod.event.KeySym.DOWN:
             <span class="crossed-out-text">action = BumpAction(dx=0, dy=1)</span>
             <span class="new-text">action = BumpAction(player, dx=0, dy=1)</span>
-        elif key == tcod.event.K_LEFT:
+        elif key == tcod.event.KeySym.LEFT:
             <span class="crossed-out-text">action = BumpAction(dx=-1, dy=0)</span>
             <span class="new-text">action = BumpAction(player, dx=-1, dy=0)</span>
-        elif key == tcod.event.K_RIGHT:
+        elif key == tcod.event.KeySym.RIGHT:
             <span class="crossed-out-text">action = BumpAction(dx=1, dy=0)</span>
             <span class="new-text">action = BumpAction(player, dx=1, dy=0)</span>
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             <span class="crossed-out-text">action = EscapeAction()</span>
             <span class="new-text">action = EscapeAction(player)</span></pre>
 {{</ original-tab >}}
@@ -572,7 +583,7 @@ from procgen import generate_dungeon
 
 -   engine = Engine(event_handler=event_handler, game_map=game_map, player=player)
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
         while True:
             engine.render(console=root_console, context=context)
@@ -621,7 +632,7 @@ from procgen import generate_dungeon
 
     <span class="crossed-out-text">engine = Engine(event_handler=event_handler, game_map=game_map, player=player)</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
         while True:
             engine.render(console=root_console, context=context)
@@ -1547,50 +1558,50 @@ if TYPE_CHECKING:
 
 +MOVE_KEYS = {
 +   # Arrow keys.
-+   tcod.event.K_UP: (0, -1),
-+   tcod.event.K_DOWN: (0, 1),
-+   tcod.event.K_LEFT: (-1, 0),
-+   tcod.event.K_RIGHT: (1, 0),
-+   tcod.event.K_HOME: (-1, -1),
-+   tcod.event.K_END: (-1, 1),
-+   tcod.event.K_PAGEUP: (1, -1),
-+   tcod.event.K_PAGEDOWN: (1, 1),
++   tcod.event.KeySym.UP: (0, -1),
++   tcod.event.KeySym.DOWN: (0, 1),
++   tcod.event.KeySym.LEFT: (-1, 0),
++   tcod.event.KeySym.RIGHT: (1, 0),
++   tcod.event.KeySym.HOME: (-1, -1),
++   tcod.event.KeySym.END: (-1, 1),
++   tcod.event.KeySym.PAGEUP: (1, -1),
++   tcod.event.KeySym.PAGEDOWN: (1, 1),
 +   # Numpad keys.
-+   tcod.event.K_KP_1: (-1, 1),
-+   tcod.event.K_KP_2: (0, 1),
-+   tcod.event.K_KP_3: (1, 1),
-+   tcod.event.K_KP_4: (-1, 0),
-+   tcod.event.K_KP_6: (1, 0),
-+   tcod.event.K_KP_7: (-1, -1),
-+   tcod.event.K_KP_8: (0, -1),
-+   tcod.event.K_KP_9: (1, -1),
++   tcod.event.KeySym.KP_1: (-1, 1),
++   tcod.event.KeySym.KP_2: (0, 1),
++   tcod.event.KeySym.KP_3: (1, 1),
++   tcod.event.KeySym.KP_4: (-1, 0),
++   tcod.event.KeySym.KP_6: (1, 0),
++   tcod.event.KeySym.KP_7: (-1, -1),
++   tcod.event.KeySym.KP_8: (0, -1),
++   tcod.event.KeySym.KP_9: (1, -1),
 +   # Vi keys.
-+   tcod.event.K_h: (-1, 0),
-+   tcod.event.K_j: (0, 1),
-+   tcod.event.K_k: (0, -1),
-+   tcod.event.K_l: (1, 0),
-+   tcod.event.K_y: (-1, -1),
-+   tcod.event.K_u: (1, -1),
-+   tcod.event.K_b: (-1, 1),
-+   tcod.event.K_n: (1, 1),
++   tcod.event.KeySym.h: (-1, 0),
++   tcod.event.KeySym.j: (0, 1),
++   tcod.event.KeySym.k: (0, -1),
++   tcod.event.KeySym.l: (1, 0),
++   tcod.event.KeySym.y: (-1, -1),
++   tcod.event.KeySym.u: (1, -1),
++   tcod.event.KeySym.b: (-1, 1),
++   tcod.event.KeySym.n: (1, 1),
 +}
 
 +WAIT_KEYS = {
-+   tcod.event.K_PERIOD,
-+   tcod.event.K_KP_5,
-+   tcod.event.K_CLEAR,
++   tcod.event.KeySym.PERIOD,
++   tcod.event.KeySym.KP_5,
++   tcod.event.KeySym.CLEAR,
 +}
 
 
         ...
 
--       if key == tcod.event.K_UP:
+-       if key == tcod.event.KeySym.UP:
 -           action = BumpAction(dx=0, dy=-1)
--       elif key == tcod.event.K_DOWN:
+-       elif key == tcod.event.KeySym.DOWN:
 -           action = BumpAction(dx=0, dy=1)
--       elif key == tcod.event.K_LEFT:
+-       elif key == tcod.event.KeySym.LEFT:
 -           action = BumpAction(dx=-1, dy=0)
--       elif key == tcod.event.K_RIGHT:
+-       elif key == tcod.event.KeySym.RIGHT:
 -           action = BumpAction(dx=1, dy=0)
 +       if key in MOVE_KEYS:
 +           dx, dy = MOVE_KEYS[key]
@@ -1617,50 +1628,50 @@ if TYPE_CHECKING:
 
 <span class="new-text">MOVE_KEYS = {
     # Arrow keys.
-    tcod.event.K_UP: (0, -1),
-    tcod.event.K_DOWN: (0, 1),
-    tcod.event.K_LEFT: (-1, 0),
-    tcod.event.K_RIGHT: (1, 0),
-    tcod.event.K_HOME: (-1, -1),
-    tcod.event.K_END: (-1, 1),
-    tcod.event.K_PAGEUP: (1, -1),
-    tcod.event.K_PAGEDOWN: (1, 1),
+    tcod.event.KeySym.UP: (0, -1),
+    tcod.event.KeySym.DOWN: (0, 1),
+    tcod.event.KeySym.LEFT: (-1, 0),
+    tcod.event.KeySym.RIGHT: (1, 0),
+    tcod.event.KeySym.HOME: (-1, -1),
+    tcod.event.KeySym.END: (-1, 1),
+    tcod.event.KeySym.PAGEUP: (1, -1),
+    tcod.event.KeySym.PAGEDOWN: (1, 1),
     # Numpad keys.
-    tcod.event.K_KP_1: (-1, 1),
-    tcod.event.K_KP_2: (0, 1),
-    tcod.event.K_KP_3: (1, 1),
-    tcod.event.K_KP_4: (-1, 0),
-    tcod.event.K_KP_6: (1, 0),
-    tcod.event.K_KP_7: (-1, -1),
-    tcod.event.K_KP_8: (0, -1),
-    tcod.event.K_KP_9: (1, -1),
+    tcod.event.KeySym.KP_1: (-1, 1),
+    tcod.event.KeySym.KP_2: (0, 1),
+    tcod.event.KeySym.KP_3: (1, 1),
+    tcod.event.KeySym.KP_4: (-1, 0),
+    tcod.event.KeySym.KP_6: (1, 0),
+    tcod.event.KeySym.KP_7: (-1, -1),
+    tcod.event.KeySym.KP_8: (0, -1),
+    tcod.event.KeySym.KP_9: (1, -1),
     # Vi keys.
-    tcod.event.K_h: (-1, 0),
-    tcod.event.K_j: (0, 1),
-    tcod.event.K_k: (0, -1),
-    tcod.event.K_l: (1, 0),
-    tcod.event.K_y: (-1, -1),
-    tcod.event.K_u: (1, -1),
-    tcod.event.K_b: (-1, 1),
-    tcod.event.K_n: (1, 1),
+    tcod.event.KeySym.h: (-1, 0),
+    tcod.event.KeySym.j: (0, 1),
+    tcod.event.KeySym.k: (0, -1),
+    tcod.event.KeySym.l: (1, 0),
+    tcod.event.KeySym.y: (-1, -1),
+    tcod.event.KeySym.u: (1, -1),
+    tcod.event.KeySym.b: (-1, 1),
+    tcod.event.KeySym.n: (1, 1),
 }
 
 WAIT_KEYS = {
-    tcod.event.K_PERIOD,
-    tcod.event.K_KP_5,
-    tcod.event.K_CLEAR,
+    tcod.event.KeySym.PERIOD,
+    tcod.event.KeySym.KP_5,
+    tcod.event.KeySym.CLEAR,
 }</span>
 
 
         ...
 
-        <span class="crossed-out-text">if key == tcod.event.K_UP:</span>
+        <span class="crossed-out-text">if key == tcod.event.KeySym.UP:</span>
             <span class="crossed-out-text">action = BumpAction(player, dx=0, dy=-1)</span>
-        <span class="crossed-out-text">elif key == tcod.event.K_DOWN:</span>
+        <span class="crossed-out-text">elif key == tcod.event.KeySym.DOWN:</span>
             <span class="crossed-out-text">action = BumpAction(player, dx=0, dy=1)</span>
-        <span class="crossed-out-text">elif key == tcod.event.K_LEFT:</span>
+        <span class="crossed-out-text">elif key == tcod.event.KeySym.LEFT:</span>
             <span class="crossed-out-text">action = BumpAction(player, dx=-1, dy=0)</span>
-        <span class="crossed-out-text">elif key == tcod.event.K_RIGHT:</span>
+        <span class="crossed-out-text">elif key == tcod.event.KeySym.RIGHT:</span>
             <span class="crossed-out-text">action = BumpAction(player, dx=1, dy=0)</span>
         <span class="new-text">if key in MOVE_KEYS:
             dx, dy = MOVE_KEYS[key]
@@ -2166,9 +2177,9 @@ In order to actually take advantage of the rendering order, we'll need to modify
 -       for entity in self.entities:
 +       for entity in entities_sorted_for_rendering:
             if self.visible[entity.x, entity.y]:
--               console.print(x=entity.x, y=entity.y, string=entity.char, fg=entity.color)
+-               console.print(x=entity.x, y=entity.y, text=entity.char, fg=entity.color)
 +               console.print(
-+                   x=entity.x, y=entity.y, string=entity.char, fg=entity.color
++                   x=entity.x, y=entity.y, text=entity.char, fg=entity.color
 +               )
 
 {{</ highlight >}}
@@ -2196,9 +2207,9 @@ In order to actually take advantage of the rendering order, we'll need to modify
         <span class="crossed-out-text">for entity in self.entities:</span>
         <span class="new-text">for entity in entities_sorted_for_rendering:</span>
             if self.visible[entity.x, entity.y]:
-                <span class="crossed-out-text">console.print(x=entity.x, y=entity.y, string=entity.char, fg=entity.color)</span>
+                <span class="crossed-out-text">console.print(x=entity.x, y=entity.y, text=entity.char, fg=entity.color)</span>
                 <span class="new-text">console.print(
-                    x=entity.x, y=entity.y, string=entity.char, fg=entity.color
+                    x=entity.x, y=entity.y, text=entity.char, fg=entity.color
                 )</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
@@ -2285,7 +2296,7 @@ class Engine:
 +       console.print(
 +           x=1,
 +           y=47,
-+           string=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",
++           text=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",
 +       )
 
         context.present(console)
@@ -2313,7 +2324,7 @@ class Engine:
         <span class="new-text">console.print(
             x=1,
             y=47,
-            string=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",
+            text=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",
         )</span>
 
         context.present(console)
@@ -2336,7 +2347,7 @@ Open up `input_handlers.py` and make the following adjustments:
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
 
@@ -2376,7 +2387,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
         elif key in WAIT_KEYS:
             action = WaitAction(player)
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction(player)
 
         # No valid key was pressed
@@ -2398,7 +2409,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 
 +       key = event.sym
 
-+       if key == tcod.event.K_ESCAPE:
++       if key == tcod.event.KeySym.ESCAPE:
 +           action = EscapeAction(self.engine.player)
 
 +       # No valid key was pressed
@@ -2406,7 +2417,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>class EventHandler(tcod.event.EventDispatch[Action]):
+<pre>class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
 
@@ -2446,7 +2457,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
         elif key in WAIT_KEYS:
             action = WaitAction(player)
 
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction(player)
 
         # No valid key was pressed
@@ -2468,7 +2479,7 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 
         key = event.sym
 
-        if key == tcod.event.K_ESCAPE:
+        if key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction(self.engine.player)
 
         # No valid key was pressed
