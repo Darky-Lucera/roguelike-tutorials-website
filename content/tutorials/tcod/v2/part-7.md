@@ -43,7 +43,7 @@ from typing import TYPE_CHECKING
 import color
 
 if TYPE_CHECKING:
-    from tcod import Console
+    from tcod.console import Console
 
 
 def render_bar(
@@ -59,7 +59,7 @@ def render_bar(
         )
 
     console.print(
-        x=1, y=45, string=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
+        x=1, y=45, text=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
     )
 ```
 
@@ -92,7 +92,7 @@ if TYPE_CHECKING:
 -       console.print(
 -           x=1,
 -           y=47,
--           string=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",
+-           text=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",
 -       )
 
         context.present(console)
@@ -121,7 +121,7 @@ if TYPE_CHECKING:
         <span class="crossed-out-text">console.print(</span>
             <span class="crossed-out-text">x=1,</span>
             <span class="crossed-out-text">y=47,</span>
-            <span class="crossed-out-text">string=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",</span>
+            <span class="crossed-out-text">text=f"HP: {self.player.fighter.hp}/{self.player.fighter.max_hp}",</span>
         <span class="crossed-out-text">)</span>
 
         context.present(console)
@@ -179,7 +179,7 @@ class MessageLog:
             self.messages.append(Message(text, fg))
 
     def render(
-        self, console: tcod.Console, x: int, y: int, width: int, height: int,
+        self, console: tcod.console.Console, x: int, y: int, width: int, height: int,
     ) -> None:
         """Render this log over the given area.
         `x`, `y`, `width`, `height` is the rectangular region to render onto
@@ -189,7 +189,7 @@ class MessageLog:
 
     @staticmethod
     def render_messages(
-        console: tcod.Console,
+        console: tcod.console.Console,
         x: int,
         y: int,
         width: int,
@@ -204,7 +204,7 @@ class MessageLog:
 
         for message in reversed(messages):
             for line in reversed(textwrap.wrap(message.full_text, width)):
-                console.print(x=x, y=y + y_offset, string=line, fg=message.fg)
+                console.print(x=x, y=y + y_offset, text=line, fg=message.fg)
                 y_offset -= 1
                 if y_offset < 0:
                     return  # No more space to print messages.
@@ -266,7 +266,7 @@ If we are allowing stacking, and the added message matches the previous message,
 
 ```py3
     def render(
-        self, console: tcod.Console, x: int, y: int, width: int, height: int,
+        self, console: tcod.console.Console, x: int, y: int, width: int, height: int,
     ) -> None:
         """Render this log over the given area.
         `x`, `y`, `width`, `height` is the rectangular region to render onto
@@ -276,7 +276,7 @@ If we are allowing stacking, and the added message matches the previous message,
 
     @staticmethod
     def render_messages(
-        console: tcod.Console,
+        console: tcod.console.Console,
         x: int,
         y: int,
         width: int,
@@ -291,7 +291,7 @@ If we are allowing stacking, and the added message matches the previous message,
 
         for message in reversed(messages):
             for line in reversed(textwrap.wrap(message.full_text, width)):
-                console.print(x=x, y=y + y_offset, string=line, fg=message.fg)
+                console.print(x=x, y=y + y_offset, text=line, fg=message.fg)
                 y_offset -= 1
                 if y_offset < 0:
                     return  # No more space to print messages.
@@ -394,7 +394,7 @@ import entity_factories
 +       "Hello and welcome, adventurer, to yet another dungeon!", color.welcome_text
 +   )
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...
 {{</ highlight >}}
 {{</ diff-tab >}}
@@ -424,7 +424,7 @@ import entity_factories
         "Hello and welcome, adventurer, to yet another dungeon!", color.welcome_text
     )</span>
 
-    with tcod.context.new_terminal(
+    with tcod.context.new(
         ...</pre>
 
 
@@ -586,7 +586,7 @@ Edit `main.py` like this:
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        root_console = tcod.console.Console(screen_width, screen_height, order="F")
         while True:
 +           root_console.clear()
 +           engine.event_handler.on_render(console=root_console)
@@ -598,7 +598,7 @@ Edit `main.py` like this:
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>        root_console = tcod.Console(screen_width, screen_height, order="F")
+<pre>        root_console = tcod.console.Console(screen_width, screen_height, order="F")
         while True:
             <span class="new-text">root_console.clear()
             engine.event_handler.on_render(console=root_console)
@@ -619,22 +619,28 @@ Now let's modify `input_handlers.py` to contain the methods we're calling in `ma
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
 
--   def handle_events(self) -> None:
--       raise NotImplementedError()
-
++   def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
++       match event:
++           case tcod.event.Quit():
++               return self.ev_quit(event)
++           case tcod.event.KeyDown():
++               return self.ev_keydown(event)
++           case _:
++               return None
++
 +   def handle_events(self, context: tcod.context.Context) -> None:
 +       for event in tcod.event.wait():
-+           context.convert_event(event)
++           event = context.convert_event(event)
 +           self.dispatch(event)
 
     def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
         raise SystemExit()
 
-+   def on_render(self, console: tcod.Console) -> None:
++   def on_render(self, console: tcod.console.Console) -> None:
 +       self.engine.render(console)
 
 
@@ -642,7 +648,7 @@ class MainGameEventHandler(EventHandler):
 -   def handle_events(self) -> None:
 +   def handle_events(self, context: tcod.context.Context) -> None:
         for event in tcod.event.wait():
-+           context.convert_event(event)
++           event = context.convert_event(event)
 
             action = self.dispatch(event)
             ...
@@ -655,22 +661,28 @@ class GameOverEventHandler(EventHandler):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>class EventHandler(tcod.event.EventDispatch[Action]):
+<pre>class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
 
-    <span class="crossed-out-text">def handle_events(self) -> None:</span>
-        <span class="crossed-out-text">raise NotImplementedError()</span>
+    def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None
 
     <span class="new-text">def handle_events(self, context: tcod.context.Context) -> None:
         for event in tcod.event.wait():
-            context.convert_event(event)
+            event = context.convert_event(event)
             self.dispatch(event)</span>
 
     def ev_quit(self, event: tcod.event.Quit) -> Optional[Action]:
         raise SystemExit()
 
-    <span class="new-text">def on_render(self, console: tcod.Console) -> None:
+    <span class="new-text">def on_render(self, console: tcod.console.Console) -> None:
         self.engine.render(console)</span>
 
 
@@ -678,7 +690,7 @@ class MainGameEventHandler(EventHandler):
     <span class="crossed-out-text">def handle_events(self) -> None:</span>
     <span class="new-text">def handle_events(self, context: tcod.context.Context) -> None:</span>
         for event in tcod.event.wait():
-            <span class="new-text">context.convert_event(event)</span>
+            <span class="new-text">event = context.convert_event(event)</span>
 
             action = self.dispatch(event)
             ...
@@ -691,11 +703,11 @@ class GameOverEventHandler(EventHandler):
 {{</ original-tab >}}
 {{</ codetab >}}
 
-We're modifying the `handle_events` method in `EventHandler` to actually have an implementation. It iterates through the events, and uses `context.convert_event` to give the event knowledge on the mouse position. It then dispatches that event, to be handled like normal.
+We're modifying the `handle_events` method in `EventHandler` to actually have an implementation. It iterates through the events, converts each one with `context.convert_event`, and then dispatches the converted event as usual.
 
 `on_render` just tells the `Engine` class to call its render method, using the given console.
 
-`MainGameEventHandler` and `GameOverEventHandler` have small changes to their `handle_events` methods to match the signature of `EventHandler`, and `MainGameEventHandler` also uses `context.convert_event`.
+`MainGameEventHandler` and `GameOverEventHandler` have small changes to their `handle_events` methods to match the signature of `EventHandler`, and `MainGameEventHandler` also reuses the converted event before dispatching it.
 
 We're no longer passing the `context` to the `Engine` class's `render` method, so let's change the method now:
 
@@ -796,13 +808,25 @@ There's an easy way: by overriding a method in `EventHandler`, which is called `
 {{< codetab >}}
 {{< diff-tab >}}
 {{< highlight diff >}}
-class EventHandler(tcod.event.EventDispatch[Action]):
+class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
 
+    def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.MouseMotion():
+                self.ev_mousemotion(event)
+                return None
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None
+
     def handle_events(self, context: tcod.context.Context) -> None:
         for event in tcod.event.wait():
-            context.convert_event(event)
+            event = context.convert_event(event)
             self.dispatch(event)
 
 +   def ev_mousemotion(self, event: tcod.event.MouseMotion) -> None:
@@ -814,13 +838,25 @@ class EventHandler(tcod.event.EventDispatch[Action]):
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
-<pre>class EventHandler(tcod.event.EventDispatch[Action]):
+<pre>class EventHandler:
     def __init__(self, engine: Engine):
         self.engine = engine
 
+    def dispatch(self, event: tcod.event.Event) -> Optional[Action]:
+        match event:
+            case tcod.event.Quit():
+                return self.ev_quit(event)
+            case tcod.event.MouseMotion():
+                self.ev_mousemotion(event)
+                return None
+            case tcod.event.KeyDown():
+                return self.ev_keydown(event)
+            case _:
+                return None
+
     def handle_events(self, context: tcod.context.Context) -> None:
         for event in tcod.event.wait():
-            context.convert_event(event)
+            event = context.convert_event(event)
             self.dispatch(event)
 
     <span class="new-text">def ev_mousemotion(self, event: tcod.event.MouseMotion) -> None:
@@ -846,7 +882,7 @@ from typing import TYPE_CHECKING
 import color
 
 if TYPE_CHECKING:
-    from tcod import Console
+    from tcod.console import Console
 +   from engine import Engine
 +   from game_map import GameMap
 
@@ -875,7 +911,7 @@ def render_bar(
         )
 
     console.print(
-        x=1, y=45, string=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
+        x=1, y=45, text=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
     )
 
 
@@ -888,7 +924,7 @@ def render_bar(
 +       x=mouse_x, y=mouse_y, game_map=engine.game_map
 +   )
 
-+   console.print(x=x, y=y, string=names_at_mouse_location)
++   console.print(x=x, y=y, text=names_at_mouse_location)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
@@ -899,7 +935,7 @@ from typing import TYPE_CHECKING
 import color
 
 if TYPE_CHECKING:
-    from tcod import Console
+    from tcod.console import Console
     <span class="new-text">from engine import Engine
     from game_map import GameMap
 
@@ -928,7 +964,7 @@ def render_bar(
         )
 
     console.print(
-        x=1, y=45, string=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
+        x=1, y=45, text=f"HP: {current_value}/{maximum_value}", fg=color.bar_text
     )
 
 
@@ -941,7 +977,7 @@ def render_bar(
         x=mouse_x, y=mouse_y, game_map=engine.game_map
     )
 
-    console.print(x=x, y=y, string=names_at_mouse_location)</span></pre>
+    console.print(x=x, y=y, text=names_at_mouse_location)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
 
@@ -1019,10 +1055,10 @@ class GameOverEventHandler(EventHandler):
 
 
 +CURSOR_Y_KEYS = {
-+   tcod.event.K_UP: -1,
-+   tcod.event.K_DOWN: 1,
-+   tcod.event.K_PAGEUP: -10,
-+   tcod.event.K_PAGEDOWN: 10,
++   tcod.event.KeySym.UP: -1,
++   tcod.event.KeySym.DOWN: 1,
++   tcod.event.KeySym.PAGEUP: -10,
++   tcod.event.KeySym.PAGEDOWN: 10,
 +}
 
 
@@ -1034,15 +1070,19 @@ class GameOverEventHandler(EventHandler):
 +       self.log_length = len(engine.message_log.messages)
 +       self.cursor = self.log_length - 1
 
-+   def on_render(self, console: tcod.Console) -> None:
++   def on_render(self, console: tcod.console.Console) -> None:
 +       super().on_render(console)  # Draw the main state as the background.
 
-+       log_console = tcod.Console(console.width - 6, console.height - 6)
++       log_console = tcod.console.Console(console.width - 6, console.height - 6)
 
 +       # Draw a frame with a custom banner title.
 +       log_console.draw_frame(0, 0, log_console.width, log_console.height)
-+       log_console.print_box(
-+           0, 0, log_console.width, 1, "┤Message history├", alignment=tcod.CENTER
++       log_console.print(
++           x=0,
++           y=0,
++           text="Message history",
++           width=log_console.width,
++           alignment=tcod.constants.CENTER,
 +       )
 
 +       # Render the message log using the cursor parameter.
@@ -1069,9 +1109,9 @@ class GameOverEventHandler(EventHandler):
 +           else:
 +               # Otherwise move while staying clamped to the bounds of the history log.
 +               self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1))
-+       elif event.sym == tcod.event.K_HOME:
++       elif event.sym == tcod.event.KeySym.HOME:
 +           self.cursor = 0  # Move directly to the top message.
-+       elif event.sym == tcod.event.K_END:
++       elif event.sym == tcod.event.KeySym.END:
 +           self.cursor = self.log_length - 1  # Move directly to the last message.
 +       else:  # Any other key moves back to the main game state.
 +           self.engine.event_handler = MainGameEventHandler(self.engine)
@@ -1083,10 +1123,10 @@ class GameOverEventHandler(EventHandler):
 
 
 <span class="new-text">CURSOR_Y_KEYS = {
-    tcod.event.K_UP: -1,
-    tcod.event.K_DOWN: 1,
-    tcod.event.K_PAGEUP: -10,
-    tcod.event.K_PAGEDOWN: 10,
+    tcod.event.KeySym.UP: -1,
+    tcod.event.KeySym.DOWN: 1,
+    tcod.event.KeySym.PAGEUP: -10,
+    tcod.event.KeySym.PAGEDOWN: 10,
 }
 
 
@@ -1098,15 +1138,19 @@ class HistoryViewer(EventHandler):
         self.log_length = len(engine.message_log.messages)
         self.cursor = self.log_length - 1
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)  # Draw the main state as the background.
 
-        log_console = tcod.Console(console.width - 6, console.height - 6)
+        log_console = tcod.console.Console(console.width - 6, console.height - 6)
 
         # Draw a frame with a custom banner title.
         log_console.draw_frame(0, 0, log_console.width, log_console.height)
-        log_console.print_box(
-            0, 0, log_console.width, 1, "┤Message history├", alignment=tcod.CENTER
+        log_console.print(
+            x=0,
+            y=0,
+            text="Message history",
+            width=log_console.width,
+            alignment=tcod.constants.CENTER,
         )
 
         # Render the message log using the cursor parameter.
@@ -1133,9 +1177,9 @@ class HistoryViewer(EventHandler):
             else:
                 # Otherwise move while staying clamped to the bounds of the history log.
                 self.cursor = max(0, min(self.cursor + adjust, self.log_length - 1))
-        elif event.sym == tcod.event.K_HOME:
+        elif event.sym == tcod.event.KeySym.HOME:
             self.cursor = 0  # Move directly to the top message.
-        elif event.sym == tcod.event.K_END:
+        elif event.sym == tcod.event.KeySym.END:
             self.cursor = self.log_length - 1  # Move directly to the last message.
         else:  # Any other key moves back to the main game state.
             self.engine.event_handler = MainGameEventHandler(self.engine)</span></pre>
@@ -1148,17 +1192,17 @@ To show this new view, all we need to do is this, in `MainGameEventHandler`:
 {{< diff-tab >}}
 {{< highlight diff >}}
         ...
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction(player)
-+       elif key == tcod.event.K_v:
++       elif key == tcod.event.KeySym.v:
 +           self.engine.event_handler = HistoryViewer(self.engine)
 {{</ highlight >}}
 {{</ diff-tab >}}
 {{< original-tab >}}
 <pre>        ...
-        elif key == tcod.event.K_ESCAPE:
+        elif key == tcod.event.KeySym.ESCAPE:
             action = EscapeAction(player)
-        <span class="new-text">elif key == tcod.event.K_v:
+        <span class="new-text">elif key == tcod.event.KeySym.v:
             self.engine.event_handler = HistoryViewer(self.engine)</span></pre>
 {{</ original-tab >}}
 {{</ codetab >}}
