@@ -9,21 +9,15 @@ This appendix explains the most common effects, what they represent, how they ar
 
 There is a lot of material in this appendix. You can read it in three passes:
 
-- **Individual effects**:
-
-    Critical hits, misses, dodge, parry, block, armor penetration, resistances, and status effects.
-
-- **Combining effects**:
-
-    Resolution order, independent rolls, and multiple attackers.
-
-- **Balance guidance**:
-
-    Terminology, common problems, and where to start.
+- [**Individual effects**](#individual-effects): Critical hits, misses, dodge, parry, block, armor penetration, resistances, and status effects.
+- [**Combining effects**](#combining-effects): Resolution order, independent rolls, and multiple attackers.
+- [**Balance guidance**](#balance-guidance): Terminology, common problems, and where to start.
 
 ---
 
-## 1. Critical hit
+## Individual effects
+
+### 1. Critical hit
 
 A critical hit represents a strike that lands especially well: a precise blow to a weak spot, a lucky angle, or a moment of perfect timing. It deals more damage not because the attacker is stronger, but because this particular hit was more effective.
 
@@ -38,21 +32,21 @@ else:
 
 A typical setup might be `critical_chance = 0.1` (10%) and `critical_multiplier = 2.0` (double damage). That means one in ten hits deals twice the normal damage, enough to feel meaningful without dominating every fight.
 
-### Variants
+#### Variants
 
 - **Attribute-dependent**: critical chance scales with dexterity, luck, or weapon skill. A specialized fighter crits more often than a generalist.
 - **Guaranteed criticals**: some situations skip the probability check entirely. Common examples are attacking from behind (backstab), hitting a stunned enemy, or triggering a specific ability.
-- **Criticals as effect triggers**: a critical hit can fire a secondary effect tied to a specific weapon or ability. A mace might have a small chance to stun on a critical; a poisoned blade might apply its venom with greater probability. This is a natural fit for weapon identity. One thing to watch: stacking extra damage and 'turn control' into the same trigger tends to break balance faster than either effect alone.
+- **Criticals as effect triggers**: a critical hit can fire a secondary effect tied to a specific weapon or ability. A mace might have a small chance to stun on a critical; a poisoned blade might apply its venom with greater probability. This is a natural fit for weapon identity. One thing to watch: stacking extra damage and turn control into the same trigger tends to break balance faster than either effect alone.
 
-### Design note
+#### Design note
 
-Keep both values in check. A `critical_chance` above 0.3 or a `critical_multiplier` above 3.0 makes individual fights feel like coin flips. One unlucky string of enemy criticals can kill a player who believed they were safe.
+Keep both values in check. A `critical_chance` above 0.25 or a `critical_multiplier` above 3.0 makes individual fights feel like coin flips. One unlucky string of enemy criticals can kill a player who believed they were safe.
 
 The other side of this is that criticals are exciting precisely because they are **rare**. If every hit crits, nothing feels special.
 
 ---
 
-## 2. Miss and accuracy / evasion
+### 2. Miss and accuracy / evasion
 
 An attack can fail not because the defender did anything, but because the attacker simply missed. The sword swung wide, the arrow clipped the wall.
 
@@ -78,7 +72,7 @@ else:
 
 ---
 
-## 3. Dodge
+### 3. Dodge
 
 Dodging means the defender actively avoids the attack. They step aside, duck, or move out of the path of the blow.
 
@@ -112,7 +106,7 @@ Evasion commonly scales with dexterity, agility or speed (even with luck if your
 !!! warning "Cap it"
     A dodge chance above 50% starts producing characters who are frustrating to fight. Something in the 5% to 30% range is enough to feel meaningful without breaking combat flow.
 
-### Miss vs dodge
+#### Miss vs dodge
 
 Both result in no damage, but the cause is different. In a miss, the attacker failed to connect. In a dodge, the defender acted to avoid the blow. The distinction matters for feedback text ("The orc misses!" versus "You dodge the blow!") and for how the mechanic maps to character stats.
 
@@ -120,7 +114,7 @@ Some games collapse both into a single hit probability and skip the distinction 
 
 ---
 
-## 4. Parry
+### 4. Parry
 
 A parry is an active defensive technique: the defender uses their weapon, shield, or skill to redirect the incoming attack rather than simply getting out of the way.
 
@@ -138,7 +132,7 @@ def melee_attack(self, target, engine, is_counterattack: bool = False):
 
 The `is_counterattack` parameter tells `melee_attack` whether this strike is itself a counterattack. If it is, the parry check is skipped entirely, breaking the recursion chain. The `can_counter_attack` flag is then free to mean exactly one thing: the defender has earned the right to strike back.
 
-### Design note: counterattack
+#### Design note: counterattack
 
 If a successful parry grants a counterattack opportunity, parry becomes a defensive mechanic with offensive implications. That is a strong ability. A character who can parry every incoming attack and respond with a guaranteed hit (possibly with higher critical chance) becomes very difficult to fight.
 
@@ -160,7 +154,7 @@ Limit parry if it grants counterattacks. Reasonable restrictions: one parry per 
 
 ---
 
-## 5. Block
+### 5. Block
 
 Blocking means taking the hit but reducing its force. A shield absorbs part of the blow, a large weapon deflects some of the energy, or the character braces and accepts less damage.
 
@@ -195,7 +189,7 @@ Unlike parry, block does not need to represent a precise, skillful response. Tha
 
     Block is a natural fit for shield mechanics. It can degrade over time (each block costs durability or stamina), which naturally limits it without adding hard caps.
 
-### Dodge vs parry vs block
+#### Dodge vs parry vs block
 
 All three prevent or reduce damage, but through different mechanisms:
 
@@ -207,7 +201,7 @@ The practical difference shows up in design constraints: dodge works at any rang
 
 ---
 
-## 6. Armor penetration
+### 6. Armor penetration
 
 Armor penetration reduces how much of the defender's defense actually applies. A weapon with high penetration cuts through armor more effectively, dealing more damage against the same target than a normal attack would.
 
@@ -236,7 +230,7 @@ Armor penetration lets you create meaningful differences between weapons, abilit
 
 ---
 
-## 7. Damage resistance
+### 7. Damage resistance
 
 Resistances reduce damage after it has been calculated, based on the type of damage. Fire, ice, poison, and physical are common categories, each with its own resistance value per defender.
 
@@ -257,7 +251,7 @@ Damage types create tactical variety. A fire-resistant troll does not simply hav
 
 ---
 
-## 8. Status effects
+### 8. Status effects
 
 Some attacks do not just deal damage. They also inflict a condition: poison that drains HP over several turns, a stun that skips the target's next action, a slow that reduces movement range, a burn that ticks fire damage each round.
 
@@ -281,21 +275,23 @@ Implementing status effects well requires a component that ticks each turn, comm
 
 ---
 
-## 9. Attack resolution order
+## Combining effects
+
+### 9. Attack resolution order
 
 If you add several of these effects, the order in which you apply them matters. Different orders produce different results, and some orderings produce surprising math.
 
 Whatever order you choose, keep it consistent. If the order differs between player attacks and enemy attacks, or changes between updates, you get unpredictable results that are difficult to debug.
 
-### Order changes the result
+#### Order changes the result
 
 Applying the critical multiplier before defense means crits amplify raw attack before defense reduces it. That feels stronger and more impactful. Applying it after defense means crits amplify only the damage that survived the defense calculation. That feels more controlled.
 
-Both approaches are valid. Choose one and stay with it.
+Both approaches are valid.
 
 ---
 
-## 10. Independent rolls vs single table
+### 10. Independent rolls vs single table
 
 When several defensive effects are active at once (dodge, parry, block), there are two ways to resolve them: a series of independent rolls, or a single table roll.
 
@@ -341,7 +337,7 @@ Independent rolls are faster to prototype. Single table rolls are easier to bala
 
 ---
 
-## 11. Multiple attackers
+### 11. Multiple attackers
 
 Most combat analysis focuses on a one-on-one fight. Roguelikes frequently put the player against several enemies at once.
 
@@ -354,7 +350,7 @@ chance_to_avoid_all_three_attacks = 0.6 * 0.6 * 0.6  # = 0.216
 
 That 60% individual probability becomes a 21.6% chance to avoid all three. The per-hit number looks fine; the cumulative result per turn does not.
 
-### How each defense behaves against multiple attackers
+#### How each defense behaves against multiple attackers
 
 - **Dodge**: works as a passive probability against each attack individually, but cumulative failure rate climbs fast. It can also feel implausible if a character dodges five attacks from five different directions in a single turn. A per-turn penalty or cap keeps it believable.
 
@@ -364,7 +360,7 @@ That 60% individual probability becomes a 21.6% chance to avoid all three. The p
 
 - **Miss**: no special handling needed. A miss is the attacker's failure, not a finite defensive resource.
 
-### Simple rules for limiting per-turn use
+#### Simple rules for limiting per-turn use
 
 ```python
 if defender.parries_this_turn < defender.max_parries_per_turn:
@@ -379,6 +375,8 @@ dodge_chance = base_dodge_chance - attacks_received_this_turn * dodge_penalty_pe
 block_reduction = max(0, base_block_reduction - blocks_this_turn * block_penalty_per_block)
 ...
 ```
+
+Reset `parries_this_turn` and `blocks_this_turn` to `0` at the start of each turn, alongside `can_counter_attack`, in `handle_enemy_turns()`.
 
 Or use a resource that depletes:
 
@@ -402,13 +400,16 @@ For a simple roguelike: make dodge a passive probability, block a partial reduct
 
 ---
 
-## 12. Terms to keep straight
+## Balance guidance
+
+### 12. Terms to keep straight
 
 These concepts are often confused, especially across different games and forums. For internal consistency, pick one meaning per term and use it everywhere.
 
 | Term | Who causes it | What happens |
 | --- | --- | --- |
 | **Critical hit** | Attacker | Attack lands with extra force. Bonus damage. |
+| **Armor penetration** | Attacker | Effective defense is reduced before damage calculation. |
 | **Miss** | Attacker | Attack fails to connect. Defender did nothing special. |
 | **Dodge** | Defender | Defender actively avoids the attack. No damage. |
 | **Parry** | Defender | Defender redirects the attack. No damage, possible counterattack. |
@@ -418,7 +419,7 @@ These concepts are often confused, especially across different games and forums.
 
 ---
 
-## 13. Common balance problems
+### 13. Common balance problems
 
 **Avoidance too high**: Dodge, parry, or block probabilities above 40-50% start producing characters who feel unkillable. Always clamp probabilities and test against multiple attackers, not just one.
 
@@ -436,7 +437,7 @@ These concepts are often confused, especially across different games and forums.
 
 ---
 
-## 14. Summary
+### 14. Summary
 
 | Effect | Triggered by | Typical result | Balance risk |
 | --- | --- | --- | --- |
@@ -449,7 +450,7 @@ These concepts are often confused, especially across different games and forums.
 | Resistance | Defender | Damage reduced by type | Immune enemies removing entire damage sources |
 | Status effect | Attacker | Ongoing condition | Play denial if duration too long |
 
-### Where to start
+#### Where to start
 
 The tutorial's combat is functional with just `damage = max(0, attack - target.defense)`. If you want to extend it, a good first step is adding a critical hit: one attribute, one multiplier, one probability check. It adds surprise without touching the defense side of the equation.
 

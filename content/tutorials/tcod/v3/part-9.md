@@ -89,9 +89,9 @@ class SelectIndexHandler(EventHandler):
         return super().event_keydown(event)
 
     def event_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Action | None:
-        if self.engine.game_map.in_bounds(*event.tile):
+        if self.engine.game_map.in_bounds(*event.integer_position):
             if event.button == 1:
-                return self.on_index_selected(*event.tile)
+                return self.on_index_selected(*event.integer_position)
         return None
 
     def on_index_selected(self, x: int, y: int) -> Action | None:
@@ -195,13 +195,11 @@ class LightningDamageConsumable(Consumable):
                     closest_distance = distance
 
         if target:
-            engine.message_log.add_message(
+            MessageLog.add_message(
                 f"A lightning bolt strikes the {target.name} for {self.damage} damage!",
                 colors.PLAYER_ATTACK,
             )
             target.fighter.take_damage(self.damage)
-            if not target.is_alive:
-                target.fighter.die(engine)
             self.consume()
         else:
             raise Impossible("No enemy is close enough to strike.")
@@ -215,7 +213,7 @@ class ConfusionConsumable(Consumable):
         self.number_of_turns = number_of_turns
 
     def get_action(self, consumer: Actor, engine: Engine):
-        engine.message_log.add_message(
+        MessageLog.add_message(
             "Select a target location.", colors.NEEDS_TARGET
         )
         from game.input_handlers import SingleRangedAttackHandler
@@ -235,7 +233,7 @@ class ConfusionConsumable(Consumable):
         if target is consumer:
             raise Impossible("You cannot confuse yourself!")
 
-        engine.message_log.add_message(
+        MessageLog.add_message(
             f"The eyes of the {target.name} look vacant, as it starts to stumble around!",
             colors.STATUS_EFFECT_APPLIED,
         )
@@ -276,7 +274,7 @@ class FireballDamageConsumable(Consumable):
         self.radius = radius
 
     def get_action(self, consumer: Actor, engine: Engine):
-        engine.message_log.add_message(
+        MessageLog.add_message(
             "Select a target location.", colors.NEEDS_TARGET
         )
         from game.input_handlers import AreaRangedAttackHandler
@@ -296,13 +294,11 @@ class FireballDamageConsumable(Consumable):
         targets_hit = False
         for actor in engine.game_map.actors:
             if actor.distance(*target_xy) <= self.radius:
-                engine.message_log.add_message(
+                MessageLog.add_message(
                     f"The {actor.name} is engulfed in a fiery explosion,"
                     f" taking {self.damage} damage!"
                 )
                 actor.fighter.take_damage(self.damage)
-                if not actor.is_alive:
-                    actor.fighter.die(engine)
                 targets_hit = True
 
         if not targets_hit:
@@ -319,6 +315,8 @@ Add to `game/components/ai.py`:
 ```python
 import random
 
+from game.message_log import MessageLog
+
 class ConfusedEnemy(BaseAI):
     def __init__(
         self,
@@ -333,7 +331,7 @@ class ConfusedEnemy(BaseAI):
 
     def perform(self, engine: Engine, entity: Actor) -> None:
         if self.turns_remaining <= 0:
-            engine.message_log.add_message(
+            MessageLog.add_message(
                 f"The {entity.name} is no longer confused."
             )
             entity.ai = self.previous_ai
@@ -482,7 +480,7 @@ class EventHandler:
             case tcod.event.Quit():
                 action = EscapeAction()
             case tcod.event.MouseMotion():
-                self.engine.mouse_location = event.tile.x, event.tile.y
+                self.engine.mouse_location = event.integer_position
             case tcod.event.MouseButtonDown():
                 action = self.event_mousebuttondown(event)
             case tcod.event.KeyDown():
@@ -492,7 +490,7 @@ class EventHandler:
             try:
                 action.perform(self.engine, self.engine.player)
             except Impossible as exc:
-                self.engine.message_log.add_message(str(exc), colors.INVALID)
+                MessageLog.add_message(str(exc), colors.INVALID)
                 return None
 
             if self.engine.player.is_alive:

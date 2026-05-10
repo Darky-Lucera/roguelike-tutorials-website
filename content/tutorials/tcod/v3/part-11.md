@@ -117,14 +117,15 @@ Update `Fighter.die()` in `game/components/fighter.py`:
 ```python
     def die(self, engine: Engine) -> None:
         from game.constants import colors, sprites
-        if self.entity is engine.player:
+        from game.message_log import MessageLog
+        if self.entity.ai is None:
             death_message = "You died!"
             death_message_color = colors.PLAYER_DEATH
         else:
             death_message = f"The {self.entity.name} is dead!"
             death_message_color = colors.ENEMY_DEATH
             if engine.player.level.add_xp(self.entity.level.xp_given):
-                engine.message_log.add_message(
+                MessageLog.add_message(
                     "You feel your experience grow!", colors.LEVEL_UP
                 )
 
@@ -135,7 +136,7 @@ Update `Fighter.die()` in `game/components/fighter.py`:
         self.entity.name = f"remains of {self.entity.name}"
         self.entity.render_order = RenderOrder.CORPSE
 
-        engine.message_log.add_message(death_message, death_message_color)
+        MessageLog.add_message(death_message, death_message_color)
 ```
 
 Add to `game/constants/colors.py`:
@@ -285,6 +286,7 @@ Update `game/setup_game.py`, replace direct `generate_dungeon` call with `GameWo
 import copy
 
 from game.game_world import GameWorld
+from game.message_log import MessageLog
 
 def new_game() -> Engine:
     player = copy.deepcopy(entity_factories.player)
@@ -303,7 +305,7 @@ def new_game() -> Engine:
     engine.game_world.generate_floor()
     engine.update_fov()
 
-    engine.message_log.add_message(
+    MessageLog.add_message(
         "Hello and welcome, adventurer, to yet another dungeon!",
         colors.WELCOME_TEXT,
     )
@@ -362,7 +364,7 @@ class TakeStairsAction(Action):
     def perform(self, engine: Engine, entity: Entity) -> None:
         if (entity.x, entity.y) == engine.game_map.downstairs_location:
             engine.game_world.generate_floor()
-            engine.message_log.add_message(
+            MessageLog.add_message(
                 "You descend the staircase.", colors.DESCEND
             )
         else:
@@ -434,7 +436,7 @@ class LevelUpEventHandler(EventHandler):
         elif index == 2:
             player.level.increase_defense()
         else:
-            self.engine.message_log.add_message("Invalid entry.", colors.INVALID)
+            MessageLog.add_message("Invalid entry.", colors.INVALID)
             return None
 
         return MainGameEventHandler(self.engine)
@@ -468,7 +470,7 @@ Trigger the modal from `EventHandler.handle_events()` after enemy turns and deat
 
 ## Show floor and level in the UI
 
-Update `game/render_functions.py`, add a function to print dungeon floor and player level:
+Update `game/hud.py`, add a function to print dungeon floor and player level:
 
 ```python
 def render_dungeon_level(
@@ -483,7 +485,7 @@ def render_dungeon_level(
 Call it from `Engine.render()`:
 
 ```python
-        render_functions.render_dungeon_level(
+        hud.render_dungeon_level(
             console=console,
             dungeon_level=self.game_world.current_floor,
             location=(0, 47),
@@ -526,7 +528,7 @@ Character progression and dungeon depth are now linked. Key additions:
 
 **Files created**: `game/components/level.py`, `game/game_world.py`
 
-**Files modified**: `game/entity.py`, `game/entity_factories.py`, `game/map/map_generator.py`, `game/actions.py`, `game/input_handlers.py`, `game/engine.py`, `game/setup_game.py`, `game/render_functions.py`, `game/components/fighter.py`, `game/constants/sprites.py`, `game/constants/colors.py`
+**Files modified**: `game/entity.py`, `game/entity_factories.py`, `game/map/map_generator.py`, `game/actions.py`, `game/input_handlers.py`, `game/engine.py`, `game/setup_game.py`, `game/hud.py`, `game/components/fighter.py`, `game/constants/sprites.py`, `game/constants/colors.py`
 
 ---
 

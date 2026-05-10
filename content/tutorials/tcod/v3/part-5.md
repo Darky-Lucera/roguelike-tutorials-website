@@ -411,7 +411,7 @@ class EventHandler:
             case _:
                 return None
 
-    def event_quit(self, event: tcod.event.Quit) -> Action | None:
+    def event_quit(self, _event: tcod.event.Quit) -> Action | None:
         return EscapeAction()
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:

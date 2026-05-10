@@ -59,8 +59,8 @@ from typing import TYPE_CHECKING
 
 from game.components.base_component import BaseComponent
 from game.exceptions import Impossible
-
 from game.constants import colors
+from game.message_log import MessageLog
 
 if TYPE_CHECKING:
     from game.actions import Action, ItemAction
@@ -94,7 +94,7 @@ class HealingConsumable(Consumable):
         amount_recovered = consumer.fighter.heal(self.amount)
 
         if amount_recovered > 0:
-            engine.message_log.add_message(
+            MessageLog.add_message(
                 f"You consume the {self.entity.name}, and recover {amount_recovered} HP!",
                 colors.HEALTH_RECOVERED,
             )
@@ -340,6 +340,7 @@ Add to `game/actions.py`:
 
 ```python
 from game.exceptions import Impossible
+from game.message_log import MessageLog
 
 class PickupAction(Action):
     def perform(self, engine: Engine, entity: Entity) -> None:
@@ -356,7 +357,7 @@ class PickupAction(Action):
                 item.parent = inventory
                 inventory.items.append(item)
 
-                engine.message_log.add_message(f"You picked up the {item.name}!")
+                MessageLog.add_message(f"You picked up the {item.name}!")
                 return
 
         raise Impossible("There is nothing here to pick up.")
@@ -374,7 +375,7 @@ class ItemAction(Action):
 class DropItem(ItemAction):
     def perform(self, engine: Engine, entity: Entity) -> None:
         entity.inventory.drop(self.item)
-        engine.message_log.add_message(f"You dropped the {self.item.name}.")
+        MessageLog.add_message(f"You dropped the {self.item.name}.")
 ```
 
 `GameMap` needs an `items` property (parallel to `actors`). Add to `game/map/game_map.py`:
@@ -398,6 +399,7 @@ Add to `game/input_handlers.py`:
 ```python
 from game.constants import colors
 from game.exceptions import Impossible
+from game.message_log import MessageLog
 
 
 class InventoryEventHandler(EventHandler):
@@ -446,7 +448,7 @@ class InventoryEventHandler(EventHandler):
             try:
                 selected_item = player.inventory.items[index]
             except IndexError:
-                self.engine.message_log.add_message("Invalid entry.", colors.INVALID)
+                MessageLog.add_message("Invalid entry.", colors.INVALID)
                 return None
             return self.on_item_selected(selected_item)
         return super().event_keydown(event)
@@ -516,7 +518,7 @@ class EventHandler:
             case tcod.event.Quit():
                 action = EscapeAction()
             case tcod.event.MouseMotion():
-                self.engine.mouse_location = event.tile.x, event.tile.y
+                self.engine.mouse_location = event.integer_position
             case tcod.event.KeyDown():
                 action = self.event_keydown(event)
 
@@ -524,7 +526,7 @@ class EventHandler:
             try:
                 action.perform(self.engine, self.engine.player)
             except Impossible as exc:
-                self.engine.message_log.add_message(str(exc), colors.INVALID)
+                MessageLog.add_message(str(exc), colors.INVALID)
                 return None
 
             if self.engine.player.is_alive:

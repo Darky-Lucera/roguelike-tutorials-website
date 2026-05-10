@@ -253,7 +253,7 @@ class EventHandler:
             case _:
                 return None
 
-    def event_quit(self, event: tcod.event.Quit) -> Action | None:
+    def event_quit(self, _event: tcod.event.Quit) -> Action | None:
         return EscapeAction()
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
@@ -280,6 +280,9 @@ class EventHandler:
 ```
 
 `EventHandler.dispatch` receives a raw tcod event and routes it to the right method. `event_keydown` translates key symbols into `Action` objects, and `event_quit` (the OS-level "close window" signal) returns an `EscapeAction`, the same one as pressing the Escape key. The dispatcher itself never decides what to do; it just translates events into intent. Any unrecognized key returns `None`.
+
+!!! tip "Why `_event`?"
+    `_event` is still a normal Python parameter. The leading underscore is a convention that tells readers and linters "this value is required by the function signature, but this function does not use it." If you later need the event data, you can rename it back to `event` and use it normally.
 
 !!! question "Why not `tcod.event.EventDispatch`?"
     In older tcod code you will see `class EventHandler(tcod.event.EventDispatch[Action])`. That base class still exists but is marked as deprecated in recent versions of tcod. Writing the dispatch by hand keeps us in control of the routing and makes it straightforward to add subclasses of `EventHandler` later (one per game state: main menu, inventory, targeting, etc.).

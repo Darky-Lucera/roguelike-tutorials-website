@@ -23,10 +23,11 @@ Engine
   │     └── entities: set[Entity]
   │           └── orc (Actor)
   │                 └── ai (HostileEnemy)  ← back-reference to the orc
-  └── message_log (MessageLog)
+Static state
+  â””â”€â”€ MessageLog.messages
 ```
 
-The challenge: `Fighter.entity` points back to the `Actor` that owns it, `HostileEnemy.entity` points to the orc, and in Part 9 `ConfusedEnemy.previous_ai` holds another AI. This is a circular reference graph.
+The challenge: `Fighter.entity` points back to the `Actor` that owns it, `HostileEnemy.entity` points to the orc, and in Part 9 `ConfusedEnemy.previous_ai` holds another AI. This is a circular reference graph. The message log is a separate static list, so we save it next to the engine.
 
 **JSON** cannot handle circular references without custom encoding, every class needs a `to_dict()` / `from_dict()` pair. That is a lot of boilerplate.
 
@@ -48,16 +49,25 @@ import lzma
 import pickle
 from pathlib import Path
 
+from game.message_log import MessageLog
+
 
 class Engine:
     ...
 
     def save_as(self, filename: str) -> None:
-        save_data = lzma.compress(pickle.dumps(self))
+        save_data = lzma.compress(
+            pickle.dumps(
+                {
+                    "engine": self,
+                    "message_log": MessageLog.messages,
+                }
+            )
+        )
         Path(filename).write_bytes(save_data)
 ```
 
-That is the entire save implementation. `pickle.dumps(self)` serializes the engine (and everything it references) into bytes. `lzma.compress` shrinks it. `Path.write_bytes` writes the compressed bytes to disk.
+That is the entire save implementation. `pickle.dumps(...)` serializes the engine (and everything it references) plus the static message log into bytes. `lzma.compress` shrinks it. `Path.write_bytes` writes the compressed bytes to disk.
 
 Loading is the inverse:
 
@@ -65,8 +75,12 @@ Loading is the inverse:
     @staticmethod
     def load(filename: str) -> Engine:
         save_data = Path(filename).read_bytes()
-        return pickle.loads(lzma.decompress(save_data))
+        data = pickle.loads(lzma.decompress(save_data))
+        MessageLog.messages = data["message_log"]
+        return data["engine"]
 ```
+
+`MessageLog.messages` is stored explicitly because it is class-level state, not an instance attribute of `Engine`. Without this extra field, loading would restore the map and entities but lose the visible message history.
 
 ---
 
@@ -87,6 +101,7 @@ import tcod
 from game.constants import colors
 from game import entity_factories
 from game.engine import Engine
+from game.message_log import MessageLog
 from game.map.map_generator import generate_dungeon
 
 SAVE_PATH = "savegame.sav"
@@ -102,6 +117,8 @@ MAX_ITEMS_PER_ROOM = 2
 
 def new_game() -> Engine:
     """Return a fresh engine for a brand-new game."""
+    MessageLog.clear()
+
     player = copy.deepcopy(entity_factories.player)
 
     game_map = generate_dungeon(
@@ -117,7 +134,7 @@ def new_game() -> Engine:
     engine = Engine(game_map=game_map, player=player)
     engine.update_fov()
 
-    engine.message_log.add_message(
+    MessageLog.add_message(
         "Hello and welcome, adventurer, to yet another dungeon!",
         colors.WELCOME_TEXT,
     )
@@ -283,7 +300,7 @@ class EventHandler(BaseEventHandler):
             case tcod.event.Quit():
                 action = EscapeAction()
             case tcod.event.MouseMotion():
-                self.engine.mouse_location = event.tile.x, event.tile.y
+                self.engine.mouse_location = event.integer_position
                 return self
             case tcod.event.MouseButtonDown():
                 action = self.event_mousebuttondown(event)
@@ -297,7 +314,7 @@ class EventHandler(BaseEventHandler):
             try:
                 action.perform(self.engine, self.engine.player)
             except Impossible as exc:
-                self.engine.message_log.add_message(str(exc), colors.INVALID)
+                MessageLog.add_message(str(exc), colors.INVALID)
                 return self
 
             if self.engine.player.is_alive:
@@ -393,6 +410,7 @@ def run(
             for event in tcod.event.wait():
                 context.convert_event(event)
                 handler = handler.handle_events(event)
+
     except SystemExit:
         if on_exit is not None:
             on_exit(handler)
@@ -493,14 +511,25 @@ import lzma
 import pickle
 from pathlib import Path
 
+from game.message_log import MessageLog
+
 class Engine:
     def save_as(self, filename: str) -> None:
-        save_data = lzma.compress(pickle.dumps(self))
+        save_data = lzma.compress(
+            pickle.dumps(
+                {
+                    "engine": self,
+                    "message_log": MessageLog.messages,
+                }
+            )
+        )
         Path(filename).write_bytes(save_data)
 
     @staticmethod
     def load(filename: str) -> Engine:
-        return pickle.loads(lzma.decompress(Path(filename).read_bytes()))
+        data = pickle.loads(lzma.decompress(Path(filename).read_bytes()))
+        MessageLog.messages = data["message_log"]
+        return data["engine"]
 ```
 
 **`game/setup_game.py`**: new file (full content above)
@@ -536,7 +565,7 @@ Save and load is complete. The verification milestone is met:
 
 Key additions:
 
-- **`pickle` + `lzma`**: serialize/deserialize the entire engine in two lines each
+- **`pickle` + `lzma`**: serialize/deserialize the engine plus static message log state
 - **`game/setup_game.py`**: `new_game()` and `load_game()` functions
 - **`BaseEventHandler`**: handler base that works without an engine (main menu, popups)
 - **`PopupMessage`**: dismissable overlay with darkened background
@@ -550,7 +579,7 @@ Key additions:
 - `setup_game.py`: creates new games and loads saved ones
 - `BaseEventHandler`: common interface for menu, popup, and engine-backed handlers
 - `MainMenu`: starts before an `Engine` exists
-- `Engine.save()` / `Engine.load()`: serialize and restore the live object graph
+- `Engine.save()` / `Engine.load()`: serialize and restore the live object graph plus `MessageLog.messages`
 
 **Files created**: `game/setup_game.py`
 

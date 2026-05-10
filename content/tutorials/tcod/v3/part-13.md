@@ -114,6 +114,7 @@ from typing import TYPE_CHECKING
 
 from game.components.base_component import BaseComponent
 from game.equipment_type import EquipmentType
+from game.message_log import MessageLog
 
 if TYPE_CHECKING:
     from game.entity import Actor, Item
@@ -149,31 +150,31 @@ class Equipment(BaseComponent):
     def item_is_equipped(self, item: Item) -> bool:
         return self.weapon is item or self.armor is item
 
-    def toggle_equip(self, equippable_item: Item, add_message) -> None:
+    def toggle_equip(self, equippable_item: Item) -> None:
         if equippable_item.equippable.equipment_type == EquipmentType.WEAPON:
             slot = "weapon"
         else:
             slot = "armor"
 
         if getattr(self, slot) is equippable_item:
-            self.unequip_from_slot(slot, add_message)
+            self.unequip_from_slot(slot)
         else:
-            self.equip_to_slot(slot, equippable_item, add_message)
+            self.equip_to_slot(slot, equippable_item)
 
-    def equip_to_slot(self, slot: str, item: Item, add_message) -> None:
+    def equip_to_slot(self, slot: str, item: Item) -> None:
         current_item = getattr(self, slot)
         if current_item is not None:
-            self.unequip_from_slot(slot, add_message)
+            self.unequip_from_slot(slot)
         setattr(self, slot, item)
-        add_message(f"You equip the {item.name}.")
+        MessageLog.add_message(f"You equip the {item.name}.")
 
-    def unequip_from_slot(self, slot: str, add_message) -> None:
+    def unequip_from_slot(self, slot: str) -> None:
         current_item = getattr(self, slot)
-        add_message(f"You remove the {current_item.name}.")
+        MessageLog.add_message(f"You remove the {current_item.name}.")
         setattr(self, slot, None)
 ```
 
-`toggle_equip` takes `add_message` as a callable, the caller provides `engine.message_log.add_message`. This avoids importing the engine inside the component.
+Because `MessageLog` is static, the component can log directly without needing a callback injected from outside.
 
 ---
 
@@ -261,10 +262,7 @@ class EquipAction(Action):
         self.item = item
 
     def perform(self, engine: Engine, entity: Entity) -> None:
-        entity.equipment.toggle_equip(
-            self.item,
-            add_message=lambda text: engine.message_log.add_message(text),
-        )
+        entity.equipment.toggle_equip(self.item)
 ```
 
 Also update `DropItem` so dropping equipped gear unequips it first:
@@ -273,13 +271,10 @@ Also update `DropItem` so dropping equipped gear unequips it first:
 class DropItem(ItemAction):
     def perform(self, engine: Engine, entity: Entity) -> None:
         if entity.equipment.item_is_equipped(self.item):
-            entity.equipment.toggle_equip(
-                self.item,
-                add_message=lambda text: engine.message_log.add_message(text),
-            )
+            entity.equipment.toggle_equip(self.item)
 
         entity.inventory.drop(self.item)
-        engine.message_log.add_message(f"You dropped the {self.item.name}.")
+        MessageLog.add_message(f"You dropped the {self.item.name}.")
 ```
 
 ---
@@ -423,16 +418,16 @@ def new_game() -> Engine:
     dagger = copy.deepcopy(entity_factories.dagger)
     dagger.parent = player.inventory
     player.inventory.items.append(dagger)
-    player.equipment.toggle_equip(dagger, add_message=lambda text: None)
+    player.equipment.toggle_equip(dagger)
 
     leather_armor = copy.deepcopy(entity_factories.leather_armor)
     leather_armor.parent = player.inventory
     player.inventory.items.append(leather_armor)
-    player.equipment.toggle_equip(leather_armor, add_message=lambda text: None)
+    player.equipment.toggle_equip(leather_armor)
     ...
 ```
 
-We pass `lambda text: None` as the message callback, starting equipment is equipped silently.
+Starting equipment is equipped at game start; the messages go to the log as normal.
 
 ---
 
