@@ -781,10 +781,16 @@ Enemies are now in the dungeon and the turn system is running. Key patterns intr
 
 ## Exercises
 
-1. **Minimum monsters per room.** Add a `min_monsters_per_room` parameter to `place_entities` and use `random.randint(min_monsters_per_room, max_monsters_per_room)`. Keep it at `0` by default, then try `1` and observe how much more crowded and dangerous the dungeon feels.
+1. **Minimum monsters per room**:
 
-2. **Weighted monster table.** The current 80/20 split is hardcoded. Replace it with a list of `(entity_template, weight)` tuples and use `random.choices(population, weights)` to pick. This makes adding new monster types a one-line change.
+    Add a `min_monsters_per_room` parameter to `place_entities` and use `random.randint(min_monsters_per_room, max_monsters_per_room)`. Keep it at `0` by default, then try `1` and observe how much more crowded and dangerous the dungeon feels.
 
-3. **Passive entities.** Add a `chest` entity that has `blocks_movement=True` but no AI. Verify that `BumpAction` prints an attack message when you walk into it (because it is blocking). In Part 8, items like chests will have a different interaction.
+2. **Weighted monster table**:
+
+    The current 80/20 split is hardcoded. Replace it with a list of `(entity_template, weight)` tuples and use `random.choices(population, weights)` to pick. This makes adding new monster types a one-line change.
+
+3. **Passive entities**:
+
+    Add a `chest` entity that has `blocks_movement=True` but no AI. Verify that `BumpAction` prints an attack message when you walk into it (because it is blocking). In Part 8, items like chests will have a different interaction.
 
 **Next**: [Part 6: Combat](part-6.md)

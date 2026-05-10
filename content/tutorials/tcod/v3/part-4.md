@@ -353,17 +353,17 @@ We also moved entities from `Engine` into `GameMap`, which is where they logical
 
 ## Exercises
 
-1. **Variable torch radius.**
+1. **Variable torch radius**:
 
     Add a `fov_radius` attribute to `Entity`. Use `self.player.fov_radius` instead of the hardcoded `8` in `update_fov()`. Try changing the player's radius mid-game via a debug key to see the effect.
 
-2. **Add a debug marker entity.**
+2. **Add a debug marker entity**:
 
     In `generate_dungeon()`, create a marker entity in the center of the first room after the starting room, and add it to `dungeon.entities`. For example, when placing the first non-starting room, add an `Entity` with char `"N"` and a bright color at `new_room.center`.
 
     Verify that the marker only appears when it is inside the player's FOV. Move away and confirm it disappears instead of being remembered like floor tiles.
 
-3. **Remember a discovered marker.**
+3. **Remember a discovered marker**:
 
     Some roguelikes keep certain entities visible after you have seen them once, even when they leave your current FOV. Add an `stays_visible` flag to `Entity`, defaulting to `False`. Create a marker entity with char="P" and with `stays_visible=True`, add it to `game_map.entities`, and update `GameMap.render()` so this entity is drawn when either:
 
@@ -372,7 +372,7 @@ We also moved entities from `Engine` into `GameMap`, which is where they logical
 
     It should not appear while its tile is still completely unseen.
 
-4. **Fading memory.**
+4. **Fading memory**:
 
     Instead of remembering explored tiles forever, add a `memory` array to `GameMap` using integers. Every time a tile is visible, set its memory value to `10`. After each player action, decrement memory values greater than 0. Render tiles as explored while their memory value is greater than 0; when it reaches 0, they become unseen again.
 

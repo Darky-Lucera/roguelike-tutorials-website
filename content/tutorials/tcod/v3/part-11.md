@@ -534,10 +534,16 @@ Character progression and dungeon depth are now linked. Key additions:
 
 ## Exercises
 
-1. **XP display.** Show current XP and XP-to-next-level in the UI panel: `"XP: 120 / 200"`. Add a second small bar next to the HP bar.
+1. **XP display**:
 
-2. **Persistent floors.** Store each generated `GameMap` in a list inside `GameWorld`. When the player descends, generate a new floor. When they ascend (add `<` stairs), restore the previous map. This requires saving entity positions and the player being removed from the old map before being placed on the new one.
+    Show current XP and XP-to-next-level in the UI panel: `"XP: 120 / 200"`. Add a second small bar next to the HP bar.
 
-3. **Level cap.** Cap the player at level 10. Above level 10, `add_xp` still accumulates but `requires_level_up` always returns `False`. Print `"You are at maximum level."` instead of the modal.
+2. **Persistent floors**:
+
+    Store each generated `GameMap` in a list inside `GameWorld`. When the player descends, generate a new floor. When they ascend (add `<` stairs), restore the previous map. This requires saving entity positions and the player being removed from the old map before being placed on the new one.
+
+3. **Level cap**:
+
+    Cap the player at level 10. Above level 10, `add_xp` still accumulates but `requires_level_up` always returns `False`. Print `"You are at maximum level."` instead of the modal.
 
 **Next**: Part 12: Procedural Difficulty

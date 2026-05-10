@@ -219,7 +219,7 @@ roguelike-tutorial/
     constants/           ← visual constants
       __init__.py
       sprites.py         ← single-character glyphs (PLAYER, ORC, TROLL, ...)
-      colors.py           ← RGB tuples (PLAYER, BAR_FILLED, MENU_TITLE, ...)
+      colors.py           ← RGB tuples (PLAYER, HP_BAR_FILLED, MENU_TITLE, ...)
     components/          ← reusable pieces of behavior (Fighter, AI, Inventory, ...)
   pyproject.toml
 ```

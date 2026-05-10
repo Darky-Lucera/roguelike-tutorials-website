@@ -403,10 +403,16 @@ We built a rooms-and-corridors dungeon generator in a dedicated `game/map/map_ge
 
 ## Exercises
 
-1. **Reproducible dungeons.** Add a `seed` parameter to `generate_dungeon` and call `random.seed(seed)` at the top of the function. With a fixed seed, the dungeon is always the same. This is useful for debugging: if you find a problematic layout, record its seed to reproduce it.
+1. **Reproducible dungeons**:
 
-2. **Connect to the *nearest* room instead of the *previous* one.** Our current algorithm connects each room to the one placed before it. This sometimes creates long diagonal tunnels. Instead, find the already-placed room whose center is closest to the new room's center and connect to that. The dungeon will look more compact.
+    Add a `seed` parameter to `generate_dungeon` and call `random.seed(seed)` at the top of the function. With a fixed seed, the dungeon is always the same. This is useful for debugging: if you find a problematic layout, record its seed to reproduce it.
 
-3. **Mark visited rooms.** Draw a `+` at the center of each room after it is placed (then clear it once the dungeon is done). This lets you see the generation order while debugging. Remove it before moving on.
+2. **Connect to the *nearest* room instead of the *previous* one**:
+
+    Our current algorithm connects each room to the one placed before it. This sometimes creates long diagonal tunnels. Instead, find the already-placed room whose center is closest to the new room's center and connect to that. The dungeon will look more compact.
+
+3. **Mark visited rooms**:
+
+    Draw a `+` at the center of each room after it is placed (then clear it once the dungeon is done). This lets you see the generation order while debugging. Remove it before moving on.
 
 **Next**: [Part 4: Field of View](part-4.md)

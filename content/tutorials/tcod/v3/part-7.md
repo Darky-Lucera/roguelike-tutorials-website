@@ -54,8 +54,8 @@ ENEMY_DEATH   = (0xFF, 0xA0, 0x30)
 # UI colors
 WELCOME_TEXT  = (0x20, 0xA0, 0xFF)
 BAR_TEXT      = WHITE
-BAR_FILLED    = (0x0, 0x60, 0x0)
-BAR_EMPTY     = (0x40, 0x10, 0x10)
+HP_BAR_FILLED    = (0x0, 0x60, 0x0)
+HP_BAR_EMPTY     = (0x40, 0x10, 0x10)
 ```
 
 We split the new constants into three sections (`Generic colors`, `Combat message colors`, `UI colors`) to make scanning the file easier as it grows. Notice we name the death colors `PLAYER_DEATH` and `ENEMY_DEATH`, not `_die`: full words read better at every call site.
@@ -126,26 +126,26 @@ class MessageLog:
         width: int,
         height: int,
     ) -> None:
-        y_offset = height - 1
+        wrapped_lines: list[tuple[str, tuple[int, int, int]]] = []
+        for message in MessageLog.messages:
+            for line in textwrap.wrap(message.full_text, width):
+                wrapped_lines.append((line, message.fg))
 
-        for message in reversed(MessageLog.messages):
-            for line in reversed(textwrap.wrap(message.full_text, width)):
-                console.print(x=x, y=y + y_offset, text=line, fg=message.fg)
-                y_offset -= 1
-                if y_offset < 0:
-                    return
+        total = len(wrapped_lines)
+        start = max(0, total - height)
+        end   = start + height
+
+        for y_offset, (line, color) in enumerate(wrapped_lines[start:end]):
+            console.print(x=x, y=y + y_offset, text=line, fg=color)
 ```
 
-`MessageLog` has no `__init__`: `messages` is a class variable shared by everyone, and the methods operate on it without needing an instance. The render loop walks messages from newest to oldest (via `reversed`), wraps each one to fit the panel width, and fills from the bottom up (`y_offset` counts down). When the panel is full it returns early. `clear()` empties the list; it is called in Part 10 when starting a new game.
+`MessageLog` has no `__init__`: `messages` is a class variable shared by everyone, and the methods operate on it without needing an instance. `render` first flattens all messages into a list of `(line, color)` pairs, then takes a slice of `height` lines from the end (the most recent ones) and renders them top to bottom. `clear()` empties the list; it is called in Part 10 when starting a new game.
 
 !!! info "@classmethod vs @staticmethod"
     A **`@classmethod`** receives the class itself as its first argument (`cls`). That is what `add_message` needs: it reads and writes `cls.messages`, the shared list. A **`@staticmethod`** receives nothing implicit (no `self`, no `cls`). `render` qualifies because it only reads `MessageLog.messages` by name; it does not need to be overridden in a subclass, and it does not modify class state.
 
 !!! question "Why a static class instead of an instance on Engine (as in the 2019 and v2 tutorials)"
     The 2019 and v2 tutorials store a `MessageLog` instance on `Engine`. That works, but it means every component that wants to log (a `Fighter`, an AI, a consumable) must receive `engine` as a parameter just to reach `engine.message_log`. With a static `MessageLog`, any module can call `MessageLog.add_message(...)` after a one-line import, with no extra dependency on `Engine`.
-
-!!! tip "Why render bottom-up?"
-    The most recent message should appear at the bottom of the log, like a terminal. Rendering from the bottom up naturally fills the visible area with the newest messages, and older messages scroll off the top.
 
 ---
 
@@ -176,11 +176,11 @@ def render_bar(
 ) -> None:
     bar_width = int(float(current_value) / maximum_value * total_width)
 
-    console.draw_rect(x=0, y=y, width=total_width, height=1, ch=1, bg=colors.BAR_EMPTY)
+    console.draw_rect(x=0, y=y, width=total_width, height=1, ch=1, bg=colors.HP_BAR_EMPTY)
 
     if bar_width > 0:
         console.draw_rect(
-            x=0, y=y, width=bar_width, height=1, ch=1, bg=colors.BAR_FILLED
+            x=0, y=y, width=bar_width, height=1, ch=1, bg=colors.HP_BAR_FILLED
         )
 
     console.print(
@@ -577,10 +577,16 @@ The UI panel is now live. Key additions:
 
 ## Exercises
 
-1. **Colored HP bar.** Change `bar_filled` to green when HP > 66%, yellow when > 33%, and red when ≤ 33%. You'll need to compute the percentage and pick the color before calling `draw_rect`.
+1. **Colored HP bar**:
 
-2. **Message history screen.** Add a keybinding (e.g. `V`) that opens a full-screen overlay showing all messages in the log, not just the last five visible in the panel. You will need a new handler class for this.
+    Change `HP_BAR_FILLED` to green when HP > 70%, yellow/orange when > 30%, and red when ≤ 30%. You'll need to compute the percentage and pick the color before calling `draw_rect`.
 
-3. **Entity details.** When hovering over an enemy, show its HP alongside its name: `"Orc (8/10 HP)"`. Modify `hud.render_names_at_mouse_location` to check if the entity is an `Actor` and append its HP.
+2. **Scroll the message panel**:
+
+    The five-row panel shows only the most recent messages. Add `Page Up` / `Page Down` bindings that shift which portion of the log is visible. Store the current scroll value in `MessageLog`. When rendering, wrap all messages first, clamp `scroll` between `0` and `max(0, total - height)`, then use it to offset the visible slice: `start = max(0, total - height - scroll)` and `end = start + height`. Reset `scroll` to `0` when a new message is added.
+
+3. **Entity details**:
+
+    When hovering over an entity, show full combat stats if it is an `Actor`: `"Player (HP: 30/30, ATK: 5, DEF: 2)"`. Plain entities (items, corpses) still show just their name. Modify `hud.render_names_at_mouse_location` to iterate with an explicit loop, check `isinstance(entity, Actor)`, and format the stats line accordingly.
 
 **Next**: Part 8: Items and Inventory

@@ -36,7 +36,8 @@ Create `game/exceptions.py`:
 
 ```python
 class Impossible(Exception):
-    """Exception raised when an action is impossible.
+    """
+    Exception raised when an action is impossible.
 
     The reason is the exception message.
     """
@@ -99,6 +100,7 @@ class HealingConsumable(Consumable):
                 colors.HEALTH_RECOVERED,
             )
             self.consume()
+
         else:
             raise Impossible("Your health is already full.")
 ```
@@ -108,7 +110,7 @@ class HealingConsumable(Consumable):
 Add `HEALTH_RECOVERED` to `game/constants/colors.py` in the combat message colors section:
 
 ```python
-HEALTH_RECOVERED = (0x0, 0xFF, 0x0)
+HEALTH_RECOVERED = (0x00, 0xFF, 0x00)
 ```
 
 ---
@@ -735,10 +737,16 @@ Items and inventory are now complete. Key additions:
 
 ## Exercises
 
-1. **Inventory full message.** The capacity is 26 (one slot per letter). Try to pick up a 27th item, you should see `"Your inventory is full."` Verify this works.
+1. **Inventory full message**:
 
-2. **Rename on pickup.** Some roguelikes call potions `"Red Potion"` until you identify them. After pickup, rename the item to `"Health Potion (identified)"`. Modify `PickupAction` to append `" (identified)"` to the item name.
+    The capacity is 26 (one slot per letter). Try to pick up a 27th item, you should see `"Your inventory is full."` Verify this works.
 
-3. **Stack display.** If the player has two health potions, the inventory shows them as separate lines `(a)` and `(b)`. Modify `InventoryEventHandler.on_render` to group identical items and show `"Health Potion ×2"` instead.
+2. **Rename on pickup**:
+
+    Some roguelikes call potions `"Red Potion"` until you identify them. After pickup, rename the item to `"Health Potion (identified)"`. Modify `PickupAction` to append `" (identified)"` to the item name.
+
+3. **Stack display**:
+
+    If the player has two health potions, the inventory shows them as separate lines `(a)` and `(b)`. Modify `InventoryEventHandler.on_render` to group identical items and show `"Health Potion ×2"` instead.
 
 **Next**: Part 9: Spells and Targeting

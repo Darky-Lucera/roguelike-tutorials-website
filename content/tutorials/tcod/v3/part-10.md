@@ -589,10 +589,16 @@ Key additions:
 
 ## Exercises
 
-1. **Return to main menu on death.** Change `GameOverEventHandler.event_keydown` so `Escape` returns `MainMenu()` instead of quitting. The player can start a new run without restarting the program.
+1. **Return to main menu on death**:
 
-2. **Multiple save slots.** Add a save-slot selection screen before `new_game()` and `load_game()`. Use a list `["slot1.sav", "slot2.sav", "slot3.sav"]` and show which slots are occupied (file exists) vs empty.
+    Change `GameOverEventHandler.event_keydown` so `Escape` returns `MainMenu()` instead of quitting. The player can start a new run without restarting the program.
 
-3. **Autosave.** Call `engine.save_as(SAVE_PATH)` after every `handle_enemy_turns()`. The game is now crash-proof, a power outage only loses the current turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state).
+2. **Multiple save slots**:
+
+    Add a save-slot selection screen before `new_game()` and `load_game()`. Use a list `["slot1.sav", "slot2.sav", "slot3.sav"]` and show which slots are occupied (file exists) vs empty.
+
+3. **Autosave**:
+
+    Call `engine.save_as(SAVE_PATH)` after every `handle_enemy_turns()`. The game is now crash-proof, a power outage only loses the current turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state).
 
 **Next**: [Part 11: Dungeon Levels and Experience](part-11.md)

@@ -445,15 +445,15 @@ The `perform()` pattern on `Action` classes means the engine stays small and new
 
 ## Exercises
 
-1. **Add a third entity.**
+1. **Add a third entity**:
 
     Create another `Entity` (a "ghost", char `"G"`, color `(220, 0, 255)`) at any position inside the map and add it to `entities`. Verify all three render with their distinct colors.
 
-2. **Promote `WaitAction` to the `perform()` pattern.**
+2. **Promote `WaitAction` to the `perform()` pattern**:
 
     Add a `WaitAction(Action)` class to `game/actions.py` with a `perform()` that just `pass`es. If you skipped Part 1's exercise, also wire `.` (and `KP_5`) to it in `game/input_handlers.py`. Notice that `Engine.handle_events` does not need any changes; that is the point of the polymorphic pattern.
 
-3. **Add a new tile type.**
+3. **Add a new tile type**:
 
     In `game/tile_types.py`, define a new `water` tile with a blue background, `walkable=False`, and `transparent=True`. In `GameMap.__init__`, paint a small lake somewhere on the map. Verify that it renders differently and blocks movement just like the wall.
 

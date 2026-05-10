@@ -317,10 +317,16 @@ Spawn rates now scale with dungeon depth. Key additions:
 
 ## Exercises
 
-1. **Boss floor.** Every 5th floor, guarantee one troll regardless of the RNG roll. Add a post-processing step in `place_entities` that checks `floor_number % 5 == 0` and forces a troll spawn in the first available position.
+1. **Boss floor**:
 
-2. **New monster: vampire.** Add a `vampire` entry to `enemy_chances` that only appears from floor 8 onward (weight 20). Create the factory in `game/entity_factories.py` with high HP but low defense, and an AI that heals 2 HP whenever it successfully attacks the player.
+    Every 5th floor, guarantee one troll regardless of the RNG roll. Add a post-processing step in `place_entities` that checks `floor_number % 5 == 0` and forces a troll spawn in the first available position.
 
-3. **Item drought.** Add a `(2, 0)` entry to `health_potion` in `item_chances`, meaning no potions on floor 2. This forces players to ration their healing early. Observe how this changes risk-taking behavior.
+2. **New monster: vampire**:
+
+    Add a `vampire` entry to `enemy_chances` that only appears from floor 8 onward (weight 20). Create the factory in `game/entity_factories.py` with high HP but low defense, and an AI that heals 2 HP whenever it successfully attacks the player.
+
+3. **Item drought**:
+
+    Add a `(2, 0)` entry to `health_potion` in `item_chances`, meaning no potions on floor 2. This forces players to ration their healing early. Observe how this changes risk-taking behavior.
 
 **Next**: [Part 13: Equipment](part-13.md)

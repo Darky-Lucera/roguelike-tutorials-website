@@ -670,10 +670,16 @@ Combat is now fully functional. Key additions:
 
 ## Exercises
 
-1. **Feedback for non-combat blockers.** If you kept the chest exercise from Part 5, bumping into the chest now blocks movement but prints nothing, because the chest is an `Entity`, not an `Actor`. Update `MeleeAction.perform()` so that when the player bumps into a blocking non-actor, it prints something like `"The Chest blocks your way."` instead of silently doing nothing.
+1. **Feedback for non-combat blockers**:
 
-2. **Critical hits.** Give attacks a 10% chance to ignore the target's defense entirely. Import `random`, use `random.random() < 0.1`, and print `"critical hit!"` when it triggers.
+    If you kept the chest exercise from Part 5, bumping into the chest now blocks movement but prints nothing, because the chest is an `Entity`, not an `Actor`. Update `MeleeAction.perform()` so that when the player bumps into a blocking non-actor, it prints something like `"The Chest blocks your way."` instead of silently doing nothing.
 
-3. **Flee behavior.** Add a `CowardEnemy` AI class that moves *away* from the player when its HP drops below 30 % of max. Hook the swap in `Fighter.hp.setter`: when HP crosses the threshold for an entity that currently has `HostileEnemy`, create `new_ai = CowardEnemy()`, set `new_ai.entity = self.entity`, then assign `self.entity.ai = new_ai`. Observe how its behavior changes mid-combat.
+2. **Critical hits**:
+
+    Give attacks a 10% chance to ignore the target's defense entirely. Import `random`, use `random.random() < 0.1`, and print `"critical hit!"` when it triggers.
+
+3. **Flee behavior**:
+
+    Add a `CowardEnemy` AI class that moves *away* from the player when its HP drops below 25 % of max. Hook the swap in `Fighter.hp.setter`: when HP crosses the threshold for an entity that currently has `HostileEnemy`, create `new_ai = CowardEnemy()`, set `new_ai.entity = self.entity`, then assign `self.entity.ai = new_ai`. Observe how its behavior changes mid-combat.
 
 **Next**: [Part 7: The User Interface](part-7.md)

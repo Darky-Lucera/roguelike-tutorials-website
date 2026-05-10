@@ -421,15 +421,15 @@ We also adopted the project layout we will use for the rest of the tutorial: `ma
 
 ## Exercises
 
-1. **Add diagonal movement.**
+1. **Add diagonal movement**:
 
     The numpad keys `1`, `3`, `7`, `9` (and vim editor keys `y`, `u`, `b`, `n`) conventionally move diagonally in roguelikes. Add cases for them in `event_keydown`. A diagonal move has both `dx` and `dy` set to non-zero (e.g. `MovementAction(dx=1, dy=-1)` for up-right).
 
-2. **Keep the player on screen.**
+2. **Keep the player on screen**:
 
     Right now the player can move beyond the console boundaries. Before applying a `MovementAction`, compute the destination position and only update `player_x` and `player_y` if the destination is inside `0 <= x < screen_width` and `0 <= y < screen_height`. Try holding a movement key at each edge of the window.
 
-3. **Add a wait action.**
+3. **Add a wait action**:
 
     In many roguelikes, pressing `.` or `5` (numpad) passes a turn without moving. Create a `WaitAction(Action)` class and handle it in both `game/input_handlers.py` and `main.py`.
 

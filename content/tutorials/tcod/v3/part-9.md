@@ -559,10 +559,16 @@ The targeting system is now in place. Key additions:
 
 ## Exercises
 
-1. **Teleport scroll.** Add a `TeleportConsumable` that uses `SingleRangedAttackHandler` to let the player pick any visible tile and teleport to it. The player should not be able to teleport into walls.
+1. **Teleport scroll**:
 
-2. **Scroll of mapping.** Add a consumable that sets `game_map.explored` to `True` for every tile, revealing the whole floor. No targeting needed, use the base `get_action()` directly.
+    Add a `TeleportConsumable` that uses `SingleRangedAttackHandler` to let the player pick any visible tile and teleport to it. The player should not be able to teleport into walls.
 
-3. **Confusion self-damage.** Modify `ConfusedEnemy` so that on each wandering move, there is a 20% chance the entity also takes 1 point of damage (it's stumbling into walls). Add a message: `"The Orc stumbles into a wall!"`.
+2. **Scroll of mapping**:
+
+    Add a consumable that sets `game_map.explored` to `True` for every tile, revealing the whole floor. No targeting needed, use the base `get_action()` directly.
+
+3. **Confusion self-damage**:
+
+    Modify `ConfusedEnemy` so that on each wandering move, there is a 20% chance the entity also takes 1 point of damage (it's stumbling into walls). Add a message: `"The Orc stumbles into a wall!"`.
 
 **Next**: Part 10: Save and Load
