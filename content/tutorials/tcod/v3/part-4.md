@@ -347,7 +347,26 @@ We also moved entities from `Engine` into `GameMap`, which is where they logical
 - `Engine`: owns the player reference, handles turns, and recomputes FOV
 - `game/map/tile_types.py`: defines visible, explored, and unseen tile appearances
 
-**Files modified**: `game/map/tile_types.py`, `game/map/game_map.py`, `game/map/map_generator.py`, `game/engine.py`, `main.py`
+**Class Diagram**:
+
+![classes](images/part4_classes.png)
+
+**File structure**:
+
+```txt
+main.py                     ← modified
+game/
+├── __init__.py
+├── actions.py
+├── engine.py               ← modified
+├── entity.py
+├── input_handlers.py
+└── map/
+    ├── __init__.py
+    ├── game_map.py         ← modified
+    ├── tile_types.py       ← modified
+    └── map_generator.py    ← modified
+```
 
 ---
 

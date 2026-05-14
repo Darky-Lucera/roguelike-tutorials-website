@@ -26,22 +26,22 @@ The formula is `200 + (current_level - 1) * 150`. This is a linear-slope curve, 
 
 ---
 
-## components/level.py
+## game/entities/components/level.py
 
-Create `game/components/level.py`:
+Create `game/entities/components/level.py`:
 
 ```python
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.components.base_component import BaseComponent
+from game.entities.components.base_component import ActorComponent
 
 if TYPE_CHECKING:
     from game.engine import Engine
 
 
-class Level(BaseComponent):
+class Level(ActorComponent):
     def __init__(
         self,
         current_level: int = 1,
@@ -112,7 +112,7 @@ def attack(self) -> int:
 
 ## Award XP on kill
 
-Update `Fighter.die()` in `game/components/fighter.py`:
+Update `Fighter.die()` in `game/entities/components/fighter.py`:
 
 ```python
     def die(self, engine: Engine) -> None:
@@ -159,12 +159,12 @@ DOWN_STAIRS = (255, 255, 100)
 
 ---
 
-## Update entity_factories.py with Level component
+## Update `game/entities/factories.py` with Level component
 
 ```python
 from __future__ import annotations
 
-from game.components.level import Level
+from game.entities.components.level import Level
 from game.constants import colors, sprites
 
 player = Actor(
@@ -198,7 +198,7 @@ troll = Actor(
 )
 ```
 
-Update `Actor.__init__` in `game/entity.py` to accept and wire up the `level` component:
+Update `Actor.__init__` in `game/entities/entity.py` to accept and wire up the `level` component:
 
 ```python
 class Actor(Entity):
@@ -242,7 +242,9 @@ class GameWorld:
         max_rooms: int,
         room_min_size: int,
         room_max_size: int,
+        min_monsters_per_room: int,
         max_monsters_per_room: int,
+        min_items_per_room: int,
         max_items_per_room: int,
         current_floor: int = 0,
     ) -> None:
@@ -252,7 +254,9 @@ class GameWorld:
         self.max_rooms = max_rooms
         self.room_min_size = room_min_size
         self.room_max_size = room_max_size
+        self.min_monsters_per_room = min_monsters_per_room
         self.max_monsters_per_room = max_monsters_per_room
+        self.min_items_per_room = min_items_per_room
         self.max_items_per_room = max_items_per_room
         self.current_floor = current_floor
 
@@ -266,7 +270,9 @@ class GameWorld:
             room_max_size=self.room_max_size,
             map_width=self.map_width,
             map_height=self.map_height,
+            min_monsters_per_room=self.min_monsters_per_room,
             max_monsters_per_room=self.max_monsters_per_room,
+            min_items_per_room=self.min_items_per_room,
             max_items_per_room=self.max_items_per_room,
             player=self.engine.player,
         )
@@ -289,7 +295,7 @@ from game.game_world import GameWorld
 from game.message_log import MessageLog
 
 def new_game() -> Engine:
-    player = copy.deepcopy(entity_factories.player)
+    player = copy.deepcopy(factories.player)
     engine = Engine(player=player)
 
     engine.game_world = GameWorld(
@@ -299,7 +305,9 @@ def new_game() -> Engine:
         room_max_size=ROOM_MAX_SIZE,
         map_width=MAP_WIDTH,
         map_height=MAP_HEIGHT,
+        min_monsters_per_room=MIN_MONSTERS_PER_ROOM,
         max_monsters_per_room=MAX_MONSTERS_PER_ROOM,
+        min_items_per_room=MIN_ITEMS_PER_ROOM,
         max_items_per_room=MAX_ITEMS_PER_ROOM,
     )
     engine.game_world.generate_floor()
@@ -319,22 +327,29 @@ def new_game() -> Engine:
 Place a staircase at the center of the last room generated. Update `generate_dungeon()`:
 
 ```python
-from game.entity import Actor, Item
-from game import entity_factories
+from game.entities.entity import Actor, Item
+from game.entities import factories
 
 def generate_dungeon(...) -> GameMap:
     ...
     for r, room in enumerate(rooms):
-        place_entities(room, dungeon, max_monsters_per_room, max_items_per_room)
+        place_entities(
+            room,
+            dungeon,
+            min_monsters_per_room,
+            max_monsters_per_room,
+            min_items_per_room,
+            max_items_per_room,
+        )
 
     # Place the player in the first room, stairs in the last.
     dungeon.downstairs_location = rooms[-1].center
-    entity_factories.down_stairs.spawn(dungeon, *rooms[-1].center)
+    factories.down_stairs.spawn(dungeon, *rooms[-1].center)
 
     return dungeon
 ```
 
-Add stairs to `game/entity_factories.py`:
+Add stairs to `game/entities/factories.py`:
 
 ```python
 down_stairs = Entity(
@@ -427,7 +442,7 @@ class LevelUpEventHandler(EventHandler):
 
     def event_keydown(self, event: tcod.event.KeyDown) -> BaseEventHandler | None:
         player = self.engine.player
-        index = event.sym - tcod.event.KeySym.a
+        index = event.sym - tcod.event.KeySym.A
 
         if index == 0:
             player.level.increase_max_hp()
@@ -526,9 +541,43 @@ Character progression and dungeon depth are now linked. Key additions:
 - `TakeStairsAction`: asks `GameWorld` to generate the next floor
 - `LevelUpEventHandler`: modal state entered when the player must choose a stat
 
-**Files created**: `game/components/level.py`, `game/game_world.py`
+**File structure**:
 
-**Files modified**: `game/entity.py`, `game/entity_factories.py`, `game/map/map_generator.py`, `game/actions.py`, `game/input_handlers.py`, `game/engine.py`, `game/setup_game.py`, `game/hud.py`, `game/components/fighter.py`, `game/constants/sprites.py`, `game/constants/colors.py`
+```txt
+main.py
+game/
+├── __init__.py
+├── actions.py                  ← modified
+├── engine.py                   ← modified
+├── exceptions.py
+├── game_world.py               ← new
+├── hud.py                      ← modified
+├── input_handlers.py           ← modified
+├── message_log.py
+├── setup_game.py               ← modified
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py               ← modified
+│   └── sprites.py              ← modified
+├── entities/
+│   ├── __init__.py
+│   ├── entity.py               ← modified
+│   ├── factories.py            ← modified
+│   ├── render_order.py
+│   └── components/
+│       ├── __init__.py
+│       ├── ai.py
+│       ├── base_component.py
+│       ├── consumable.py
+│       ├── fighter.py          ← modified
+│       ├── inventory.py
+│       └── level.py            ← new
+└── map/
+    ├── __init__.py
+    ├── game_map.py
+    ├── tile_types.py
+    └── map_generator.py        ← modified
+```
 
 ---
 

@@ -1,0 +1,76 @@
+@startuml classes
+
+!theme mimeograph
+
+'top to bottom direction
+
+hide members
+
+hide circle
+
+skinparam roundcorner 10
+
+skinparam noteFontSize 10
+skinparam noteBorderThickness 1
+skinparam noteMargin 2
+skinparam notePadding 2
+
+set namespaceSeparator none
+
+'--------------------------------------
+' Classes
+'--------------------------------------
+
+class "Action" as game.actions.Action {
+  {abstract}perform(engine: Engine, entity: Entity) -> None
+}
+
+class "ActionWithDirection" as game.actions.ActionWithDirection {
+  dx : int
+  dy : int
+}
+
+class "BumpAction" as game.actions.BumpAction {
+  perform(engine: Engine, entity: Entity) -> None
+}
+
+class "EscapeAction" as game.actions.EscapeAction {
+  perform(engine: Engine, entity: Entity) -> None
+}
+
+class "MeleeAction" as game.actions.MeleeAction {
+  perform(engine: Engine, entity: Entity) -> None
+}
+
+class "MovementAction" as game.actions.MovementAction {
+  perform(engine: Engine, entity: Entity) -> None
+}
+
+class "WaitAction" as game.actions.WaitAction {
+  {abstract}perform(engine: Engine, entity: Entity) -> None
+}
+
+'--------------------------------------
+' Relations
+'--------------------------------------
+
+game.actions.ActionWithDirection --|> game.actions.Action
+game.actions.BumpAction --|> game.actions.ActionWithDirection
+game.actions.EscapeAction --|> game.actions.Action
+game.actions.MeleeAction --|> game.actions.ActionWithDirection
+game.actions.MovementAction --|> game.actions.ActionWithDirection
+game.actions.WaitAction --|> game.actions.Action
+
+'--------------------------------------
+' Order Rules
+'--------------------------------------
+
+game.actions.Action -[hidden]down- game.actions.ActionWithDirection
+game.actions.Action -[hidden]down- game.actions.EscapeAction
+game.actions.Action -[hidden]down- game.actions.WaitAction
+
+game.actions.ActionWithDirection -[hidden]down- game.actions.BumpAction
+game.actions.ActionWithDirection -[hidden]down- game.actions.MeleeAction
+game.actions.ActionWithDirection -[hidden]down- game.actions.MovementAction
+
+@enduml

@@ -99,7 +99,7 @@ from pathlib import Path
 import tcod
 
 from game.constants import colors
-from game import entity_factories
+from game.entities import factories
 from game.engine import Engine
 from game.message_log import MessageLog
 from game.map.map_generator import generate_dungeon
@@ -111,7 +111,9 @@ MAP_HEIGHT = 45
 MAX_ROOMS = 30
 ROOM_MIN_SIZE = 6
 ROOM_MAX_SIZE = 10
+MIN_MONSTERS_PER_ROOM = 0
 MAX_MONSTERS_PER_ROOM = 2
+MIN_ITEMS_PER_ROOM = 0
 MAX_ITEMS_PER_ROOM = 2
 
 
@@ -119,7 +121,7 @@ def new_game() -> Engine:
     """Return a fresh engine for a brand-new game."""
     MessageLog.clear()
 
-    player = copy.deepcopy(entity_factories.player)
+    player = copy.deepcopy(factories.player)
 
     game_map = generate_dungeon(
         max_rooms=MAX_ROOMS,
@@ -127,7 +129,9 @@ def new_game() -> Engine:
         room_max_size=ROOM_MAX_SIZE,
         map_width=MAP_WIDTH,
         map_height=MAP_HEIGHT,
+        min_monsters_per_room=MIN_MONSTERS_PER_ROOM,
         max_monsters_per_room=MAX_MONSTERS_PER_ROOM,
+        min_items_per_room=MIN_ITEMS_PER_ROOM,
         max_items_per_room=MAX_ITEMS_PER_ROOM,
         player=player,
     )
@@ -253,17 +257,21 @@ class MainMenu(BaseEventHandler):
 
     def event_keydown(self, event: tcod.event.KeyDown):
         match event.sym:
-            case tcod.event.KeySym.q | tcod.event.KeySym.ESCAPE:
+            case tcod.event.KeySym.Q | tcod.event.KeySym.ESCAPE:
                 raise SystemExit()
-            case tcod.event.KeySym.c:
+
+            case tcod.event.KeySym.C:
                 try:
                     engine = load_game(SAVE_PATH)
                     return MainGameEventHandler(engine)
+
                 except FileNotFoundError:
                     return PopupMessage(self, "No saved game to load.")
+
                 except Exception as exc:
                     return PopupMessage(self, f"Failed to load save:\n{exc}")
-            case tcod.event.KeySym.n:
+
+            case tcod.event.KeySym.N:
                 return new_game_handler()
 
         return None
@@ -295,7 +303,7 @@ class EventHandler(BaseEventHandler):
         self.engine = engine
 
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
-        action = None
+        action: Action | None = None
         match event:
             case tcod.event.Quit():
                 action = EscapeAction()
@@ -360,9 +368,9 @@ class InventoryEventHandler(EventHandler):
 class MainGameEventHandler(EventHandler):
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseEventHandler | None:
         ...
-        if key == tcod.event.KeySym.i:
+        if key == tcod.event.KeySym.I:
             return InventoryActivateHandler(self.engine)
-        if key == tcod.event.KeySym.d:
+        if key == tcod.event.KeySym.D:
             return InventoryDropHandler(self.engine)
         ...
 
@@ -377,7 +385,56 @@ class SelectIndexHandler(EventHandler):
         ...
 ```
 
-`BaseEventHandler.handle_events()` already returns handler objects directly, so `InventoryActivateHandler`, `InventoryDropHandler`, and targeting handlers can now transition without touching `engine.event_handler`.
+`BaseEventHandler.handle_events()` already returns handler objects directly, so `InventoryActivateHandler` and `InventoryDropHandler` can now transition without touching `engine.event_handler`.
+
+Targeting consumables also need to be migrated. In Part 9, `ConfusionConsumable.get_action()` and `FireballDamageConsumable.get_action()` installed their targeting handler by mutating `engine.event_handler` and returning `None`. That worked when the engine owned the active handler, but now the main loop drives state through `handle_events`'s return value. A `None` return leaves the inventory handler active and the targeting cursor never appears.
+
+Rather than mixing handler transitions into `get_action()` — which is supposed to return an action — we give `Consumable` a dedicated method. Add `get_targeting_handler()` to the base class:
+
+```python
+class Consumable:
+    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
+        return None
+```
+
+Then override it in the targeting consumables. You can also remove their `get_action()` overrides at the same time, since that code is now dead:
+
+```python
+class ConfusionConsumable(Consumable):
+    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
+        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
+        from game.input_handlers import SingleRangedAttackHandler
+        return SingleRangedAttackHandler(
+            engine,
+            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+        )
+
+
+class FireballDamageConsumable(Consumable):
+    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
+        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
+        from game.input_handlers import AreaRangedAttackHandler
+        return AreaRangedAttackHandler(
+            engine,
+            radius=self.radius,
+            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+        )
+```
+
+Finally, update `InventoryActivateHandler.on_item_selected` to check for a targeting handler before falling back to `get_action()`:
+
+```python
+class InventoryActivateHandler(InventoryEventHandler):
+    TITLE = "Select an item to use"
+
+    def on_item_selected(self, item: Item) -> Action | BaseEventHandler | None:
+        handler = item.consumable.get_targeting_handler(self.engine)
+        if handler is not None:
+            return handler
+        return item.consumable.get_action(self.engine.player, self.engine)
+```
+
+`get_action()` itself is unchanged — it still returns `Action | None`. The wider return type on `on_item_selected` comes from the fact that it can now also return a `BaseEventHandler` from `get_targeting_handler`. `handle_events` already handles this with `if isinstance(action, BaseEventHandler): return action`.
 
 ---
 
@@ -470,7 +527,7 @@ class GameOverEventHandler(EventHandler):
         super().on_render(console)
 
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
-        action = None
+        action: Action | None = None
         match event:
             case tcod.event.Quit():
                 raise SystemExit()
@@ -581,9 +638,41 @@ Key additions:
 - `MainMenu`: starts before an `Engine` exists
 - `Engine.save()` / `Engine.load()`: serialize and restore the live object graph plus `MessageLog.messages`
 
-**Files created**: `game/setup_game.py`
+**File structure**:
 
-**Files modified**: `game/engine.py`, `game/input_handlers.py`, `main.py`, `game/constants/colors.py`
+```txt
+main.py                         ← modified
+game/
+├── __init__.py
+├── actions.py
+├── engine.py                   ← modified
+├── exceptions.py
+├── hud.py
+├── input_handlers.py           ← modified
+├── message_log.py
+├── setup_game.py               ← new
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py               ← modified
+│   └── sprites.py
+├── entities/
+│   ├── __init__.py
+│   ├── entity.py
+│   ├── factories.py
+│   ├── render_order.py
+│   └── components/
+│       ├── __init__.py
+│       ├── ai.py
+│       ├── base_component.py
+│       ├── consumable.py
+│       ├── fighter.py
+│       └── inventory.py
+└── map/
+    ├── __init__.py
+    ├── game_map.py
+    ├── tile_types.py
+    └── map_generator.py
+```
 
 ---
 

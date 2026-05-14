@@ -1,0 +1,277 @@
+@startuml classes
+
+!theme mimeograph
+
+' top to bottom direction is the default, but keeping it makes the intent explicit.
+top to bottom direction
+
+' hide fields      ' same as attributes
+' hide attributes  ' same as fields
+' hide methods
+' hide members     ' fields + methods
+' hide stereotype
+
+' hide class XXX
+' hide interface XXX
+' hide enum XXX
+' hide << SomeStereotype>> XXX ' hide Serializable members
+' hide SomeClassName XXX
+' hide private XXX
+' hide protected XXX
+' hide package XXX
+
+hide members
+
+hide circle
+
+'skinparam classAttributeIconSize 0
+'skinparam defaultFontName "Segoe UI"
+'skinparam classFontName "Segoe UI"
+'skinparam classFontSize 10
+'skinparam classAttributeFontSize 9
+'skinparam shadowing true
+skinparam roundcorner 10
+
+skinparam noteFontSize 10
+skinparam noteBorderThickness 1
+skinparam noteMargin 2
+skinparam notePadding 2
+
+skinparam nodesep 10
+skinparam ranksep 30
+
+set namespaceSeparator none
+
+'--------------------------------------
+' Classes
+'--------------------------------------
+
+
+class "Engine" as game.engine.Engine {
+}
+
+class "GameMap" as game.map.game_map.GameMap {
+}
+
+class "EventHandler" as game.input_handlers.EventHandler {
+}
+
+class "Action" as game.actions.Action {
+}
+
+class "Entity" as game.entities.entity.Entity {
+}
+
+class "Actor" as game.entities.entity.Actor {
+}
+
+class "Item" as game.entities.entity.Item #e0e0d0 {
+}
+
+class "BaseComponent" as game.entities.components.base_component.BaseComponent {
+}
+
+class "MessageLog" as game.message_log.MessageLog {
+}
+
+class "Message" as game.message_log.Message {
+}
+
+class "RenderOrder" as game.entities.render_order.RenderOrder {
+}
+
+class "RectangularRoom" as game.map.map_generator.RectangularRoom {
+}
+
+class "<color:#b57674>Impossible</color>" as game.exceptions.Impossible #e0e0d0 {
+}
+
+class "MainGameEventHandler" as game.input_handlers.MainGameEventHandler {
+}
+
+class "GameOverEventHandler" as game.input_handlers.GameOverEventHandler {
+}
+
+class "InventoryEventHandler" as game.input_handlers.InventoryEventHandler #e0e0d0 {
+}
+
+class "InventoryActivateHandler" as game.input_handlers.InventoryActivateHandler #e0e0d0 {
+}
+
+class "InventoryDropHandler" as game.input_handlers.InventoryDropHandler #e0e0d0 {
+}
+
+class "ActionWithDirection" as game.actions.ActionWithDirection {
+}
+
+class "BumpAction" as game.actions.BumpAction {
+}
+
+class "MeleeAction" as game.actions.MeleeAction {
+}
+
+class "MovementAction" as game.actions.MovementAction {
+}
+
+class "EscapeAction" as game.actions.EscapeAction {
+}
+
+class "WaitAction" as game.actions.WaitAction {
+}
+
+class "PickupAction" as game.actions.PickupAction #e0e0d0 {
+}
+
+class "ItemAction" as game.actions.ItemAction #e0e0d0 {
+}
+
+class "DropItem" as game.actions.DropItem #e0e0d0 {
+}
+
+class "ActorComponent" as game.entities.components.base_component.ActorComponent #e0e0d0 {
+}
+
+class "Fighter" as game.entities.components.fighter.Fighter {
+}
+
+class "Inventory" as game.entities.components.inventory.Inventory #e0e0d0 {
+}
+
+class "BaseAI" as game.entities.components.ai.BaseAI {
+}
+
+class "HostileEnemy" as game.entities.components.ai.HostileEnemy {
+}
+
+class "CowardEnemy" as game.entities.components.ai.CowardEnemy <<Ex. 6.3>> #e0e0e0 {
+}
+
+class "ItemComponent" as game.entities.components.base_component.ItemComponent #e0e0d0 {
+}
+
+class "Consumable" as game.entities.components.consumable.Consumable #e0e0d0 {
+}
+
+class "HealingConsumable" as game.entities.components.consumable.HealingConsumable #e0e0d0 {
+}
+
+'--------------------------------------
+' Relations
+'--------------------------------------
+
+' Inheritance: base class first, derived class second.
+game.actions.Action <|-- game.actions.ActionWithDirection
+game.actions.ActionWithDirection <|-- game.actions.BumpAction
+game.actions.ActionWithDirection <|-- game.actions.MeleeAction
+game.actions.ActionWithDirection <|-- game.actions.MovementAction
+game.actions.Action <|-- game.actions.EscapeAction
+game.actions.Action <|-- game.actions.WaitAction
+game.actions.Action <|-- game.actions.PickupAction
+game.actions.Action <|-- game.actions.ItemAction
+game.actions.ItemAction <|-- game.actions.DropItem
+
+game.entities.entity.Entity <|-- game.entities.entity.Actor
+game.entities.entity.Entity <|-- game.entities.entity.Item
+
+game.entities.components.base_component.BaseComponent <|-- game.entities.components.base_component.ActorComponent
+game.entities.components.base_component.ActorComponent <|-- game.entities.components.fighter.Fighter
+game.entities.components.base_component.ActorComponent <|-- game.entities.components.ai.BaseAI
+game.entities.components.base_component.ActorComponent <|-- game.entities.components.inventory.Inventory
+game.entities.components.ai.BaseAI <|-- game.entities.components.ai.HostileEnemy
+game.entities.components.ai.BaseAI <|-- game.entities.components.ai.CowardEnemy
+
+game.entities.components.base_component.BaseComponent <|-- game.entities.components.base_component.ItemComponent
+game.entities.components.base_component.ItemComponent <|-- game.entities.components.consumable.Consumable
+game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.HealingConsumable
+
+game.input_handlers.EventHandler <|-- game.input_handlers.MainGameEventHandler
+game.input_handlers.EventHandler <|-- game.input_handlers.GameOverEventHandler
+game.input_handlers.EventHandler <|-- game.input_handlers.InventoryEventHandler
+game.input_handlers.InventoryEventHandler <|-- game.input_handlers.InventoryActivateHandler
+game.input_handlers.InventoryEventHandler <|-- game.input_handlers.InventoryDropHandler
+
+' Ownership / references / associations.
+game.engine.Engine *-- game.map.game_map.GameMap : game_map
+game.engine.Engine *-- game.entities.entity.Actor : player
+game.engine.Engine *-- game.input_handlers.EventHandler : event_handler
+game.input_handlers.EventHandler -up-> game.engine.Engine : engine
+
+game.map.game_map.GameMap "  *  " *-- game.entities.entity.Entity : entities
+game.entities.entity.Entity -up-> game.map.game_map.GameMap : owner
+game.entities.entity.Entity --> game.entities.render_order.RenderOrder : render_order
+
+game.entities.components.base_component.ActorComponent -up-> game.entities.entity.Actor : entity
+game.entities.components.base_component.ItemComponent -up-> game.entities.entity.Item : entity
+game.entities.components.inventory.Inventory -right-> " * " game.entities.entity.Item : items
+game.actions.ItemAction -up-> game.entities.entity.Item : item
+
+' MessageLog contains many Message objects and creates them.
+game.message_log.MessageLog *-- "*" game.message_log.Message : contains
+
+'--------------------------------------
+' Layout hints
+'--------------------------------------
+
+' Engine should be the top anchor. Keep the main roots under it.
+game.engine.Engine -[hidden]down- game.map.game_map.GameMap
+game.engine.Engine -[hidden]down- game.input_handlers.EventHandler
+game.engine.Engine -[hidden]down- game.actions.Action
+game.engine.Engine -[hidden]down- game.message_log.MessageLog
+game.engine.Engine -[hidden]down- game.exceptions.Impossible
+
+' Main second row, left to right.
+game.map.game_map.GameMap -[hidden]right- game.input_handlers.EventHandler
+game.input_handlers.EventHandler -[hidden]right- game.actions.Action
+game.actions.Action -[hidden]right- game.message_log.MessageLog
+
+' Map and entity/component columns.
+game.map.game_map.GameMap -[hidden]down- game.entities.entity.Entity
+game.map.game_map.GameMap -[hidden]down- game.map.map_generator.RectangularRoom
+game.entities.entity.Entity -[hidden]right- game.entities.components.base_component.BaseComponent
+game.entities.entity.Entity -[hidden]down- game.entities.entity.Actor
+game.entities.entity.Entity -[hidden]down- game.entities.entity.Item
+game.entities.entity.Entity -[hidden]down- game.entities.render_order.RenderOrder
+
+' Inheritance trees: keep base classes above derived classes.
+game.actions.Action -[hidden]down- game.actions.ActionWithDirection
+game.actions.Action -[hidden]down- game.actions.WaitAction
+game.actions.Action -[hidden]down- game.actions.EscapeAction
+game.actions.Action -[hidden]down- game.actions.PickupAction
+game.actions.Action -[hidden]down- game.actions.ItemAction
+game.actions.Action -[hidden]down- game.exceptions.Impossible
+
+game.entities.entity.Item -[hidden]down- game.actions.ItemAction
+game.actions.ItemAction -[hidden]down- game.actions.DropItem
+
+game.actions.ActionWithDirection -[hidden]down- game.actions.BumpAction
+game.actions.ActionWithDirection -[hidden]down- game.actions.MeleeAction
+game.actions.ActionWithDirection -[hidden]down- game.actions.MovementAction
+
+game.input_handlers.InventoryDropHandler -[hidden]down- game.actions.Action
+
+game.entities.components.base_component.BaseComponent -[hidden]down- game.entities.components.base_component.ItemComponent
+game.entities.components.base_component.BaseComponent -[hidden]down- game.entities.components.base_component.ActorComponent
+
+game.entities.components.base_component.ActorComponent -[hidden]down- game.entities.components.fighter.Fighter
+game.entities.components.base_component.ActorComponent -[hidden]down- game.entities.components.inventory.Inventory
+game.entities.components.base_component.ActorComponent -[hidden]down- game.entities.components.ai.BaseAI
+
+game.entities.components.ai.BaseAI -[hidden]down- game.entities.components.ai.CowardEnemy
+game.entities.components.ai.BaseAI -[hidden]down- game.entities.components.ai.HostileEnemy
+
+game.entities.components.base_component.ItemComponent -[hidden]down- game.entities.components.consumable.Consumable
+game.entities.components.consumable.Consumable -[hidden]down- game.entities.components.consumable.HealingConsumable
+
+game.input_handlers.EventHandler -[hidden]down- game.input_handlers.GameOverEventHandler
+game.input_handlers.EventHandler -[hidden]down- game.input_handlers.MainGameEventHandler
+game.input_handlers.EventHandler -[hidden]down- game.input_handlers.InventoryEventHandler
+
+game.input_handlers.InventoryEventHandler -[hidden]down- game.input_handlers.InventoryActivateHandler
+game.input_handlers.InventoryEventHandler -[hidden]down- game.input_handlers.InventoryDropHandler
+
+' MessageLog should be above the messages
+game.message_log.MessageLog -[hidden]down- game.message_log.Message
+game.actions.WaitAction -[hidden]down- game.message_log.MessageLog
+
+game.message_log.MessageLog -[hidden]down- game.exceptions.Impossible
+@enduml

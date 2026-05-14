@@ -1,0 +1,55 @@
+@startuml classes
+
+!theme mimeograph
+
+top to bottom direction
+
+hide members
+
+hide circle
+
+skinparam roundcorner 10
+
+skinparam noteFontSize 10
+skinparam noteBorderThickness 1
+skinparam noteMargin 2
+skinparam notePadding 2
+
+set namespaceSeparator none
+
+'--------------------------------------
+' Classes
+'--------------------------------------
+
+class "Action" as game.actions.Action {
+}
+
+class "EscapeAction" as game.actions.EscapeAction {
+}
+
+class "EventHandler" as game.input_handlers.EventHandler {
+}
+
+class "MovementAction" as game.actions.MovementAction {
+}
+
+class "WaitAction" as game.actions.WaitAction {
+}
+
+'--------------------------------------
+' Relations
+'--------------------------------------
+
+game.actions.EscapeAction --|> game.actions.Action
+game.actions.MovementAction --|> game.actions.Action
+game.actions.WaitAction --|> game.actions.Action
+
+'--------------------------------------
+' Order Rules
+'--------------------------------------
+
+game.actions.Action -[hidden]down- game.actions.MovementAction
+game.actions.Action -[hidden]down- game.actions.WaitAction
+game.actions.Action -[hidden]down- game.actions.EscapeAction
+
+@enduml

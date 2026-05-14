@@ -1,0 +1,77 @@
+@startuml classes
+
+!theme mimeograph
+
+top to bottom direction
+
+hide members
+
+hide circle
+
+skinparam roundcorner 10
+
+skinparam noteFontSize 10
+skinparam noteBorderThickness 1
+skinparam noteMargin 2
+skinparam notePadding 2
+
+set namespaceSeparator none
+
+'--------------------------------------
+' Classes
+'--------------------------------------
+
+class "Action" as game.actions.Action {
+}
+
+class "Engine" as game.engine.Engine {
+}
+
+class "Entity" as game.entity.Entity {
+}
+
+class "EscapeAction" as game.actions.EscapeAction {
+}
+
+class "EventHandler" as game.input_handlers.EventHandler {
+}
+
+class "GameMap" as game.map.game_map.GameMap {
+}
+
+class "MovementAction" as game.actions.MovementAction {
+}
+
+class "RectangularRoom" as game.map.map_generator.RectangularRoom {
+}
+
+class "WaitAction" as game.actions.WaitAction {
+}
+
+'--------------------------------------
+' Relations
+'--------------------------------------
+
+game.actions.EscapeAction --|> game.actions.Action
+game.actions.MovementAction --|> game.actions.Action
+game.actions.WaitAction --|> game.actions.Action
+game.entity.Entity --* " * " game.map.game_map.GameMap : entities
+game.entity.Entity --o game.engine.Engine : player
+game.input_handlers.EventHandler --* game.engine.Engine : event_handler
+game.map.game_map.GameMap --o game.engine.Engine : game_map
+
+'--------------------------------------
+' Order Rules
+'--------------------------------------
+
+game.actions.Action -[hidden]down- game.actions.MovementAction
+game.actions.Action -[hidden]down- game.actions.WaitAction
+game.actions.Action -[hidden]down- game.actions.EscapeAction
+
+game.engine.Engine -[hidden]down-  game.map.game_map.GameMap
+game.map.game_map.GameMap -[hidden]down- game.entity.Entity
+game.engine.Engine -[hidden]down-  game.input_handlers.EventHandler
+
+game.map.game_map.GameMap -[hidden]down- game.map.map_generator.RectangularRoom
+
+@enduml

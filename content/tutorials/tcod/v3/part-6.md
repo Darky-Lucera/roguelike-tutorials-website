@@ -22,9 +22,37 @@ Components keep combat data separate from the base `Entity`. In this part, entit
 
 ---
 
+## Reorganizing into `game/entities/`
+
+Before we dive into components, we give entity-related modules a dedicated home. As the entity system grows with base classes, render ordering, components, and factories, keeping them together makes the project easier to navigate.
+
+From this part on, everything that defines what entities *are* lives under `game/entities/`:
+
+```txt
+game/entities/
+├── entity.py          ← was game/entity.py
+├── render_order.py
+├── factories.py       ← was game/entity_factories.py
+└── components/
+    ├── base_component.py
+    ├── ai.py
+    └── fighter.py     ← new this part
+```
+
+Move `game/entity.py` to `game/entities/entity.py` and `game/entity_factories.py` to `game/entities/factories.py` (the `entity_` prefix is redundant inside `entities/`). The `game/components/` folder also moves to `game/entities/components/`. Create empty `__init__.py` files in both new folders so Python treats them as packages:
+
+```txt
+game/entities/__init__.py
+game/entities/components/__init__.py
+```
+
+All code blocks in this part already use the new paths.
+
+---
+
 ## BaseComponent
 
-Create `game/components/base_component.py`:
+Create `game/entities/components/base_component.py`:
 
 ```python
 from __future__ import annotations
@@ -32,7 +60,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from game.entity import Entity
+    from game.entities.entity import Entity
 
 
 class BaseComponent:
@@ -47,17 +75,17 @@ This is a lightweight base class. Its only purpose is to give type checkers a co
 
 In Part 5, `BaseAI` was a plain class. Now that AI is a component with an owner, make it inherit from `BaseComponent` before we wire it into `Actor`.
 
-Update `game/components/ai.py`:
+Update `game/entities/components/ai.py`:
 
 ```diff
  from typing import TYPE_CHECKING
 
  from game.actions import BumpAction
-+from game.components.base_component import BaseComponent
++from game.entities.components.base_component import BaseComponent
 
  if TYPE_CHECKING:
      from game.engine import Engine
-     from game.entity import Entity
+     from game.entities.entity import Entity
 
 
 -class BaseAI:
@@ -102,7 +130,7 @@ If you completed the chest exercise in Part 5 and already added `CHEST` sprite/c
 
 When multiple entities occupy the same tile (e.g. a corpse and a live enemy), we need to control which one appears on top.
 
-Create `game/render_order.py`:
+Create `game/entities/render_order.py`:
 
 ```python
 from __future__ import annotations
@@ -125,14 +153,14 @@ Higher enum values render last (on top). `ACTOR` > `ITEM` > `CORPSE`, so living 
 
 Before we introduce combat entities, every entity needs to know where it belongs in the draw stack. A chest, corpse, item, actor, or future staircase may all share a tile, so render order is a general `Entity` concern, not just an `Actor` concern.
 
-Update `game/entity.py`:
+Update `game/entities/entity.py`:
 
 ```diff
  from game.constants import colors, sprites
-+from game.render_order import RenderOrder
++from game.entities.render_order import RenderOrder
 
  if TYPE_CHECKING:
-     from game.components.ai import BaseAI
+     from game.entities.components.ai import BaseAI
      from game.map.game_map import GameMap
 
 
@@ -166,14 +194,14 @@ The default value for render_order is `UNKNOWN` because plain `Entity` objects h
 
 ## The Fighter component
 
-Create `game/components/fighter.py`:
+Create `game/entities/components/fighter.py`:
 
 ```python
 from __future__ import annotations
 
-from game.components.base_component import BaseComponent
+from game.entities.components.base_component import BaseComponent
 from game.constants import colors, sprites
-from game.render_order import RenderOrder
+from game.entities.render_order import RenderOrder
 
 
 class Fighter(BaseComponent):
@@ -223,12 +251,12 @@ With that in place, combat code can reduce HP directly and let the component han
 
 Entities that fight (player, enemies) share a common profile: they have a `Fighter` component, an optional `AI` component, and they block movement by default. We give this combination a name.
 
-Now add `Actor` below `Entity` in `game/entity.py`:
+Now add `Actor` below `Entity` in `game/entities/entity.py`:
 
 ```diff
  if TYPE_CHECKING:
-     from game.components.ai import BaseAI
-+    from game.components.fighter import Fighter
+     from game.entities.components.ai import BaseAI
++    from game.entities.components.fighter import Fighter
      from game.map.game_map import GameMap
 
 
@@ -277,16 +305,16 @@ We wire both back-references the same way: `self.fighter.entity = self` and `sel
 
 ---
 
-## Updating entity_factories.py
+## Setting up `entities/factories.py`
 
 ```python
 from __future__ import annotations
 
-from game.components.ai import HostileEnemy
-from game.components.fighter import Fighter
+from game.entities.components.ai import HostileEnemy
+from game.entities.components.fighter import Fighter
 from game.constants import colors, sprites
-from game.entity import Actor, Entity
-from game.render_order import RenderOrder
+from game.entities.entity import Actor, Entity
+from game.entities.render_order import RenderOrder
 
 player = Actor(
     char            = sprites.PLAYER,
@@ -321,9 +349,9 @@ Trolls are harder to kill (more HP, some defense) and hit harder than orcs.
     Keep whichever exercise blocks you added, but update them to use the new actor templates. If you kept the chest, first extend the imports:
 
     ```diff
-    -from game.entity import Actor
-    +from game.entity import Actor, Entity
-    +from game.render_order import RenderOrder
+    -from game.entities.entity import Actor
+    +from game.entities.entity import Actor, Entity
+    +from game.entities.render_order import RenderOrder
     ```
 
     Then keep these blocks below `troll`:
@@ -353,16 +381,16 @@ Trolls are harder to kill (more HP, some defense) and hit harder than orcs.
 
 The combat formula belongs in `Fighter`, not in `MeleeAction`. The action resolves *who* is fighting; the component resolves *how much damage and what happens*. This also sets us up for `ranged_attack` later: any damage path goes through `Fighter` without touching the action layer.
 
-Add a TYPE_CHECKING import for `Actor` to `game/components/fighter.py` and add the `melee_attack` method:
+Add a TYPE_CHECKING import for `Actor` to `game/entities/components/fighter.py` and add the `melee_attack` method:
 
 ```diff
- from game.components.base_component import BaseComponent
+ from game.entities.components.base_component import BaseComponent
  from game.constants import colors, sprites
- from game.render_order import RenderOrder
+ from game.entities.render_order import RenderOrder
 +from typing import TYPE_CHECKING
 +
 +if TYPE_CHECKING:
-+    from game.entity import Actor
++    from game.entities.entity import Actor
 ```
 
 ```python
@@ -393,7 +421,7 @@ class MeleeAction(ActionWithDirection):
         if not target:
             return
 
-        from game.entity import Actor
+        from game.entities.entity import Actor
         if not isinstance(entity, Actor) or not isinstance(target, Actor):
             return  # Both attacker and defender must be Actors to fight.
 
@@ -406,7 +434,7 @@ We check `isinstance` for **both** sides. In practice today only `Actor` instanc
 
 ## Proper pathfinding for enemies
 
-The Part 5 AI moved enemies in a straight line, causing them to get stuck on corners. Replace the movement in `game/components/ai.py` with A* pathfinding:
+The Part 5 AI moved enemies in a straight line, causing them to get stuck on corners. Replace the movement in `game/entities/components/ai.py` with A* pathfinding:
 
 !!! info "`BaseAI` uses the same component convention as `Fighter`"
     We already made `BaseAI` inherit from `BaseComponent` earlier in this chapter. In this version, the `perform` signature also tightens its type hint from `Entity` to `Actor`, since by definition only actors carry AI.
@@ -419,11 +447,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 import tcod
 
-from game.components.base_component import BaseComponent
+from game.entities.components.base_component import BaseComponent
 
 if TYPE_CHECKING:
     from game.engine import Engine
-    from game.entity import Actor
+    from game.entities.entity import Actor
 
 
 class BaseAI(BaseComponent):
@@ -496,15 +524,15 @@ Update `game/map/game_map.py`:
 +from collections.abc import Iterable, Iterator
 
 if TYPE_CHECKING:
--    from game.entity import Entity
-+    from game.entity import Entity, Actor
+-    from game.entities.entity import Entity
++    from game.entities.entity import Entity, Actor
 
  class GameMap:
      ...
 
 +    @property
 +    def actors(self) -> Iterator[Actor]:
-+        from game.entity import Actor
++        from game.entities.entity import Actor
 +        yield from (
 +            entity for entity in self.entities
 +            if isinstance(entity, Actor) and entity.is_alive
@@ -585,8 +613,8 @@ class GameOverEventHandler(EventHandler):
 Now update `Engine` to swap the handler after each turn if the player is no longer alive, and at the same time switch `handle_enemy_turns` to iterate `actors` (which already filters out corpses):
 
 ```diff
--from game.entity import Entity
-+from game.entity import Actor
+-from game.entities.entity import Entity
++from game.entities.entity import Actor
 -from game.input_handlers import EventHandler
 +from game.input_handlers import EventHandler, GameOverEventHandler
 
@@ -662,9 +690,39 @@ Combat is now fully functional. Key additions:
 - `RenderOrder`: controls entity draw order
 - `GameOverEventHandler`: replaces normal input after player death
 
-**Files created**: `game/render_order.py`, `game/components/base_component.py`, `game/components/fighter.py`
+**Class Diagram**:
 
-**Files modified**: `game/entity.py`, `game/entity_factories.py`, `game/components/ai.py`, `game/actions.py`, `game/map/game_map.py`, `game/engine.py`, `game/input_handlers.py`, `game/constants/sprites.py`, `game/constants/colors.py`
+![classes](images/part6_classes.png)
+
+**File structure**:
+
+```txt
+main.py
+game/
+├── __init__.py
+├── actions.py                  ← modified
+├── engine.py                   ← modified
+├── input_handlers.py           ← modified
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py               ← modified
+│   └── sprites.py              ← modified
+├── entities/
+│   ├── __init__.py             ← new
+│   ├── entity.py               ← moved (game/entity.py), modified
+│   ├── factories.py            ← moved (game/entity_factories.py), modified
+│   ├── render_order.py         ← new
+│   └── components/
+│       ├── __init__.py         ← new
+│       ├── ai.py               ← moved (game/components/ai.py), modified
+│       ├── base_component.py   ← new
+│       └── fighter.py          ← new
+└── map/
+    ├── __init__.py
+    ├── game_map.py             ← modified
+    ├── tile_types.py
+    └── map_generator.py
+```
 
 ---
 

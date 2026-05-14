@@ -437,9 +437,23 @@ The `perform()` pattern on `Action` classes means the engine stays small and new
 - `Entity`: stores position and appearance for game objects
 - `Action`: performs game logic with access to the engine and acting entity
 
-**Files created**: `game/entity.py`, `game/tile_types.py`, `game/game_map.py`, `game/engine.py`
+**Class Diagram**:
 
-**Files modified**: `game/actions.py`, `main.py`
+![classes](images/part2_classes.png)
+
+**File structure**:
+
+```txt
+main.py                 ← modified
+game/
+├── __init__.py
+├── actions.py          ← modified
+├── engine.py           ← new
+├── entity.py           ← new
+├── game_map.py         ← new
+├── input_handlers.py
+└── tile_types.py       ← new
+```
 
 ---
 

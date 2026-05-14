@@ -393,11 +393,26 @@ We built a rooms-and-corridors dungeon generator in a dedicated `game/map/map_ge
 - `RectangularRoom`: local helper for the rooms-and-corridors algorithm
 - `Engine`: runs the already-generated map
 
-**Files created**: `game/map/__init__.py`, `game/map/map_generator.py`
+**Class Diagram**:
 
-**Files moved**: `game/game_map.py` -> `game/map/game_map.py`, `game/tile_types.py` -> `game/map/tile_types.py`
+![classes](images/part3_classes.png)
 
-**Files modified**: `game/map/game_map.py`, `game/engine.py`, `main.py`
+**File structure**:
+
+```txt
+main.py                     ← modified
+game/
+├── __init__.py
+├── actions.py
+├── engine.py               ← modified
+├── entity.py
+├── input_handlers.py
+└── map/
+    ├── __init__.py         ← new
+    ├── game_map.py         ← moved (game/game_map.py), modified
+    ├── tile_types.py       ← moved (game/tile_types.py)
+    └── map_generator.py    ← new
+```
 
 ---
 

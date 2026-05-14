@@ -36,7 +36,7 @@ Effective defense = 2 + 3 = 5
 
 ## EquipmentType enum
 
-Create `game/equipment_type.py`:
+Create `game/entities/equipment_type.py`:
 
 ```python
 from __future__ import annotations
@@ -46,28 +46,28 @@ from enum import auto, Enum
 
 class EquipmentType(Enum):
     WEAPON = auto()
-    ARMOR = auto()
+    ARMOR  = auto()
 ```
 
 ---
 
-## components/equippable.py
+## game/entities/components/equippable.py
 
-Create `game/components/equippable.py`:
+Create `game/entities/components/equippable.py`:
 
 ```python
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.components.base_component import BaseComponent
-from game.equipment_type import EquipmentType
+from game.entities.components.base_component import ItemComponent
+from game.entities.equipment_type import EquipmentType
 
 if TYPE_CHECKING:
-    from game.entity import Item
+    from game.entities.entity import Item
 
 
-class Equippable(BaseComponent):
+class Equippable(ItemComponent):
     def __init__(
         self,
         equipment_type: EquipmentType,
@@ -99,28 +99,28 @@ class ChainMail(Equippable):
         super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=3)
 ```
 
-Subclassing for each item type is optional, we could pass parameters directly. Subclasses make `game/entity_factories.py` easier to read (`Dagger()` vs `Equippable(EquipmentType.WEAPON, attack_bonus=2)`).
+Subclassing for each item type is optional, we could pass parameters directly. Subclasses make `game/entities/factories.py` easier to read (`Dagger()` vs `Equippable(EquipmentType.WEAPON, attack_bonus=2)`).
 
 ---
 
-## components/equipment.py
+## game/entities/components/equipment.py
 
-Create `game/components/equipment.py`:
+Create `game/entities/components/equipment.py`:
 
 ```python
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.components.base_component import BaseComponent
-from game.equipment_type import EquipmentType
+from game.entities.components.base_component import ActorComponent
+from game.entities.equipment_type import EquipmentType
 from game.message_log import MessageLog
 
 if TYPE_CHECKING:
-    from game.entity import Actor, Item
+    from game.entities.entity import Actor, Item
 
 
-class Equipment(BaseComponent):
+class Equipment(ActorComponent):
     def __init__(
         self,
         weapon: Item | None = None,
@@ -182,10 +182,10 @@ Because `MessageLog` is static, the component can log directly without needing a
 
 `Fighter.attack` and `Fighter.defense` should now add equipment bonuses. Replace the raw attributes with properties:
 
-Update `game/components/fighter.py`:
+Update `game/entities/components/fighter.py`:
 
 ```python
-class Fighter(BaseComponent):
+class Fighter(ActorComponent):
     def __init__(self, hp: int, defense: int, attack: int) -> None:
         self.max_hp = hp
         self._hp = hp
@@ -211,7 +211,7 @@ All existing code that reads `fighter.attack` and `fighter.defense` automaticall
 
 ---
 
-## Update entity.py: Item gets equippable, Actor gets equipment
+## Update game/entities/entity.py: Item gets equippable, Actor gets equipment
 
 Update the `Item` class:
 
@@ -237,7 +237,7 @@ class Item(Entity):
 Update `Actor`:
 
 ```python
-from game.components.equipment import Equipment
+from game.entities.components.equipment import Equipment
 
 class Actor(Entity):
     def __init__(
@@ -273,7 +273,7 @@ class DropItem(ItemAction):
         if entity.equipment.item_is_equipped(self.item):
             entity.equipment.toggle_equip(self.item)
 
-        entity.inventory.drop(self.item)
+        entity.inventory.drop(self.item, engine.game_map)
         MessageLog.add_message(f"You dropped the {self.item.name}.")
 ```
 
@@ -341,13 +341,13 @@ Extend `game/constants/colors.py` in a new equipment colors section:
 
 ---
 
-## entity_factories.py: add weapons and armor
+## game/entities/factories.py: add weapons and armor
 
 ```python
 from __future__ import annotations
 
-from game.components.equippable import ChainMail, Dagger, LeatherArmor, Sword
-from game.components.equipment import Equipment
+from game.entities.components.equippable import ChainMail, Dagger, LeatherArmor, Sword
+from game.entities.components.equipment import Equipment
 from game.constants import colors, sprites
 
 player = Actor(
@@ -411,17 +411,17 @@ import copy
 
 
 def new_game() -> Engine:
-    player = copy.deepcopy(entity_factories.player)
+    player = copy.deepcopy(factories.player)
     engine = Engine(player=player)
 
     # Starting equipment
-    dagger = copy.deepcopy(entity_factories.dagger)
-    dagger.parent = player.inventory
+    dagger = copy.deepcopy(factories.dagger)
+    dagger.owner = player.inventory
     player.inventory.items.append(dagger)
     player.equipment.toggle_equip(dagger)
 
-    leather_armor = copy.deepcopy(entity_factories.leather_armor)
-    leather_armor.parent = player.inventory
+    leather_armor = copy.deepcopy(factories.leather_armor)
+    leather_armor.owner = player.inventory
     player.inventory.items.append(leather_armor)
     player.equipment.toggle_equip(leather_armor)
     ...
@@ -453,10 +453,10 @@ Add entries to `ITEM_FACTORIES`:
 ```python
 ITEM_FACTORIES = {
     ...
-    "dagger":        entity_factories.dagger,
-    "sword":         entity_factories.sword,
-    "leather_armor": entity_factories.leather_armor,
-    "chain_mail":    entity_factories.chain_mail,
+    "dagger":        factories.dagger,
+    "sword":         factories.sword,
+    "leather_armor": factories.leather_armor,
+    "chain_mail":    factories.chain_mail,
 }
 ```
 
@@ -496,9 +496,46 @@ Equipment is complete. The game is now feature-complete. Key additions:
 - `EquipAction`: routes inventory activation into equip/unequip behavior
 - `setup_game.py`: creates starting gear and equips it silently
 
-**Files created**: `game/equipment_type.py`, `game/components/equippable.py`, `game/components/equipment.py`
+**File structure**:
 
-**Files modified**: `game/entity.py`, `game/entity_factories.py`, `game/actions.py`, `game/input_handlers.py`, `game/components/fighter.py`, `game/map/map_generator.py`, `game/setup_game.py`, `game/constants/sprites.py`, `game/constants/colors.py`
+```txt
+main.py
+game/
+├── __init__.py
+├── actions.py                  ← modified
+├── engine.py
+├── exceptions.py
+├── game_world.py
+├── hud.py
+├── input_handlers.py           ← modified
+├── message_log.py
+├── setup_game.py               ← modified
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py               ← modified
+│   └── sprites.py              ← modified
+├── entities/
+│   ├── __init__.py
+│   ├── entity.py               ← modified
+│   ├── factories.py            ← modified
+│   ├── render_order.py
+│   ├── equipment_type.py       ← new
+│   └── components/
+│       ├── __init__.py
+│       ├── ai.py
+│       ├── base_component.py
+│       ├── consumable.py
+│       ├── equipment.py        ← new
+│       ├── equippable.py       ← new
+│       ├── fighter.py          ← modified
+│       ├── inventory.py
+│       └── level.py
+└── map/
+    ├── __init__.py
+    ├── game_map.py
+    ├── tile_types.py
+    └── map_generator.py        ← modified
+```
 
 ---
 

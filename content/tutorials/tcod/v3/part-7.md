@@ -161,6 +161,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.constants import colors
+from game.entities.entity import Actor
 
 if TYPE_CHECKING:
     from tcod import Console
@@ -339,6 +340,8 @@ from game.actions import (
     EscapeAction,
     WaitAction,
 )
+from game.constants import colors
+from game.message_log import MessageLog
 
 if TYPE_CHECKING:
     from game.engine import Engine
@@ -420,12 +423,33 @@ class MainGameEventHandler(EventHandler):
 
 
 class GameOverEventHandler(EventHandler):
+    def on_render(self, console: tcod.Console) -> None:
+        super().on_render(console)
+
+        width  = 30
+        height = 5
+        x = (console.width  - width)  // 2
+        y = (console.height - height) // 2
+
+        console.draw_frame(
+            x=x, y=y, width=width, height=height,
+            clear=True, fg=colors.WHITE, bg=colors.BLACK,
+        )
+
+        title = "GAME OVER"
+        console.print(x + (width - len(title)) // 2, y + 1, title, fg=colors.PLAYER_DEATH)
+
+        hint = "Press ESC to quit."
+        console.print(x + (width - len(hint)) // 2, y + 3, hint, fg=colors.WHITE)
+
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         if event.sym == tcod.event.KeySym.ESCAPE:
             return EscapeAction()
 
         return None
 ```
+
+`GameOverEventHandler.on_render()` calls `super().on_render()` first so the map and HUD render normally underneath, then draws a framed box centered on the console. The text positions are computed by subtracting the string length from the panel width and halving the remainder, which centers each line without needing an alignment constant. The panel re-uses colors that already exist: `PLAYER_DEATH` for the title (the same red used in the death message), and `WHITE` for the hint.
 
 The `MouseMotion` case stores the cursor tile position in `engine.mouse_location` so `render_names_at_mouse_location` always has current data. `integer_position` is the tile-space coordinate set by `context.convert_event`; the older `event.tile` attribute is deprecated.
 
@@ -438,11 +462,11 @@ Three small changes: two new imports, posting the welcome message, and renaming 
 Add the imports:
 
 ```diff
+ from game.entities import factories
 +from game.constants import colors
- from game import entity_factories
  from game.engine import Engine
-+from game.message_log import MessageLog
  from game.map.map_generator import generate_dungeon
++from game.message_log import MessageLog
 ```
 
 Post the welcome message after creating the engine:
@@ -471,7 +495,13 @@ Rename the console variable in the context block:
 
 All the `print()` calls from Parts 5 and 6 now route through `MessageLog.add_message()`. Because `MessageLog` is a static class, `melee_attack()` and `die()` can call it directly with no extra parameters. `die()` returns to the `hp` setter, where it always belonged.
 
-Update `Fighter.melee_attack()` in `game/components/fighter.py`:
+Add the import at the top of `game/entities/components/fighter.py`:
+
+```diff
++from game.message_log import MessageLog
+```
+
+Update `Fighter.melee_attack()` in `game/entities/components/fighter.py`:
 
 ```diff
  def melee_attack(self, target: Actor) -> None:
@@ -490,7 +520,7 @@ Update `Fighter.melee_attack()` in `game/components/fighter.py`:
 
 `self.entity.ai is None` identifies the player: the player never has an AI component, enemies always do. Player attacks use a lighter color (`PLAYER_ATTACK`) and enemy attacks a red tint (`ENEMY_ATTACK`), so the player can scan the log quickly. `die()` is triggered by the `hp` setter as before: no call site change needed in `melee_attack`.
 
-Update `Fighter.die()` in `game/components/fighter.py` to write to the message log:
+Update `Fighter.die()` in `game/entities/components/fighter.py` to write to the message log:
 
 ```diff
 -def die(self) -> None:
@@ -511,7 +541,7 @@ Update `Fighter.die()` in `game/components/fighter.py` to write to the message l
 +    MessageLog.add_message(death_message, death_message_color)
 ```
 
-Also add `heal()` and `take_damage()` to `Fighter` in `game/components/fighter.py`:
+Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/fighter.py`:
 
 ```python
     def heal(self, amount: int) -> int:
@@ -565,13 +595,45 @@ The UI panel is now live. Key additions:
 
 - `Engine.render()`: composes the full frame: map, message log, HP bar, and hover text
 - `GameMap.render()`: still draws only terrain and entities
-- `MessageLog`: static class; any module can call `MessageLog.add_message()` without touching `Engine`
+- `MessageLog`: static class; any module can call `MessageLog.add_message()`
 - `hud.py`: stateless HUD drawing helpers; each function takes only what it needs
 - `EventHandler.on_render()`: lets each handler control what gets drawn for its state
 
-**Files created**: `game/message_log.py`, `game/hud.py`
+**Class Diagram**:
 
-**Files modified**: `game/constants/colors.py`, `game/engine.py`, `game/input_handlers.py`, `main.py`, `game/components/fighter.py`
+![classes](images/part7_classes.png)
+
+**File structure**:
+
+```txt
+main.py                         ← modified
+game/
+├── __init__.py
+├── actions.py
+├── engine.py                   ← modified
+├── hud.py                      ← new
+├── input_handlers.py           ← modified
+├── message_log.py              ← new
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py               ← modified
+│   └── sprites.py
+├── entities/
+│   ├── __init__.py
+│   ├── entity.py
+│   ├── factories.py
+│   ├── render_order.py
+│   └── components/
+│       ├── __init__.py
+│       ├── ai.py
+│       ├── base_component.py
+│       └── fighter.py          ← modified
+└── map/
+    ├── __init__.py
+    ├── game_map.py
+    ├── tile_types.py
+    └── map_generator.py
+```
 
 ---
 

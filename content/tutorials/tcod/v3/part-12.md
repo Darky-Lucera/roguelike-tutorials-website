@@ -69,12 +69,12 @@ from typing import TYPE_CHECKING
 
 import tcod
 
-from game import entity_factories
+from game.entities import factories
 from game.map.game_map import GameMap
 from game.map import tile_types
 
 if TYPE_CHECKING:
-    from game.entity import Entity
+    from game.entities.entity import Entity
 
 # ── Spawn count tables ────────────────────────────────────────────────────────
 
@@ -141,20 +141,20 @@ def get_entities_at_random(
 # ── Entity name → factory lookup ──────────────────────────────────────────────
 
 ITEM_FACTORIES = {
-    "health_potion":    entity_factories.health_potion,
-    "confusion_scroll": entity_factories.confusion_scroll,
-    "lightning_scroll": entity_factories.lightning_scroll,
-    "fireball_scroll":  entity_factories.fireball_scroll,
+    "health_potion":    factories.health_potion,
+    "confusion_scroll": factories.confusion_scroll,
+    "lightning_scroll": factories.lightning_scroll,
+    "fireball_scroll":  factories.fireball_scroll,
 }
 
 ENEMY_FACTORIES = {
-    "orc":   entity_factories.orc,
-    "troll": entity_factories.troll,
+    "orc":   factories.orc,
+    "troll": factories.troll,
 }
 ```
 
 !!! question "Why string keys?"
-    We map string names to factories instead of using factory objects as dict keys. This makes the tables readable, `"troll": [(3, 15)]` is clear, while `entity_factories.troll: [(3, 15)]` requires knowing what that object is. The lookup at the end is one extra line.
+    We map string names to factories instead of using factory objects as dict keys. This makes the tables readable, `"troll": [(3, 15)]` is clear, while `factories.troll: [(3, 15)]` requires knowing what that object is. The lookup at the end is one extra line.
 
 ---
 
@@ -237,12 +237,12 @@ def generate_dungeon(
 
     dungeon.tiles[center_of_last_room] = tile_types.floor
     dungeon.downstairs_location = center_of_last_room
-    entity_factories.down_stairs.spawn(dungeon, *center_of_last_room)
+    factories.down_stairs.spawn(dungeon, *center_of_last_room)
 
     return dungeon
 ```
 
-The signature no longer takes `max_monsters_per_room`, `max_items_per_room`, those came from static values. Now `place_entities` reads floor-scaled values from the tables.
+The signature no longer takes `min/max_monsters_per_room` or `min/max_items_per_room`, those came from static values. Now `place_entities` reads floor-scaled values from the tables.
 
 Update `GameWorld.generate_floor()` to match the new signature:
 
@@ -309,9 +309,43 @@ Spawn rates now scale with dungeon depth. Key additions:
 - Spawn limits and entity chances are data tables instead of fixed parameters
 - Adding new floor-scaled content no longer changes `generate_dungeon()`'s signature
 
-**Files created**: (none)
+**File structure**:
 
-**Files modified**: `game/map/map_generator.py`, `game/game_world.py`
+```txt
+main.py
+game/
+├── __init__.py
+├── actions.py
+├── engine.py
+├── exceptions.py
+├── game_world.py               ← modified
+├── hud.py
+├── input_handlers.py
+├── message_log.py
+├── setup_game.py
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py
+│   └── sprites.py
+├── entities/
+│   ├── __init__.py
+│   ├── entity.py
+│   ├── factories.py
+│   ├── render_order.py
+│   └── components/
+│       ├── __init__.py
+│       ├── ai.py
+│       ├── base_component.py
+│       ├── consumable.py
+│       ├── fighter.py
+│       ├── inventory.py
+│       └── level.py
+└── map/
+    ├── __init__.py
+    ├── game_map.py
+    ├── tile_types.py
+    └── map_generator.py        ← modified
+```
 
 ---
 
@@ -323,7 +357,7 @@ Spawn rates now scale with dungeon depth. Key additions:
 
 2. **New monster: vampire**:
 
-    Add a `vampire` entry to `enemy_chances` that only appears from floor 8 onward (weight 20). Create the factory in `game/entity_factories.py` with high HP but low defense, and an AI that heals 2 HP whenever it successfully attacks the player.
+    Add a `vampire` entry to `enemy_chances` that only appears from floor 8 onward (weight 20). Create the factory in `game/entities/factories.py` with high HP but low defense, and an AI that heals 2 HP whenever it successfully attacks the player.
 
 3. **Item drought**:
 

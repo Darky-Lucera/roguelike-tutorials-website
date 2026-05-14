@@ -288,7 +288,7 @@ class EventHandler:
     In older tcod code you will see `class EventHandler(tcod.event.EventDispatch[Action])`. That base class still exists but is marked as deprecated in recent versions of tcod. Writing the dispatch by hand keeps us in control of the routing and makes it straightforward to add subclasses of `EventHandler` later (one per game state: main menu, inventory, targeting, etc.).
 
 !!! tip "Vim editor keys and numpad"
-    To support `hjkl` (Vim editor movement) or the numpad, add more `case` branches in `event_keydown`. For example: `case tcod.event.KeySym.h: return MovementAction(dx=-1, dy=0)`.
+    To support `hjkl` (Vim editor movement) or the numpad, add more `case` branches in `event_keydown`. For example: `case tcod.event.KeySym.H: return MovementAction(dx=-1, dy=0)`.
 
 ### Wiring it together
 
@@ -413,9 +413,19 @@ We also adopted the project layout we will use for the rest of the tutorial: `ma
 - `game/actions.py`: defines action objects such as movement and escape
 - `game/input_handlers.py`: translates tcod events into actions
 
-**Files created**: `game/__init__.py`, `game/actions.py`, `game/input_handlers.py`
+**Class Diagram**:
 
-**Files modified**: `main.py`
+![classes](images/part1_classes.png)
+
+**File structure**:
+
+```txt
+main.py                 ← modified
+game/
+├── __init__.py         ← new
+├── actions.py          ← new
+└── input_handlers.py   ← new
+```
 
 ---
 

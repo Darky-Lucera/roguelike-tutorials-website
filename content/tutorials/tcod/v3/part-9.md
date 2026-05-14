@@ -245,6 +245,8 @@ class ConfusionConsumable(Consumable):
         self.consume()
 ```
 
+`InventoryActivateHandler.on_item_selected` (from Part 8) calls `consumable.get_action()` when the player selects an item. Targeting consumables override it to install the cursor handler on the engine and return `None` — no action is performed yet. The actual `ItemAction` is built by the callback once the player confirms a target.
+
 Add colors to `game/constants/colors.py`:
 
 ```python
@@ -310,7 +312,7 @@ class FireballDamageConsumable(Consumable):
 
 ## ConfusedEnemy AI
 
-Add to `game/components/ai.py`:
+Add to `game/entities/components/ai.py`:
 
 ```python
 import random
@@ -390,10 +392,10 @@ Extend `game/constants/colors.py`:
 
 ---
 
-## entity_factories.py: add scrolls
+## game/entities/factories.py: add scrolls
 
 ```python
-from game.components.consumable import (
+from game.entities.components.consumable import (
     ConfusionConsumable,
     FireballDamageConsumable,
     HealingConsumable,
@@ -431,13 +433,13 @@ Update `place_entities()` to pick randomly from several item types:
 
 ```python
 item_chances = [
-    (entity_factories.health_potion, 35),
-    (entity_factories.confusion_scroll, 10),
-    (entity_factories.lightning_scroll, 25),
-    (entity_factories.fireball_scroll, 25),
+    (factories.health_potion, 35),
+    (factories.confusion_scroll, 10),
+    (factories.lightning_scroll, 25),
+    (factories.fireball_scroll, 25),
 ]
 
-def place_entities(room, dungeon, maximum_monsters, maximum_items):
+def place_entities(room, dungeon, min_monsters, max_monsters, min_items, max_items):
     ...
     for _ in range(number_of_items):
         x = random.randint(room.x1 + 1, room.x2 - 1)
@@ -446,36 +448,22 @@ def place_entities(room, dungeon, maximum_monsters, maximum_items):
             chosen = random.choices(
                 [item for item, _ in item_chances],
                 weights=[w for _, w in item_chances],
-            )[0]
-            chosen.spawn(dungeon, x, y)
+            )
+            chosen[0].spawn(dungeon, x, y)
 ```
 
 `random.choices` with weights handles the probability table in one line.
 
 ---
 
-## Wire get_action() into InventoryActivateHandler
+## Update EventHandler.handle_events
 
-When the player selects an item in the inventory, we should call `consumable.get_action()` rather than directly creating an `ItemAction`. This lets targeting consumables install their handler before returning.
-
-Update `InventoryActivateHandler.on_item_selected`:
-
-```python
-class InventoryActivateHandler(InventoryEventHandler):
-    TITLE = "Select an item to use"
-
-    def on_item_selected(self, item) -> Action | None:
-        return item.consumable.get_action(self.engine.player, self.engine)
-```
-
-The base `Consumable.get_action()` returns an `ItemAction`. Targeting consumables override it to push a new handler and return `None` (no action yet, the action comes after the player picks a target).
-
-Finally, update `EventHandler.handle_events()` so it also dispatches mouse clicks and restores the main handler after a targeting action resolves:
+The targeting handlers respond to mouse input. Update `EventHandler.handle_events()` to dispatch mouse button clicks, and to restore the main game handler after an inventory or targeting action resolves:
 
 ```python
 class EventHandler:
-    def handle_events(self, event: tcod.event.Event) -> Action | None:
-        action = None
+    def handle_events(self, event: tcod.event.Event) -> None:
+        action: Action | None = None
         match event:
             case tcod.event.Quit():
                 action = EscapeAction()
@@ -491,7 +479,7 @@ class EventHandler:
                 action.perform(self.engine, self.engine.player)
             except Impossible as exc:
                 MessageLog.add_message(str(exc), colors.INVALID)
-                return None
+                return
 
             if self.engine.player.is_alive:
                 self.engine.handle_enemy_turns()
@@ -499,6 +487,7 @@ class EventHandler:
             if not self.engine.player.is_alive:
                 from game.input_handlers import GameOverEventHandler
                 self.engine.event_handler = GameOverEventHandler(self.engine)
+
             elif isinstance(
                 self.engine.event_handler,
                 (InventoryActivateHandler, InventoryDropHandler, SelectIndexHandler),
@@ -506,8 +495,6 @@ class EventHandler:
                 self.engine.event_handler = MainGameEventHandler(self.engine)
 
             self.engine.update_fov()
-
-        return None
 
     def event_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Action | None:
         return None
@@ -551,9 +538,40 @@ The targeting system is now in place. Key additions:
 - AI can be swapped at runtime, as with `ConfusedEnemy`
 - Existing inventory and action systems now support targeted effects
 
-**Files created**: (none new, all added to existing files)
+**File structure**:
 
-**Files modified**: `game/components/consumable.py`, `game/components/ai.py`, `game/entity_factories.py`, `game/input_handlers.py`, `game/actions.py`, `game/map/map_generator.py`, `game/constants/sprites.py`, `game/constants/colors.py`, `game/entity.py`
+```txt
+main.py
+game/
+├── __init__.py
+├── actions.py                  ← modified
+├── engine.py
+├── exceptions.py
+├── hud.py
+├── input_handlers.py           ← modified
+├── message_log.py
+├── constants/
+│   ├── __init__.py
+│   ├── colors.py               ← modified
+│   └── sprites.py              ← modified
+├── entities/
+│   ├── __init__.py
+│   ├── entity.py               ← modified
+│   ├── factories.py            ← modified
+│   ├── render_order.py
+│   └── components/
+│       ├── __init__.py
+│       ├── ai.py               ← modified
+│       ├── base_component.py
+│       ├── consumable.py       ← modified
+│       ├── fighter.py
+│       └── inventory.py
+└── map/
+    ├── __init__.py
+    ├── game_map.py
+    ├── tile_types.py
+    └── map_generator.py        ← modified
+```
 
 ---
 

@@ -574,9 +574,9 @@ if TYPE_CHECKING:
 def place_entities(
     room: RectangularRoom,
     dungeon: GameMap,
-    max_monsters_per_room: int,
+    max_monsters: int,
 ) -> None:
-    number_of_monsters = random.randint(0, max_monsters_per_room)
+    number_of_monsters = random.randint(0, max_monsters)
 
     # Local import to break a circular dependency at module level:
     # map_generator → entity_factories → Fighter, AI → engine → game_map → map_generator.
@@ -773,9 +773,34 @@ Enemies are now in the dungeon and the turn system is running. Key patterns intr
 - `Engine`: runs player action, enemy turns, then FOV update
 - `constants/`: centralizes entity and terrain sprites/colors
 
-**Files created**: `game/constants/__init__.py`, `game/constants/sprites.py`, `game/constants/colors.py`, `game/entity_factories.py`, `game/components/__init__.py`, `game/components/ai.py`
+**Class Diagram**:
 
-**Files modified**: `game/entity.py`, `game/map/tile_types.py`, `game/map/game_map.py`, `game/map/map_generator.py`, `game/actions.py`, `game/input_handlers.py`, `game/engine.py`, `main.py`
+![classes](images/part5_classes.png)
+
+**File structure**:
+
+```txt
+main.py                     ← modified
+game/
+├── __init__.py
+├── actions.py              ← modified
+├── engine.py               ← modified
+├── entity.py               ← modified
+├── entity_factories.py     ← new
+├── input_handlers.py       ← modified
+├── constants/
+│   ├── __init__.py         ← new
+│   ├── colors.py           ← new
+│   └── sprites.py          ← new
+├── components/
+│   ├── __init__.py         ← new
+│   └── ai.py               ← new
+└── map/
+    ├── __init__.py
+    ├── game_map.py         ← modified
+    ├── tile_types.py       ← modified
+    └── map_generator.py    ← modified
+```
 
 ---
 
@@ -783,7 +808,7 @@ Enemies are now in the dungeon and the turn system is running. Key patterns intr
 
 1. **Minimum monsters per room**:
 
-    Add a `min_monsters_per_room` parameter to `place_entities` and use `random.randint(min_monsters_per_room, max_monsters_per_room)`. Keep it at `0` by default, then try `1` and observe how much more crowded and dangerous the dungeon feels.
+    Add a `min_monsters` parameter to `place_entities` and use `random.randint(min_monsters, max_monsters)`. Keep it at `0` by default, then try `1` and observe how much more crowded and dangerous the dungeon feels.
 
 2. **Weighted monster table**:
 
