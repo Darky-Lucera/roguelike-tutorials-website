@@ -37,6 +37,9 @@ skinparam noteBorderThickness 1
 skinparam noteMargin 2
 skinparam notePadding 2
 
+skinparam nodesep 10
+skinparam ranksep 30
+
 set namespaceSeparator none
 
 '--------------------------------------
@@ -92,13 +95,13 @@ class "MeleeAction" as game.actions.MeleeAction {
 }
 
 
-class "MainGameEventHandler" as game.input_handlers.MainGameEventHandler {
+class "MainGameEventHandler" as game.input_handlers.MainGameEventHandler #e0e0d0 {
 }
 
-class "Message" as game.message_log.Message {
+class "Message" as game.message_log.Message #e0e0d0 {
 }
 
-class "MessageLog" as game.message_log.MessageLog {
+class "MessageLog" as game.message_log.MessageLog #e0e0d0 {
 }
 
 class "MovementAction" as game.actions.MovementAction {

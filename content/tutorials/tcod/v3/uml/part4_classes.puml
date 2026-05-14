@@ -15,6 +15,9 @@ skinparam noteBorderThickness 1
 skinparam noteMargin 2
 skinparam notePadding 2
 
+skinparam nodesep 10
+skinparam ranksep 30
+
 set namespaceSeparator none
 
 '--------------------------------------

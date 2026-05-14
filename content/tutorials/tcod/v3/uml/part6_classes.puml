@@ -37,6 +37,9 @@ skinparam noteBorderThickness 1
 skinparam noteMargin 2
 skinparam notePadding 2
 
+skinparam nodesep 10
+skinparam ranksep 30
+
 set namespaceSeparator none
 
 '--------------------------------------
@@ -49,19 +52,19 @@ class "Action" as game.actions.Action {
 class "ActionWithDirection" as game.actions.ActionWithDirection {
 }
 
-class "Actor" as game.entities.entity.Actor {
+class "Actor" as game.entities.entity.Actor #e0e0d0 {
 }
 
 class "BaseAI" as game.entities.components.ai.BaseAI {
 }
 
-class "BaseComponent" as game.entities.components.base_component.BaseComponent {
+class "BaseComponent" as game.entities.components.base_component.BaseComponent #e0e0d0 {
 }
 
 class "BumpAction" as game.actions.BumpAction {
 }
 
-class "CowardEnemy" as game.entities.components.ai.CowardEnemy {
+class "CowardEnemy" as game.entities.components.ai.CowardEnemy #e0e0d0 {
 }
 
 class "Engine" as game.engine.Engine {
@@ -76,13 +79,13 @@ class "EscapeAction" as game.actions.EscapeAction {
 class "EventHandler" as game.input_handlers.EventHandler {
 }
 
-class "Fighter" as game.entities.components.fighter.Fighter {
+class "Fighter" as game.entities.components.fighter.Fighter #e0e0d0 {
 }
 
 class "GameMap" as game.map.game_map.GameMap {
 }
 
-class "GameOverEventHandler" as game.input_handlers.GameOverEventHandler {
+class "GameOverEventHandler" as game.input_handlers.GameOverEventHandler #e0e0d0 {
 }
 
 class "HostileEnemy" as game.entities.components.ai.HostileEnemy {
@@ -97,7 +100,7 @@ class "MovementAction" as game.actions.MovementAction {
 class "RectangularRoom" as game.map.map_generator.RectangularRoom {
 }
 
-class "RenderOrder" as game.entities.render_order.RenderOrder {
+class "RenderOrder" as game.entities.render_order.RenderOrder #e0e0d0 {
 }
 
 class "WaitAction" as game.actions.WaitAction {

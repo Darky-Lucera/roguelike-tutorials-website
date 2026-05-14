@@ -15,25 +15,28 @@ skinparam noteBorderThickness 1
 skinparam noteMargin 2
 skinparam notePadding 2
 
+skinparam nodesep 10
+skinparam ranksep 30
+
 set namespaceSeparator none
 
 '--------------------------------------
 ' Classes
 '--------------------------------------
 
-class "Action" as game.actions.Action {
+class "Action" as game.actions.Action #e0e0d0 {
 }
 
-class "EscapeAction" as game.actions.EscapeAction {
+class "EscapeAction" as game.actions.EscapeAction #e0e0d0 {
 }
 
-class "EventHandler" as game.input_handlers.EventHandler {
+class "EventHandler" as game.input_handlers.EventHandler #e0e0d0 {
 }
 
-class "MovementAction" as game.actions.MovementAction {
+class "MovementAction" as game.actions.MovementAction #e0e0d0 {
 }
 
-class "WaitAction" as game.actions.WaitAction {
+class "WaitAction" as game.actions.WaitAction #e0e0d0 {
 }
 
 '--------------------------------------
