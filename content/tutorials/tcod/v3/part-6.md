@@ -50,7 +50,27 @@ game/entities/__init__.py
 game/entities/components/__init__.py
 ```
 
-All code blocks in this part already use the new paths.
+All code blocks in this part already use the new paths. Two files outside `game/entities/` import the moved modules and need their import lines updated.
+
+Update `main.py`:
+
+```diff
+-from game import entity_factories
+ from game.engine import Engine
++from game.entities import factories
+ from game.map.map_generator import generate_dungeon
+ ...
+-    player = copy.deepcopy(entity_factories.player)
++    player = copy.deepcopy(factories.player)
+```
+
+Update the top-level import in `game/map/map_generator.py`:
+
+```diff
+-from game.entity import Entity
++from game.entities.entity import Entity
+ from game.map import tile_types
+```
 
 ---
 
@@ -139,7 +159,7 @@ Create `game/entities/render_order.py`:
 ```python
 from __future__ import annotations
 
-from enum import auto, Enum
+from enum import Enum, auto
 
 
 class RenderOrder(Enum):
@@ -388,10 +408,13 @@ The combat formula belongs in `Fighter`, not in `MeleeAction`. The action resolv
 Add a TYPE_CHECKING import for `Actor` to `game/entities/components/fighter.py` and add the `melee_attack` method:
 
 ```diff
+ from __future__ import annotations
++
++from typing import TYPE_CHECKING
+ 
  from game.entities.components.base_component import BaseComponent
  from game.constants import colors, sprites
  from game.entities.render_order import RenderOrder
-+from typing import TYPE_CHECKING
 +
 +if TYPE_CHECKING:
 +    from game.entities.entity import Actor
@@ -451,6 +474,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import tcod
 
+from game.actions import BumpAction
 from game.entities.components.base_component import BaseComponent
 
 if TYPE_CHECKING:
@@ -497,8 +521,6 @@ class HostileEnemy(BaseAI):
         dx = target.x - entity.x
         dy = target.y - entity.y
         distance = max(abs(dx), abs(dy))
-
-        from game.actions import BumpAction
 
         if distance <= 1:
             BumpAction(dx, dy).perform(engine, entity)

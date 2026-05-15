@@ -610,6 +610,14 @@ class DropItem(ItemAction):
 
 The `assert isinstance(entity, Actor)` calls enforce a design contract: `Action.perform` is declared with `entity: Entity`, but these three actions require an `Actor` (only actors have `inventory`). The asserts make that constraint explicit at runtime and narrow the declared type, so a type checker can verify the subsequent attribute accesses without casts.
 
+Since `Actor` is now imported at the top of the file, remove the local import that was inside `MeleeAction.perform()`:
+
+```diff
+-        from game.entities.entity import Actor
+-
+         if not isinstance(entity, Actor):
+```
+
 Also add `PickupAction` to the import list at the top of `game/input_handlers.py`:
 
 ```diff
@@ -628,12 +636,15 @@ So far `Engine.handle_events()` ran the action returned by the event handler. Th
 
     Moving the execution loop into `EventHandler.handle_events()` gives each handler control over what happens after an action.
 
-Update `game/engine.py`. The `handle_events` signature changes from `Iterable[Any]` to `Iterable[tcod.event.Event]`, so `Any` is no longer needed:
+Update `game/engine.py`. The `handle_events` signature changes from `Iterable[Any]` to `Iterable[tcod.event.Event]`, so `Any` is no longer needed. `GameOverEventHandler` also moves out of `engine.py` (it is now referenced from inside `EventHandler.handle_events` in `input_handlers.py`):
 
 ```diff
 -from typing import Any
 
  import tcod.event
+ ...
+-from game.input_handlers import EventHandler, GameOverEventHandler, MainGameEventHandler
++from game.input_handlers import EventHandler, MainGameEventHandler
 ```
 
 Then simplify `handle_events()` to a one-line dispatch:
@@ -650,10 +661,9 @@ Then simplify `handle_events()` to a one-line dispatch:
 +        self.event_handler.handle_events(event)
 ```
 
-Now rewrite `EventHandler.handle_events()` in `game/input_handlers.py` to own the full execution cycle. Also add the missing imports:
+Now rewrite `EventHandler.handle_events()` in `game/input_handlers.py` to own the full execution cycle. `from game.constants import colors` was already imported in Part 7; only `Impossible` is new:
 
 ```diff
-+from game.constants import colors
 +from game.exceptions import Impossible
  from game.message_log import MessageLog
 ```
@@ -854,17 +864,21 @@ Expand the function signature:
 +    number_of_items    = random.randint(min_items, max_items)
 ```
 
-Then add the item spawning loop at the end of the function body, after the existing monster loop. The context below keeps monster selection on `random.choices`, which scales better than hardcoded `if/else` branches as the monster table grows:
+Then add the item spawning loop at the end of the function body. The diff also renames the `monster` variable to `monsters` and moves the `[0]` index onto its own line so the comment reads on its own line:
 
 ```diff
         if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
-            monsters = random.choices(
-                monster_templates,
-                weights=monster_weights,
-                k=1,
-            )
-            # First element (because random.choices returns a list)
-            monsters[0].spawn(dungeon, x, y)
+-            monster = random.choices(
++            monsters = random.choices(
+                 monster_templates,
+                 weights=monster_weights,
+-                k=1,
+-            )[0]
+-            monster.spawn(dungeon, x, y)
++                k=1,
++            )
++            # First element (because random.choices returns a list)
++            monsters[0].spawn(dungeon, x, y)
 +
 +    for _ in range(number_of_items):
 +        x = random.randint(room.x1 + 1, room.x2 - 1)
@@ -1005,9 +1019,9 @@ The central architectural change in this chapter is the `owner` field: an entity
 
 ## Exercises
 
-1. **Scroll the inventory panel**:
+1. **Item stacking**:
 
-    The current overlay maps letters `a`-`z` to slots 0-25, which caps the visible inventory at 26 items regardless of `capacity`. Add a scroll offset to `InventoryEventHandler`: `PageUp` decrements it, `PageDown` increments it. Adjust the item rendering loop to start at the offset, and add a `↑`/`↓` indicator at the top or bottom of the frame when there are items above or below the visible window. This is the same principle as the message log scroll from Part 7.
+    When the inventory displays items, group identical items and show a count: `(a) Health Potion (x3)`. Items with the same `name` form a stack. Implement stacking in `InventoryEventHandler.on_render()`, and decide how `Inventory.drop()` and the letter-to-index mapping should behave when the player drops one item from a stack.
 
 2. **Backpack scroll**:
 
@@ -1015,8 +1029,8 @@ The central architectural change in this chapter is the `owner` field: an entity
 
     The player starts at `capacity=26` and can use up to three scrolls (`+8` each) before hitting the ceiling. Each scroll consumed is a permanent, irreversible upgrade, so finding them is meaningful.
 
-3. **Item stacking**:
+3. **Scroll the inventory panel**:
 
-    When the inventory displays items, group identical items and show a count: `(a) Health Potion (x3)`. Items with the same `name` form a stack. Implement stacking in `InventoryEventHandler.on_render()`, and decide how `Inventory.drop()` and the letter-to-index mapping should behave when the player drops one item from a stack.
+    The current overlay maps letters `a`-`z` to slots 0-25, which caps the visible inventory at 26 items regardless of `capacity`. Add a scroll offset to `InventoryEventHandler`: `PageUp` decrements it, `PageDown` increments it. Adjust the item rendering loop to start at the offset, and add a `↑`/`↓` indicator at the top or bottom of the frame when there are items above or below the visible window. This is the same principle as the message log scroll from Part 7.
 
 **Next**: [Part 9: Spells and Targeting](part-9.md)

@@ -235,7 +235,7 @@ Update `__init__` to use the new handler class and track mouse position:
 
 ```diff
      self.game_map = game_map
-+    self.mouse_location = tcod.event.Point(0, 0)
++    self.mouse_location: tuple[int, int] = (0, 0)
      self.player = player
 -    self.event_handler = EventHandler()
 +    self.event_handler: EventHandler = MainGameEventHandler(self)
