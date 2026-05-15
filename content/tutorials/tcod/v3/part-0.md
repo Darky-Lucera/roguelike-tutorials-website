@@ -1,5 +1,9 @@
 # Part 0: Introduction and Setup
 
+## What You Will Build
+
+By the end of this part, you will have a Python project configured with `uv`, `tcod`, and `numpy`, and a game window that opens on your screen. It will not do much yet, but every chapter from here builds directly on this foundation.
+
 ## Learning goals
 
 - Understand what makes a roguelike a roguelike

@@ -1,5 +1,9 @@
 # Part 8: Items and Inventory
 
+## What You Will Build
+
+By the end of this part, the dungeon will contain items the player can pick up, carry in an inventory, use for healing, and drop back onto the map.
+
 ## Learning goals
 
 - Add `Item` as a new entity class and `HealingConsumable` as its first component

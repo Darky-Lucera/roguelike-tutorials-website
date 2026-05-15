@@ -1,5 +1,9 @@
 # Part 3: Generating a Dungeon
 
+## What You Will Build
+
+By the end of this part, your roguelike will generate a new dungeon layout made of rooms and tunnels each time it starts, instead of using a single hand-written room.
+
 ## Learning goals
 
 - Understand what procedural generation means and why it matters

@@ -1,5 +1,9 @@
 # Part 4: Field of View
 
+## What You Will Build
+
+By the end of this part, the player will only see the parts of the dungeon that are currently visible, while previously explored areas remain remembered on the map.
+
 ## Learning goals
 
 - Understand what FOV means in a roguelike and why it matters

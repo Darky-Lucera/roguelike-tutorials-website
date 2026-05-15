@@ -1,5 +1,9 @@
 # Part 2: Entities, the Map, and the Engine
 
+## What You Will Build
+
+By the end of this part, the game looks the same on screen, but the code is reorganized into entities, a map, and an engine. Every feature added from Part 3 onward (dungeons, enemies, items, spells) fits into the structure introduced here.
+
 ## Learning goals
 
 - Represent game objects with a generic `Entity` class
@@ -371,6 +375,9 @@ class MovementAction(Action):
 
 !!! question "What is `TYPE_CHECKING`?"
     `from engine import Engine` inside the file would create a circular import: `game/engine.py` imports from `game/actions.py`, and `game/actions.py` would import from `game/engine.py`. `TYPE_CHECKING` is `False` at runtime, so the import only happens when a type checker (like mypy or Pyright) analyzes the code. This breaks the cycle.
+
+!!! tip "Action is meant to be subclassed"
+    `Action` is never intended to be instantiated directly: it is a contract that subclasses fulfill. Right now that intent lives only in the docstring. In Part 5, we will make it a formal, enforceable contract using Python's `abc` module.
 
 Now `Engine.handle_events` shrinks to a single line. Apply this diff to `game/engine.py`:
 

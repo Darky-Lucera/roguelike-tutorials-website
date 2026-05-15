@@ -1,5 +1,9 @@
 # Part 7: The User Interface
 
+## What You Will Build
+
+By the end of this part, your game will have a health bar, a message log, and a look cursor that lets the player inspect the map. For the first time, the game will communicate with the player through the screen rather than the terminal.
+
 ## Learning goals
 
 - Divide the screen into a map area and a UI panel

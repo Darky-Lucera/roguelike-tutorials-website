@@ -1,5 +1,9 @@
 # Part 11: Dungeon Levels and Experience
 
+## What You Will Build
+
+By the end of this part, the player will gain experience from defeating enemies, level up with stat choices, and descend stairs to deeper dungeon floors.
+
 ## Learning goals
 
 - Track experience points and character level on a `Level` component

@@ -1,11 +1,16 @@
 # Part 5: Enemies and the Turn System
 
+## What You Will Build
+
+By the end of this part, enemies will appear in the dungeon, block movement, chase the player when visible, and take their turns after the player acts.
+
 ## Learning goals
 
 - Use entity templates (factory pattern) instead of inline creation
 - Place enemies in dungeon rooms during generation
 - Implement a turn system: player acts, then enemies act
 - Write a basic hostile AI that pursues the player
+- Use Python's `ABC` and `@abstractmethod` to enforce the `Action` contract
 
 ---
 
@@ -271,6 +276,7 @@ Update `game/actions.py` with new action types:
 ```python
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -278,9 +284,10 @@ if TYPE_CHECKING:
     from game.entity import Entity
 
 
-class Action:
+class Action(ABC):
+    @abstractmethod
     def perform(self, engine: Engine, entity: Entity) -> None:
-        raise NotImplementedError()
+        ...
 
 
 class EscapeAction(Action):
@@ -293,7 +300,7 @@ class WaitAction(Action):
         pass  # Do nothing; time still passes.
 
 
-class ActionWithDirection(Action):
+class ActionWithDirection(Action, ABC):
     """Base for actions that have a dx/dy direction."""
 
     def __init__(self, dx: int, dy: int) -> None:
@@ -307,10 +314,10 @@ class MovementAction(ActionWithDirection):
         dest_y = entity.y + self.dy
 
         if not engine.game_map.in_bounds(dest_x, dest_y):
-            return
+            return  # Destination is outside the map.
 
         if not engine.game_map.tiles["walkable"][dest_x, dest_y]:
-            return
+            return  # Destination is blocked by a tile.
 
         if engine.game_map.get_blocking_entity_at(dest_x, dest_y):
             return  # Blocked by an entity; cannot move here.
@@ -343,6 +350,20 @@ class BumpAction(ActionWithDirection):
         else:
             MovementAction(self.dx, self.dy).perform(engine, entity)
 ```
+
+!!! info "Abstract classes and `ABC`"
+    `Action` was always intended as a blueprint, never to be instantiated directly. Python's `abc` module lets you enforce that formally:
+
+    - `ABC` (Abstract Base Class): inheriting from it marks a class as abstract. Any attempt to instantiate it directly raises a `TypeError`.
+    - `@abstractmethod`: marks a method as a contract that every concrete subclass must override, or Python will refuse to instantiate that subclass.
+
+    `ActionWithDirection` is also abstract: it stores `dx`/`dy` but deliberately leaves `perform` to its own subclasses. Without the `ABC` marker, a linter like Pylint would warn:
+
+    ```txt
+    W0223: Method 'perform' is abstract in class 'Action' but is not overridden in child class 'ActionWithDirection'
+    ```
+
+    The fix is `class ActionWithDirection(Action, ABC)`. Python allows a class to list more than one parent (multiple inheritance). Here `Action` contributes the action interface and `ABC` contributes the abstract-class machinery. Listing both tells linters and the runtime that `ActionWithDirection` is itself abstract and is not expected to implement `perform`.
 
 !!! info "Design decision: BumpAction as dispatcher"
     The input handler does not know what is at the destination; it just knows the player pressed right. `BumpAction` resolves the ambiguity at perform-time by checking the map. This keeps the input handler simple and decouples input from game logic.
@@ -763,6 +784,7 @@ Enemies are now in the dungeon and the turn system is running. Key patterns intr
 - **AI component**: each enemy has a `perform(engine, entity)` method called each turn
 - **BumpAction**: resolves move-or-attack at runtime, keeping input handling simple
 - **Turn loop**: player acts → `handle_enemy_turns()` → `update_fov()`
+- **ABC + `@abstractmethod`**: make the `Action` contract explicit and linter-enforced
 
 **Current architecture**:
 

@@ -1,5 +1,9 @@
 # Part 1: Drawing the @ and Moving It Around
 
+## What You Will Build
+
+By the end of this part, you will have the first playable version of your roguelike: a player character, `@`, moving with the arrow keys inside a small room bounded by walls, `#`.
+
 ## Learning goals
 
 - Understand the game loop and why roguelikes structure it the way they do

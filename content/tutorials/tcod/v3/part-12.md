@@ -1,5 +1,9 @@
 # Part 12: Procedural Difficulty
 
+## What You Will Build
+
+By the end of this part, deeper dungeon floors will feel harder in a way the player can notice: tougher enemies appear more often, and better items become available to compensate. The spawn system driving this is small but reusable for any future content.
+
 ## Learning goals
 
 - Replace hard-coded spawn counts with floor-keyed weighted tables

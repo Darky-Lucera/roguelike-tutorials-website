@@ -1,5 +1,9 @@
 # Part 6: Combat
 
+## What You Will Build
+
+By the end of this part, the player and enemies will have hit points, deal melee damage, die when reduced to zero HP, and leave corpses behind in the dungeon.
+
 ## Learning goals
 
 - Add a `Fighter` component that owns HP, defense, and attack

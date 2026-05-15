@@ -1,5 +1,9 @@
 # Part 10: Save and Load
 
+## What You Will Build
+
+By the end of this part, your roguelike will have a main menu and a save system, allowing the player to quit the game and continue later from the saved state.
+
 ## Learning goals
 
 - Serialize the entire game state to disk with `pickle` + `lzma`
@@ -95,8 +99,6 @@ from __future__ import annotations
 
 import copy
 from pathlib import Path
-
-import tcod
 
 from game.constants import colors
 from game.entities import factories
@@ -389,7 +391,7 @@ class SelectIndexHandler(EventHandler):
 
 Targeting consumables also need to be migrated. In Part 9, `ConfusionConsumable.get_action()` and `FireballDamageConsumable.get_action()` installed their targeting handler by mutating `engine.event_handler` and returning `None`. That worked when the engine owned the active handler, but now the main loop drives state through `handle_events`'s return value. A `None` return leaves the inventory handler active and the targeting cursor never appears.
 
-Rather than mixing handler transitions into `get_action()` — which is supposed to return an action — we give `Consumable` a dedicated method. Add `get_targeting_handler()` to the base class:
+Rather than mixing handler transitions into `get_action()`, which is supposed to return an action, we give `Consumable` a dedicated method. Add `get_targeting_handler()` to the base class:
 
 ```python
 class Consumable:
@@ -397,28 +399,47 @@ class Consumable:
         return None
 ```
 
-Then override it in the targeting consumables. You can also remove their `get_action()` overrides at the same time, since that code is now dead:
+Then override it in the targeting consumables. Remove the old `get_action()` overrides from Part 9 at the same time, since that code is now dead:
 
-```python
-class ConfusionConsumable(Consumable):
-    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
-        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
-        from game.input_handlers import SingleRangedAttackHandler
-        return SingleRangedAttackHandler(
-            engine,
-            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
-        )
+```diff
+ class ConfusionConsumable(Consumable):
+-    def get_action(self, consumer: Actor, engine: Engine):
+-        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
+-        from game.input_handlers import SingleRangedAttackHandler
+-        engine.event_handler = SingleRangedAttackHandler(
+-            engine,
+-            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+-        )
+-        return None
+-
++    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
++        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
++        from game.input_handlers import SingleRangedAttackHandler
++        return SingleRangedAttackHandler(
++            engine,
++            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
++        )
++
 
-
-class FireballDamageConsumable(Consumable):
-    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
-        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
-        from game.input_handlers import AreaRangedAttackHandler
-        return AreaRangedAttackHandler(
-            engine,
-            radius=self.radius,
-            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
-        )
+ class FireballDamageConsumable(Consumable):
+-    def get_action(self, consumer: Actor, engine: Engine):
+-        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
+-        from game.input_handlers import AreaRangedAttackHandler
+-        engine.event_handler = AreaRangedAttackHandler(
+-            engine,
+-            radius=self.radius,
+-            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+-        )
+-        return None
+-
++    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
++        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
++        from game.input_handlers import AreaRangedAttackHandler
++        return AreaRangedAttackHandler(
++            engine,
++            radius=self.radius,
++            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
++        )
 ```
 
 Finally, update `InventoryActivateHandler.on_item_selected` to check for a targeting handler before falling back to `get_action()`:
@@ -434,7 +455,7 @@ class InventoryActivateHandler(InventoryEventHandler):
         return item.consumable.get_action(self.engine.player, self.engine)
 ```
 
-`get_action()` itself is unchanged — it still returns `Action | None`. The wider return type on `on_item_selected` comes from the fact that it can now also return a `BaseEventHandler` from `get_targeting_handler`. `handle_events` already handles this with `if isinstance(action, BaseEventHandler): return action`.
+`get_action()` itself is unchanged: it still returns `Action | None`. The wider return type on `on_item_selected` comes from the fact that it can now also return a `BaseEventHandler` from `get_targeting_handler`. `handle_events` already handles this with `if isinstance(action, BaseEventHandler): return action`.
 
 ---
 
@@ -519,7 +540,17 @@ The `try/except SystemExit` inside `run()` catches the quit signal raised by any
 
 ## Delete save on death
 
-If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverEventHandler`:
+If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverEventHandler`.
+
+First, add `Path` and `SAVE_PATH` to the imports in `game/input_handlers.py`:
+
+```diff
++from pathlib import Path
+ ...
++from game.setup_game import SAVE_PATH, load_game, new_game
+```
+
+Then add the class:
 
 ```python
 class GameOverEventHandler(EventHandler):
@@ -527,12 +558,11 @@ class GameOverEventHandler(EventHandler):
         super().on_render(console)
 
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
-        action: Action | None = None
         match event:
             case tcod.event.Quit():
                 raise SystemExit()
             case tcod.event.KeyDown():
-                action = self.event_keydown(event)
+                self.event_keydown(event)
         return self
 
     def event_keydown(self, event: tcod.event.KeyDown):
@@ -636,7 +666,7 @@ Key additions:
 - `setup_game.py`: creates new games and loads saved ones
 - `BaseEventHandler`: common interface for menu, popup, and engine-backed handlers
 - `MainMenu`: starts before an `Engine` exists
-- `Engine.save()` / `Engine.load()`: serialize and restore the live object graph plus `MessageLog.messages`
+- `Engine.save_as()` / `Engine.load()`: serialize and restore the live object graph plus `MessageLog.messages`
 
 **File structure**:
 

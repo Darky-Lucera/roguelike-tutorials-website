@@ -1,5 +1,9 @@
 # Part 9: Spells and Targeting
 
+## What You Will Build
+
+By the end of this part, the player will be able to use scrolls with targeted effects, including lightning, confusion, and fireball spells.
+
 ## Learning goals
 
 - Add a targeting cursor the player moves with keyboard or mouse
@@ -83,7 +87,6 @@ class SelectIndexHandler(EventHandler):
         if key in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
             return self.on_index_selected(*self.engine.mouse_location)
         if key == tcod.event.KeySym.ESCAPE:
-            from game.input_handlers import MainGameEventHandler
             self.engine.event_handler = MainGameEventHandler(self.engine)
             return None
         return super().event_keydown(event)
@@ -245,7 +248,10 @@ class ConfusionConsumable(Consumable):
         self.consume()
 ```
 
-`InventoryActivateHandler.on_item_selected` (from Part 8) calls `consumable.get_action()` when the player selects an item. Targeting consumables override it to install the cursor handler on the engine and return `None` — no action is performed yet. The actual `ItemAction` is built by the callback once the player confirms a target.
+`InventoryActivateHandler.on_item_selected` (from Part 8) calls `consumable.get_action()` when the player selects an item. Targeting consumables override it to install the cursor handler on the engine and return `None`; no action is performed yet. The actual `ItemAction` is built by the callback once the player confirms a target.
+
+!!! note "This pattern is temporary"
+    Mutating `engine.event_handler` inside `get_action()` works here, but it mixes handler transitions into a method that is supposed to return an action. Part 10 replaces this with a dedicated `get_targeting_handler()` method and a return-based state machine, making the transition explicit and clean.
 
 Add colors to `game/constants/colors.py`:
 
@@ -254,18 +260,18 @@ NEEDS_TARGET = (0x3F, 0xFF, 0xFF)
 STATUS_EFFECT_APPLIED = (0x3F, 0xFF, 0x3F)
 ```
 
-`ItemAction` needs a `target_xy` parameter. Update `game/actions.py`:
+`ItemAction` needs a `target_xy` parameter. Add it to `__init__` in `game/actions.py`:
 
-```python
-class ItemAction(Action):
-    def __init__(self, item: Item, target_xy=None) -> None:
-        super().__init__()
-        self.item = item
-        self.target_xy = target_xy
-
-    def perform(self, engine: Engine, entity: Entity) -> None:
-        self.item.consumable.activate(self, engine, entity)
+```diff
+ class ItemAction(Action):
+-    def __init__(self, item: Item) -> None:
++    def __init__(self, item: Item, target_xy: tuple[int, int] | None = None) -> None:
+         super().__init__()
+         self.item = item
++        self.target_xy = target_xy
 ```
+
+`perform` is unchanged from Part 8: it still asserts `isinstance(entity, Actor)` before calling `activate`.
 
 ### FireballDamageConsumable (AoE cursor)
 
@@ -298,7 +304,8 @@ class FireballDamageConsumable(Consumable):
             if actor.distance(*target_xy) <= self.radius:
                 MessageLog.add_message(
                     f"The {actor.name} is engulfed in a fiery explosion,"
-                    f" taking {self.damage} damage!"
+                    f" taking {self.damage} damage!",
+                    colors.PLAYER_ATTACK,
                 )
                 actor.fighter.take_damage(self.damage)
                 targets_hit = True
@@ -350,7 +357,10 @@ class ConfusedEnemy(BaseAI):
             BumpAction(direction_x, direction_y).perform(engine, entity)
 ```
 
-A confused enemy picks a random direction each turn. It can still accidentally attack the player if it bumps into them, this is a feature, not a bug. When the confusion expires it restores its previous AI.
+A confused enemy picks a random direction each turn. It can still accidentally attack the player if it bumps into them; this is a feature, not a bug. When the confusion expires it restores its previous AI.
+
+!!! info "Why does `ConfusedEnemy` receive `entity` in `__init__`?"
+    Every other component gets its `entity` set externally after creation (`component.entity = self` in `Actor.__init__`). `ConfusedEnemy` is different because it is created at runtime during gameplay, not at game initialisation. The target actor is already known at construction time, so passing `entity` directly and assigning `self.entity = entity` in `__init__` is the right approach here.
 
 ---
 
@@ -429,7 +439,9 @@ lightning_scroll = Item(
 
 ## Update the map generator to spawn scrolls
 
-Update `place_entities()` to pick randomly from several item types:
+Update `place_entities()` to pick randomly from several item types.
+
+First, add the item probability table at **module level** in `map_generator.py`, before `place_entities`:
 
 ```python
 item_chances = [
@@ -438,8 +450,19 @@ item_chances = [
     (factories.lightning_scroll, 25),
     (factories.fireball_scroll, 25),
 ]
+```
 
-def place_entities(room, dungeon, min_monsters, max_monsters, min_items, max_items):
+Then update the item spawn loop inside `place_entities`. While here, restore the full typed signature:
+
+```python
+def place_entities(
+    room: RectangularRoom,
+    dungeon: GameMap,
+    min_monsters: int,
+    max_monsters: int,
+    min_items: int,
+    max_items: int,
+) -> None:
     ...
     for _ in range(number_of_items):
         x = random.randint(room.x1 + 1, room.x2 - 1)
@@ -485,7 +508,6 @@ class EventHandler:
                 self.engine.handle_enemy_turns()
 
             if not self.engine.player.is_alive:
-                from game.input_handlers import GameOverEventHandler
                 self.engine.event_handler = GameOverEventHandler(self.engine)
 
             elif isinstance(
@@ -589,4 +611,4 @@ game/
 
     Modify `ConfusedEnemy` so that on each wandering move, there is a 20% chance the entity also takes 1 point of damage (it's stumbling into walls). Add a message: `"The Orc stumbles into a wall!"`.
 
-**Next**: Part 10: Save and Load
+**Next**: [Part 10: Save and Load](part-10.md)

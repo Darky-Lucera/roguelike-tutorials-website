@@ -1,5 +1,9 @@
 # Part 13: Equipment
 
+## What You Will Build
+
+By the end of this part, the player can find, equip, and swap weapons and armor, and their combat stats will reflect what they are carrying. With this in place, the main tutorial game is complete.
+
 ## Learning goals
 
 - Add `Equippable` and `Equipment` components
