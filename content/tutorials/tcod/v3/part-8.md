@@ -90,9 +90,15 @@ In `game/constants/colors.py`, add an item color and two new message colors. Pla
  WELCOME_TEXT = (0x20, 0xA0, 0xFF)
  ...
 +INVALID      = (0xFF, 0xFF, 0x00)
++
++# Inventory overlay colors
++INVENTORY_USE_FG  = (132, 198, 140)
++INVENTORY_USE_BG  = ( 16,  99,  27)
++INVENTORY_DROP_FG = (192, 128, 255)
++INVENTORY_DROP_BG = (128,   0, 255)
 ```
 
-`HEALTH_RECOVERED` is bright green for HP-restore messages. `INVALID` is yellow for action-rejection messages.
+`HEALTH_RECOVERED` is bright green for HP-restore messages. `INVALID` is yellow for action-rejection messages. The four inventory constants define the foreground (border and text) and background colors for the two overlays: green for "use item", purple for "drop item".
 
 ---
 
@@ -515,7 +521,7 @@ Every `Actor` now requires an `Inventory`. Add the component to the existing tem
      name      = "Player",
      ai        = None,
      fighter   = Fighter(hp=30, defense=2, attack=5),
-+    inventory = Inventory(capacity=26),
++    inventory = Inventory(capacity=10),
  )
 
  orc = Actor(
@@ -537,9 +543,9 @@ Every `Actor` now requires an `Inventory`. Add the component to the existing tem
  )
 ```
 
-Enemies get `capacity=0`: their inventory exists (so the type is satisfied) but they cannot hold any items. An orc that walks over a potion will not pick it up.
+The player starts with `capacity=10`. 10 makes a full inventory a real constraint worth managing. Enemies get `capacity=0`: their inventory exists (so the type is satisfied) but they cannot hold any items. An orc that walks over a potion will not pick it up.
 
-Then add the health potion template at the bottom of the file:
+Then add the health potion template and the spawn table at the bottom of the file:
 
 ```python
 # Items
@@ -549,7 +555,21 @@ health_potion = Item(
     name       = "Health Potion",
     consumable = HealingConsumable(amount=4),
 )
+
+chest = Entity(
+    char            = sprites.CHEST,
+    color           = colors.CHEST,
+    name            = "Chest",
+    blocks_movement = True,
+)
+
+item_chances = [
+    (health_potion, 40),
+    (chest,         60),
+]
 ```
+
+`item_chances` mirrors the `monster_chances` pattern from Part 5: a list of `(template, weight)` pairs that `map_generator.py` will use to pick which item to place in each room. Weights are relative: a chest (60) is created more often than a potion (40). Exercise 2 adds `backpack_scroll` to this list.
 
 ---
 
@@ -714,6 +734,29 @@ The return type of `handle_events` changes from `Action | None` to `None`. Updat
 
 ---
 
+## Trim movement keys
+
+Vi keys (`b`, `h`, `j`, `k`, `l`, `n`, `u`, `y`) have been part of roguelikes since the original *Rogue* (1980), which ran on VT100 terminals with no arrow keys. On a modern keyboard, arrow keys and the numpad cover the same directions with less ambiguity, and freeing those letters matters here: this chapter adds `G`, `I`, and `D` as action keys, and Exercise 3 assigns the remaining letters to items for direct use from the map.
+
+Remove the vi keys block from `MOVE_KEYS` in `game/input_handlers.py`:
+
+```diff
+-    # Vi keys
+-    tcod.event.KeySym.B:     (-1,  1),
+-    tcod.event.KeySym.J:     ( 0,  1),
+-    tcod.event.KeySym.N:     ( 1,  1),
+-    tcod.event.KeySym.H:     (-1,  0),
+-    tcod.event.KeySym.L:     ( 1,  0),
+-    tcod.event.KeySym.Y:     (-1, -1),
+-    tcod.event.KeySym.K:     ( 0, -1),
+-    tcod.event.KeySym.U:     ( 1, -1),
+```
+
+!!! info "Numpad vs. regular number keys"
+    `tcod.event.KeySym.KP_1`–`KP_9` are distinct key codes from `tcod.event.KeySym.K_1`–`K_9`. Numpad keys continue to work for movement. Regular number keys (`1`–`9`, `0`) remain free for future use, such as equipment slots in Part 13.
+
+---
+
 ## Update `MainGameEventHandler`
 
 Add three key bindings at the end of `event_keydown`:
@@ -749,34 +792,53 @@ Three new handler classes go at the bottom of `game/input_handlers.py`.
 class InventoryEventHandler(EventHandler):
     """Base class for inventory screens (use and drop share the same UI)."""
 
-    TITLE = "<missing title>"
+    TITLE    = "<missing title>"
+    FG_COLOR = colors.WHITE
+    BG_COLOR = colors.BLACK
 
     def on_render(self, console: tcod.Console) -> None:
         super().on_render(console)  # draws the map behind the overlay
 
-        number_of_items_in_inventory = len(self.engine.player.inventory.items)
+        inventory = self.engine.player.inventory
+        number_of_items_in_inventory = len(inventory.items)
 
-        height = max(3, number_of_items_in_inventory + 2)
+        height = min(max(3, number_of_items_in_inventory + 2), console.height - 2)
 
-        x = 5
-        y = 0
-        width = len(self.TITLE) + 4
+        item_width = max((len(item.name) for item in inventory.items), default=0) + 8
+        width  = max(len(self.TITLE) + 4, item_width)
+        x = (console.width  - width)  // 2
+        y = (console.height - height) // 2
 
+        # Fills the entire window with the inventory background color
+        console.draw_rect(
+            x        = x,
+            y        = y,
+            width    = width,
+            height   = height,
+            ch       = ord(' '),
+            fg       = self.FG_COLOR,
+            bg       = self.BG_COLOR,
+            bg_blend = tcod.constants.BKGND_SET,
+        )
+
+        # Draws only the frame and title, leaving the previous fill intact
         console.draw_frame(
             x      = x,
             y      = y,
             width  = width,
             height = height,
             title  = self.TITLE,
-            clear  = True,
-            fg     = colors.WHITE,
-            bg     = colors.BLACK,
+            clear  = False,
+            fg     = self.FG_COLOR,
+            bg     = self.BG_COLOR,
         )
 
         if number_of_items_in_inventory > 0:
-            for i, item in enumerate(self.engine.player.inventory.items):
+            for i, item in enumerate(inventory.items[:height - 2]):
                 item_key = chr(ord("a") + i)
-                console.print(x + 1, y + i + 1, f"({item_key}) {item.name}")
+                console.print(x + 1, y + i + 1, f"({item_key}) ")
+                console.print(x + 5, y + i + 1, item.char, fg=item.color)
+                console.print(x + 7, y + i + 1, item.name)
 
         else:
             console.print(x + 1, y + 1, "(Empty)")
@@ -806,14 +868,18 @@ class InventoryEventHandler(EventHandler):
 
 
 class InventoryActivateHandler(InventoryEventHandler):
-    TITLE = "Select an item to use"
+    TITLE    = "Select an item to use"
+    FG_COLOR = colors.INVENTORY_USE_FG
+    BG_COLOR = colors.INVENTORY_USE_BG
 
     def on_item_selected(self, item: Item) -> Action | None:
         return item.consumable.get_action(self.engine.player, self.engine)
 
 
 class InventoryDropHandler(InventoryEventHandler):
-    TITLE = "Select an item to drop"
+    TITLE    = "Select an item to drop"
+    FG_COLOR = colors.INVENTORY_DROP_FG
+    BG_COLOR = colors.INVENTORY_DROP_BG
 
     def on_item_selected(self, item: Item) -> Action | None:
         from game.actions import DropItem
@@ -821,7 +887,15 @@ class InventoryDropHandler(InventoryEventHandler):
         return DropItem(item=item)
 ```
 
-`on_render()` calls `super().on_render()` first, which renders the map normally, then draws a frame overlay on top. The frame height is the number of items plus 2 (borders), with a minimum of 3 so an empty inventory still has a visible box.
+`on_render()` renders the map first via `super()`, then draws the overlay in two passes.
+
+The first pass is `console.draw_rect()` with `bg_blend=tcod.constants.BKGND_SET`. The SET blend mode writes the background color directly, producing an opaque fill. `ch=ord(' ')` replaces every character cell in the rectangle with a space, so the map tiles underneath are fully hidden. `fg=self.FG_COLOR` sets the foreground color on those cells as well, so the text printed on top inherits the right color from the start.
+
+The second pass is `console.draw_frame()` with `clear=False`. Because `draw_rect` already set the background, `clear=False` tells `draw_frame` to draw only the border characters without overwriting the interior. `fg=self.FG_COLOR` colors the border; `bg=self.BG_COLOR` sets the border cells' background to match.
+
+Each item line is printed in three pieces: the letter key at `x+1` (e.g. `(a)`), the item sprite in its own color at `x+5`, and the name at `x+7`. This separates the selection key from the item's visual identity and lets the sprite color stand out. The frame width is calculated to fit the longest item name: `len(name) + 8` accounts for the 7 prefix characters (key, space, sprite, space) plus 1 for a trailing margin.
+
+`TITLE`, `FG_COLOR`, and `BG_COLOR` follow the same class-variable pattern introduced in Part 7 for `GameOverEventHandler`. Each subclass overrides them: green tones for activation, purple tones for dropping, so the player always knows which overlay is open at a glance.
 
 `event_keydown()` converts the pressed key to an index: `a → 0`, `b → 1`, and so on. The range `0 <= index <= 25` covers exactly the 26 letters `a`-`z`. If the index falls outside the item list, it logs "Invalid entry." and returns `None`. Otherwise it calls `on_item_selected()`, which the two subclasses implement differently. `Escape` closes the overlay immediately by switching back to `MainGameEventHandler` without returning an action (so enemies do not take a turn).
 
@@ -955,6 +1029,122 @@ Pass them to `generate_dungeon`:
 
 ---
 
+## Treasure chests
+
+The chest introduced in Part 5 has been blocking movement without doing anything useful. Now that `Item` and `Consumable` exist, the chest can become a collectible that rewards the player with gold.
+
+### New color constant
+
+In `game/constants/colors.py`:
+
+```diff
+ INVALID = (0xFF, 0xFF, 0x00)
++GOLD    = (0xFF, 0xD7, 0x00)
+```
+
+### `TreasureConsumable`
+
+Add a new consumable class in `game/entities/components/consumable.py`. It differs from `HealingConsumable` in one important way: the item is never added to the inventory. It is collected directly from the floor and disappears immediately. Add a class-level flag to mark this behavior, and override it:
+
+```diff
+ class Consumable(ItemComponent):
++    auto_collect: bool = False
+```
+
+```python
+class TreasureConsumable(Consumable):
+    auto_collect = True
+
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def activate(self, _action: ItemAction, engine: Engine, consumer: Actor) -> None:
+        consumer.gold += self.value
+        MessageLog.add_message(
+            f"You found {self.value} gold!",
+            colors.GOLD,
+        )
+        engine.game_map.entities.discard(self.entity)
+        self.entity.owner = None
+```
+
+`activate()` adds `value` to `consumer.gold`, logs the find, and removes the chest from the map in the same call. There is no `self.consume()` here because `consume()` removes an item from an inventory; the chest was never in one.
+
+### `gold` field on `Actor`
+
+Add `self.gold = 0` at the end of `Actor.__init__`. It sits alongside `inventory` and `ai` as a first-class actor attribute, readable anywhere as `actor.gold`:
+
+```diff
+         self.ai: BaseAI | None = ai
+         if self.ai:
+             self.ai.entity = self
++
++        self.gold = 0
+```
+
+### Convert `chest` in `factories.py`
+
+Replace the passive `Entity` with an `Item`:
+
+```diff
+-chest = Entity(
+-    char            = sprites.CHEST,
+-    color           = colors.CHEST,
+-    name            = "Chest",
+-    blocks_movement = True,
+-)
++chest = Item(
++    char       = sprites.CHEST,
++    color      = colors.CHEST,
++    name       = "Chest",
++    consumable = TreasureConsumable(value=10),
++)
+```
+
+The chest no longer blocks movement (items never block movement). The player walks over it to collect it.
+
+### Auto-collect in `MovementAction`
+
+`PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. After `entity.move()` in `MovementAction.perform()`, scan the new tile for auto-collect items:
+
+```diff
+         entity.move(self.dx, self.dy)
++
++        # Auto-collect items that are picked up on contact (player only)
++        if entity is engine.player:
++            for item in list(engine.game_map.items):
++                if item.x == entity.x and item.y == entity.y and item.consumable.auto_collect:
++                    ItemAction(item=item).perform(engine, entity)
+```
+
+The guard is `entity is engine.player`, not `isinstance(entity, Actor)`: enemy movement also goes through `MovementAction`, so without this check an orc or troll that walks onto a chest would collect it and trigger "You found 10 gold!". `list(engine.game_map.items)` creates a snapshot before iterating because `activate()` modifies `game_map.entities` during the loop.
+
+### `render_gold` in `hud.py`
+
+Add a one-line gold display below the HP bar:
+
+```python
+def render_gold(
+    console: Console,
+    gold: int,
+    y: int = 46,
+) -> None:
+    console.print(x=0, y=y, text=f"$ {gold}", fg=colors.GOLD)
+```
+
+Call it from `Engine.render()`:
+
+```diff
+     hud.render_bar(...)
++
++    hud.render_gold(
++        console = console,
++        gold    = self.player.gold,
++    )
+```
+
+---
+
 ## Testing your work
 
 Run the game and verify the following:
@@ -969,14 +1159,38 @@ Run the game and verify the following:
 - Pressing an out-of-range letter in the inventory overlay shows "Invalid entry." in yellow.
 - Enemies still act on their turn after the player successfully uses or drops an item.
 - Enemies do *not* act when the player tries to pick up from an empty tile (a failed action costs no turn).
+- Chests (`$`) appear on the dungeon floor. Walking over one shows "You found 10 gold!" and the `$` symbol disappears.
+- The gold counter below the HP bar increments each time a chest is collected.
 
 ---
 
 ## Summary
 
+Items are now a first-class part of the game. Key additions:
+
+- **`game/exceptions.py`**: `Impossible` exception carries a rejection reason; one `except` in `handle_events` covers every case
+- **`ActorComponent` / `ItemComponent`**: narrowed base classes so type annotations match the actual runtime type
+- **`Entity.owner`**: single source of truth for whether an entity is on the floor or in an inventory
+- **`Item` / `Inventory`**: new entity subclass and actor component; pickup, use, and drop are modelled as actions
+- **`HealingConsumable`**: first consumable component; knows how to apply its effect independently of the action layer
+- **`TreasureConsumable`**: second consumable; collected on contact rather than through the inventory; `auto_collect = True` triggers pickup on walk
+- **`InventoryEventHandler`**: modal overlay base class; subclasses override `TITLE`, `FG_COLOR`, `BG_COLOR`, and `on_item_selected()`
+- **`Actor.gold`**: running treasure total on the actor itself (not in `Fighter`); displayed in the HUD below the HP bar
+
+**Current architecture**:
+
+- `Entity.owner`: set to `GameMap` on spawn, changed to `Inventory` on pickup, back to `GameMap` on drop; never `None` while the entity is alive
+- `Inventory`: component on `Actor`; holds items up to `capacity`, enforces the limit, and handles drop logic
+- `Consumable.auto_collect`: class-level flag; `MovementAction` checks it after every step and activates any matching item on the tile
+- `HealingConsumable.activate()`: applies healing and calls `self.consume()` to remove the item from inventory
+- `TreasureConsumable.activate()`: adds gold, logs the message, and removes the item from the map directly; it never enters inventory
+- `Impossible`: raised anywhere in the action chain; `handle_events` catches it and shows the message in the log
+- `InventoryEventHandler`: subclasses provide `on_item_selected()` and override the three class variables; `EventHandler.handle_events()` automatically switches back to `MainGameEventHandler` after an inventory action
+- `ActorComponent` / `ItemComponent`: `entity` annotation narrows from `Entity` to the actual holder type, so type checkers can verify component attribute access correctly
+
 **Class Diagram**:
 
-![classes](images/part8_classes_col.png)
+![classes](images/part8_classes.png)
 
 **File structure**:
 
@@ -987,7 +1201,7 @@ game/
 ├── actions.py                  ← modified
 ├── engine.py                   ← modified
 ├── exceptions.py               ← new
-├── hud.py
+├── hud.py                      ← modified
 ├── input_handlers.py           ← modified
 ├── message_log.py
 ├── constants/
@@ -1013,24 +1227,78 @@ game/
     └── map_generator.py        ← modified
 ```
 
-The central architectural change in this chapter is the `owner` field: an entity always knows whether it is on the map or in an inventory, and code that needs the map receives it as an explicit parameter rather than navigating the chain. The second change (moving action execution into `EventHandler`) enables modal overlays by giving each handler control over what happens after an action completes.
-
 ---
 
 ## Exercises
+
+!!! tip "Exercises 1-3 make the game noticeably more fun"
+    Exercises 1 through 3 together produce a game that is genuinely enjoyable to play: items stack cleanly in the overlay, the backpack scroll adds a progression mechanic worth hunting for, and persistent keys let the player activate items without opening the overlay at all. Exercise 4 is housekeeping that pays off in later parts. If you implement only three exercises this chapter, make it those three.
 
 1. **Item stacking**:
 
     When the inventory displays items, group identical items and show a count: `(a) Health Potion (x3)`. Items with the same `name` form a stack. Implement stacking in `InventoryEventHandler.on_render()`, and decide how `Inventory.drop()` and the letter-to-index mapping should behave when the player drops one item from a stack.
 
-2. **Backpack scroll**:
+2. **Backpack growing scroll**:
 
-    Add `max_capacity: int = 50` as a parameter to `Inventory.__init__`. Then create a `BackpackConsumable(bonus: int)` that increases `consumer.inventory.capacity` by `bonus`, capped at `max_capacity`. If the inventory is already at or above the cap, raise `Impossible`. Wire it up in `factories.py` as a `backpack_scroll` item and add it to the spawn table.
+    Add `max_capacity: int` as a **required** parameter to `Inventory.__init__` (no default). Requiring it explicitly forces every `Actor` in `factories.py` to declare its ceiling, including monsters: orc and troll get `max_capacity=0`, which prevents them from ever expanding. Without a default, a forgotten actor fails loudly at startup rather than silently inheriting 26.
 
-    The player starts at `capacity=26` and can use up to three scrolls (`+8` each) before hitting the ceiling. Each scroll consumed is a permanent, irreversible upgrade, so finding them is meaningful.
+    Then create `BackpackConsumable(amount: int)` that increases `consumer.inventory.capacity` by `amount`, capped at `max_capacity`. Use `min()` to compute the actual gain in one expression rather than two branches:
 
-3. **Scroll the inventory panel**:
+    ```python
+    actual = min(self.amount, consumer.inventory.max_capacity - consumer.inventory.capacity)
+    consumer.inventory.capacity += actual
+    ```
 
-    The current overlay maps letters `a`-`z` to slots 0-25, which caps the visible inventory at 26 items regardless of `capacity`. Add a scroll offset to `InventoryEventHandler`: `PageUp` decrements it, `PageDown` increments it. Adjust the item rendering loop to start at the offset, and add a `↑`/`↓` indicator at the top or bottom of the frame when there are items above or below the visible window. This is the same principle as the message log scroll from Part 7.
+    If the inventory is already at the cap, raise `Impossible` before touching anything. Wire up a `backpack_scroll` item in `factories.py` (sprite `"?"`, parchment color, name `"Backpack Growing Scroll"`) and add it to the spawn table alongside the health potion.
+
+    The player starts at `capacity=10` and can use scrolls (`+4` each) up to the ceiling of 26. Each scroll consumed is a permanent, irreversible upgrade, so finding them is meaningful.
+
+3. **Persistent item keys**:
+
+    In the current system the letter for each item shifts whenever a preceding item is used or dropped: after consuming the first potion, what was `b` becomes `a`. Give each item type a fixed hotkey, assigned explicitly by the programmer in `factories.py`, that never changes regardless of inventory order.
+
+    - Add `key: tcod.event.KeySym | None` as a required parameter to `Item.__init__`, alongside `consumable`. The type is `| None` to support items like the chest that are auto-collected and never need a keyboard shortcut. Import `tcod.event` under `TYPE_CHECKING` in `entity.py` (the annotation is a string at runtime thanks to `from __future__ import annotations`, so no runtime import is needed).
+    - Assign a mnemonic key in `factories.py` for items the player interacts with via keyboard; use `None` for auto-collected items:
+
+      ```python
+      health_potion   = Item(..., key=tcod.event.KeySym.H)
+      backpack_scroll = Item(..., key=tcod.event.KeySym.B)
+      chest           = Item(..., key=None)
+      ```
+
+    - In `InventoryEventHandler.on_render()`, sort the stacks by key before rendering (`stacks.sort(key=lambda s: s[0].key or 0)`) so items always appear in the same order. Display the assigned letter with `chr(item.key) if item.key is not None else " "`: `KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` yields `'h'`.
+    - In `InventoryEventHandler.event_keydown()`, replace the index computation with a loop that checks `stack[0].key is not None and stack[0].key == key`.
+    - In `MainGameEventHandler.event_keydown()`, add a fallback at the end: scan the player's inventory for an item whose `key is not None` and matches `event.sym`, then call `item.consumable.get_action()`. This is identical to opening the inventory and selecting the item; if the consumable requires targeting (Part 9), the targeting UI opens just the same.
+
+    Because keys are stored on the template object, every copy produced by `spawn()` carries the same key automatically. No assignment or cleanup logic is needed on pickup, consume, or drop. With vi keys removed, `a`–`z` minus `g`, `i`, `d` gives 23 conflict-free hotkey slots.
+
+4. **Centralise keybindings in `game/constants/keys.py`**:
+
+    All keybindings are currently spread across `game/input_handlers.py` (movement, wait, action keys) and `game/entities/factories.py` (item hotkeys). Extract everything to a new `game/constants/keys.py` file:
+
+    ```python
+    from __future__ import annotations
+
+    import tcod.event
+
+    MOVE_KEYS = { ... }   # arrow keys + numpad
+    WAIT_KEYS = { ... }   # period, KP_5, CLEAR
+
+    KEY_PICKUP      = tcod.event.KeySym.G
+    KEY_INVENTORY   = tcod.event.KeySym.I
+    KEY_DROP        = tcod.event.KeySym.D
+    KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
+    KEY_EXIT_MENU   = tcod.event.KeySym.ESCAPE
+
+    # Part 7. Exercise 2: Scroll the message panel
+    SCROLL_UP       = tcod.event.KeySym.PAGEUP
+    SCROLL_DOWN     = tcod.event.KeySym.PAGEDOWN
+
+    # Item hotkeys (also used in factories.py)
+    HEALTH_POTION   = tcod.event.KeySym.H
+    BACKPACK_SCROLL = tcod.event.KeySym.B
+    ```
+
+    `KEY_QUIT_GAME` and `KEY_EXIT_MENU` both map to `ESCAPE` but carry different names to express intent: one quits the game, the other closes an overlay. Update `input_handlers.py` to `from game.constants import colors, keys` and replace every raw `tcod.event.KeySym.*` reference with the corresponding constant. Update `factories.py` the same way: `keys.HEALTH_POTION` and `keys.BACKPACK_SCROLL` instead of hardcoded `KeySym` values, and remove the `import tcod.event` that is no longer needed there. A player can now remap all controls by editing one file without touching any handler or factory.
 
 **Next**: [Part 9: Spells and Targeting](part-9.md)

@@ -58,8 +58,10 @@ ENEMY_DEATH   = (0xFF, 0xA0, 0x30)
 # UI colors
 WELCOME_TEXT  = (0x20, 0xA0, 0xFF)
 BAR_TEXT      = WHITE
-HP_BAR_FILLED    = (0x0, 0x60, 0x0)
-HP_BAR_EMPTY     = (0x40, 0x10, 0x10)
+HP_BAR_FILLED = (0x0, 0x60, 0x0)
+HP_BAR_EMPTY  = (0x40, 0x10, 0x10)
+GAME_OVER_FG  = (255,  80,  80)
+GAME_OVER_BG  = ( 64,   0,   0)
 ```
 
 We split the new constants into three sections (`Generic colors`, `Combat message colors`, `UI colors`) to make scanning the file easier as it grows. Notice we name the death colors `PLAYER_DEATH` and `ENEMY_DEATH`, not `_die`: full words read better at every call site.
@@ -427,24 +429,44 @@ class MainGameEventHandler(EventHandler):
 
 
 class GameOverEventHandler(EventHandler):
+    TITLE    = "GAME OVER"
+    FG_COLOR = colors.GAME_OVER_FG
+    BG_COLOR = colors.GAME_OVER_BG
+
     def on_render(self, console: tcod.Console) -> None:
         super().on_render(console)
 
-        width  = 30
-        height = 5
+        hint   = "Press ESC to quit"
+        width  = max(len(self.TITLE), len(hint)) + 4
+        height = 3
         x = (console.width  - width)  // 2
         y = (console.height - height) // 2
 
-        console.draw_frame(
-            x=x, y=y, width=width, height=height,
-            clear=True, fg=colors.WHITE, bg=colors.BLACK,
+        # Fills the entire window with the game over background color
+        console.draw_rect(
+            x        = x,
+            y        = y,
+            width    = width,
+            height   = height,
+            ch       = ord(' '),
+            fg       = self.FG_COLOR,
+            bg       = self.BG_COLOR,
+            bg_blend = tcod.constants.BKGND_SET,
         )
 
-        title = "GAME OVER"
-        console.print(x + (width - len(title)) // 2, y + 1, title, fg=colors.PLAYER_DEATH)
+        # Draws only the frame and title, leaving the previous fill intact
+        console.draw_frame(
+            x      = x,
+            y      = y,
+            width  = width,
+            height = height,
+            title  = self.TITLE,
+            clear  = False,
+            fg     = self.FG_COLOR,
+            bg     = self.BG_COLOR,
+        )
 
-        hint = "Press ESC to quit."
-        console.print(x + (width - len(hint)) // 2, y + 3, hint, fg=colors.WHITE)
+        console.print(x + (width - len(hint)) // 2, y + 1, hint, fg=self.FG_COLOR)
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         if event.sym == tcod.event.KeySym.ESCAPE:
@@ -453,7 +475,11 @@ class GameOverEventHandler(EventHandler):
         return None
 ```
 
-`GameOverEventHandler.on_render()` calls `super().on_render()` first so the map and HUD render normally underneath, then draws a framed box centered on the console. The text positions are computed by subtracting the string length from the panel width and halving the remainder, which centers each line without needing an alignment constant. The panel re-uses colors that already exist: `PLAYER_DEATH` for the title (the same red used in the death message), and `WHITE` for the hint.
+`GameOverEventHandler` declares three class variables (`TITLE`, `FG_COLOR`, and `BG_COLOR`) so subclasses can override them independently. The pattern will appear again in Part 8 for the inventory overlays.
+
+`on_render()` defines `hint` first so both dimensions can reference its length. `width` is the wider of the title and the hint, plus four characters for the two border columns and one space of padding on each side. `height` is 3: one row for the top border (which also carries the title), one for the hint, one for the bottom border.
+
+The rendering is a two-pass approach. First, `draw_rect` fills every cell with a space character using `BKGND_SET`, which writes the background color directly over whatever tcod previously rendered. `ch=ord(' ')` clears the character layer too, so the dungeon tiles underneath are fully hidden; the player's attention should leave the map entirely at this point. Second, `draw_frame` draws only the border with `clear=False`, which tells tcod to skip the interior fill and preserve the rectangle just written by `draw_rect`. Passing `title=self.TITLE` embeds the string into the top border, saving a separate `console.print` call. The hint is centered horizontally and printed at `y+1`, the only interior row.
 
 The `MouseMotion` case stores the cursor tile position in `engine.mouse_location` so `render_names_at_mouse_location` always has current data. `integer_position` is the tile-space coordinate set by `context.convert_event`; the older `event.tile` attribute is deprecated.
 
