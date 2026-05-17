@@ -1,21 +1,26 @@
 # Part 8: Items and Inventory
 
-## What You Will Build
+This part is divided into two self-contained blocks. **Block 1** builds the data model: items exist in the dungeon, have an owner field, and can be seen but not touched. **Block 2** adds the player-facing side: actions, keyboard bindings, and the inventory overlay. Each block ends with its own testing section so you can verify your progress before moving on.
 
-By the end of this part, the dungeon will contain items the player can pick up, carry in an inventory, use for healing, and drop back onto the map.
+---
 
-## Learning goals
+## Block 1: The Item System
 
-- Add `Item` as a new entity class and `HealingConsumable` as its first component
-- Give every entity an `owner` field so items know whether they are on the floor or in an inventory
-- Add an `Inventory` component to actors and implement pickup, use, and drop actions
-- Raise `Impossible` for action rejections that need player-facing feedback
-- Build a letter-keyed inventory overlay using the modal handler pattern
+### What You Will Build
+
+By the end of Block 1, health potions appear in the dungeon. Hovering the mouse over one shows its name. There are no keyboard interactions yet: that is intentional. Block 2 explains why.
+
+### Learning goals
+
+- Add `Item` as a new entity type with an `owner` field
+- Introduce `Impossible` as a structured rejection pattern
+- Implement `Inventory` and `HealingConsumable` as components
+- Narrow base component types so annotations match the actual runtime type
 - Spawn health potions in the dungeon
 
 ---
 
-## Where does an item live?
+### Where does an item live?
 
 Before writing any code, consider the central design question: a health potion needs to exist in two places.
 
@@ -35,11 +40,11 @@ In the player's inventory:
 
 In both cases the item is the same Python object, only `owner` changes. The field is the single source of truth for where an entity is: on the floor or in an inventory.
 
-This chapter also introduces a second architectural change: **important action rejections should say why**. The old approach was to return silently (or return `None`). The new approach raises an `Impossible` exception for cases where the player needs feedback, with the reason as its message. A single `try/except` in the event handler intercepts every `Impossible` rejection and shows it in the message log.
+This chapter also introduces a second architectural change: **important action rejections should say why**. The old approach was to return silently (or return `None`). The new approach raises an `Impossible` exception for cases where the player needs feedback, with the reason as its message. In Block 2, a single `try/except` in the event handler intercepts every `Impossible` rejection and shows it in the message log.
 
 ---
 
-## `game/exceptions.py`
+### `game/exceptions.py`
 
 Create a new file:
 
@@ -54,25 +59,24 @@ class Impossible(Exception):
 !!! info "Exceptions as control flow"
     Python uses exceptions for unexpected bugs, but also for *expected* failures: requesting an impossible action, reading past the end of a file, looking up a missing key. Raising `Impossible` is not a bug, it is a structured way to carry a rejection reason out of any call depth without threading a return value through every intermediate function.
 
-Compare the alternatives. Returning `None` is silent: the caller has to check for it and decide what to tell the player. Returning a `bool` is only marginally better: the caller knows the action failed, but not why. Raising `Impossible("Your inventory is full.")` gives the reason for free, and a single `except Impossible as ex:` in the event handler catches every `Impossible` case with `str(ex)`.
+Compare the alternatives. Returning `None` is silent: the caller has to check for it and decide what to tell the player. Returning a `bool` is only marginally better: the caller knows the action failed, but not why. Raising `Impossible("Your inventory is full.")` gives the reason for free, and in Block 2, a single `except Impossible as ex:` in the event handler catches every `Impossible` case with `str(ex)`.
 
 ---
 
-## New constants
+### New constants
 
-Two new visual elements arrive in this chapter: the health potion sprite and colors for item messages. Add them to the constants files.
+Two new visual elements arrive in Block 1: the health potion sprite and colors for the potion and recovery messages. The colors used for action rejections and the inventory overlay are introduced in Block 2, at the point where they are first used.
 
 In `game/constants/sprites.py`:
 
 ```diff
- CHEST   = "$"
  CORPSE  = "%"
 +
 +# Items
 +HEALTH_POTION = "!"
 ```
 
-In `game/constants/colors.py`, add an item color and two new message colors. Place the item color in the entity colors section (after `CORPSE`), and the message colors near the other UI colors:
+In `game/constants/colors.py`, add an item color and one new message color. Place the item color in the entity colors section (after `CORPSE`), and the message color near the other UI colors:
 
 ```diff
  CORPSE        = (191,   0,   0)
@@ -86,23 +90,11 @@ In `game/constants/colors.py`, add an item color and two new message colors. Pla
 +HEALTH_RECOVERED = (0x00, 0xFF, 0x00)
 ```
 
-```diff
- WELCOME_TEXT = (0x20, 0xA0, 0xFF)
- ...
-+INVALID      = (0xFF, 0xFF, 0x00)
-+
-+# Inventory overlay colors
-+INVENTORY_USE_FG  = (132, 198, 140)
-+INVENTORY_USE_BG  = ( 16,  99,  27)
-+INVENTORY_DROP_FG = (192, 128, 255)
-+INVENTORY_DROP_BG = (128,   0, 255)
-```
-
-`HEALTH_RECOVERED` is bright green for HP-restore messages. `INVALID` is yellow for action-rejection messages. The four inventory constants define the foreground (border and text) and background colors for the two overlays: green for "use item", purple for "drop item".
+`HEALTH_RECOVERED` is bright green for HP-restore messages.
 
 ---
 
-## Narrowing component types
+### Narrowing component types
 
 Every component in `game/entities/components/base_component.py` declares `entity: Entity`. That annotation is incorrect. A `Fighter` component's entity is always an `Actor`, it will never be a plain `Entity` or an `Item`. Once this chapter moves `ai` off `Entity`, `entity: Entity` no longer describes the design accurately: `self.entity.ai` and `self.entity.is_alive` are `Actor` attributes, and `Entity` does not declare them.
 
@@ -176,11 +168,11 @@ The two new components introduced in this chapter (`Inventory` and `Consumable`)
 
 ---
 
-## Updating `game/entities/entity.py`
+### Updating `game/entities/entity.py`
 
 `entity.py` changes in several steps. Each step introduces one concept before the next one depends on it.
 
-### Step 1: Remove `ai` from `Entity` and expand TYPE_CHECKING imports
+#### Step 1: Remove `ai` from `Entity` and expand TYPE_CHECKING imports
 
 `ai` is an `Actor` concern, not an `Entity` concern. Plain entities (passive blockers, map decorations) never have AI. Keeping it on the base class was a holdover from before `Actor` existed.
 
@@ -209,7 +201,7 @@ At the same time, add the imports that the new classes and annotations in this c
 -        self.ai              = ai
 ```
 
-### Step 2: Add the `owner` field
+#### Step 2: Add the `owner` field
 
 Every entity now tracks its owner. The field is declared in two places, and each serves a different purpose.
 
@@ -264,7 +256,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 
     Templates should never need a map reference. When spawned entities or inventory items need the map (for example, to drop an item back on the floor), the caller passes `game_map` explicitly.
 
-### Step 3: Update `spawn()`
+#### Step 3: Update `spawn()`
 
 `spawn()` existed since Part 5. It creates a deep copy and adds it to the map's entity set. Now it also sets `owner` on the clone:
 
@@ -278,7 +270,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
          return clone
 ```
 
-### Step 4: Add `place()`
+#### Step 4: Add `place()`
 
 `place()` moves an entity to a new position and optionally transfers it to a new owner. The inventory `drop()` method calls it to return an item to the dungeon floor:
 
@@ -300,7 +292,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 
 The local import makes `GameMap` available at runtime without introducing a module-level circular import. `self.owner is not None` guards against placing a fresh template entity for the first time. Once that check passes, `isinstance(self.owner, GameMap)` determines whether the entity is registered directly with the map and needs to be removed from it: items being dropped from inventory have `owner = Inventory`, so the isinstance check is `False` and the discard is skipped correctly.
 
-### Step 5: Add `inventory` to `Actor` and fix the `ai` annotation
+#### Step 5: Add `inventory` to `Actor` and fix the `ai` annotation
 
 `Actor` now requires an `Inventory` component. This step also cleans up the `ai` wiring: since `Entity` no longer accepts `ai`, `Actor` must own the attribute directly.
 
@@ -344,7 +336,7 @@ Update `Actor.__init__`:
 
 `ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it. `self.ai: BaseAI | None = ai` both annotates and assigns the attribute in one statement, which is the correct Python pattern: the annotation belongs at the point of declaration, not split across conditional branches.
 
-### Step 6: Add the `Item` class
+#### Step 6: Add the `Item` class
 
 `Item` is parallel to `Actor`: a specialised entity with its own required component. Replace the stub with the full class:
 
@@ -380,9 +372,9 @@ Items do not usually block movement (you can stand on top of a potion) and rende
 
 ---
 
-## Add `items` to `GameMap`
+### Add `items` to `GameMap`
 
-`PickupAction` needs to iterate over items on the map. Add a filtered property to `game/map/game_map.py`:
+Items on the map need a way to be found. Add a filtered property to `game/map/game_map.py` that yields only `Item` instances:
 
 ```diff
  if TYPE_CHECKING:
@@ -403,7 +395,7 @@ Items do not usually block movement (you can stand on top of a potion) and rende
 
 ---
 
-## Create `game/entities/components/inventory.py`
+### Create `game/entities/components/inventory.py`
 
 ```python
 from __future__ import annotations
@@ -428,11 +420,11 @@ class Inventory(ActorComponent):
         item.place(self.entity.x, self.entity.y, game_map)
 ```
 
-`drop()` removes the item from `items`, then calls `item.place()` to move it back to the dungeon floor at the actor's current position. The caller passes `game_map` explicitly: `DropItem.perform` already has `engine` and can supply `engine.game_map` directly, so `Inventory` does not need to navigate the ownership chain itself.
+`drop()` removes the item from `items`, then calls `item.place()` to move it back to the dungeon floor at the actor's current position. The caller passes `game_map` explicitly. In Block 2, `DropItem.perform` will already have `engine` and can supply `engine.game_map` directly, so `Inventory` does not need to navigate the ownership chain itself.
 
 ---
 
-## Create `game/entities/components/consumable.py`
+### Create `game/entities/components/consumable.py`
 
 ```python
 from __future__ import annotations
@@ -445,20 +437,14 @@ from game.exceptions import Impossible
 from game.message_log import MessageLog
 
 if TYPE_CHECKING:
-    from game.actions import Action, ItemAction
+    from game.actions import Action
     from game.engine import Engine
     from game.entities.entity import Actor
 
 
 class Consumable(ItemComponent):
 
-    def get_action(self, _consumer: Actor, _engine: Engine) -> Action | None:
-        """Return the action this consumable produces when used."""
-        from game.actions import ItemAction
-
-        return ItemAction(item=self.entity)
-
-    def activate(self, _action: ItemAction, _engine: Engine, _consumer: Actor) -> None:
+    def activate(self, _action: Action, _engine: Engine, _consumer: Actor) -> None:
         """Apply this consumable's effect. Must be overridden."""
         raise NotImplementedError()
 
@@ -478,7 +464,7 @@ class HealingConsumable(Consumable):
     def __init__(self, amount: int) -> None:
         self.amount = amount
 
-    def activate(self, _action: ItemAction, _engine: Engine, consumer: Actor) -> None:
+    def activate(self, _action: Action, _engine: Engine, consumer: Actor) -> None:
         amount_recovered = consumer.fighter.heal(self.amount)
 
         if amount_recovered > 0:
@@ -492,15 +478,15 @@ class HealingConsumable(Consumable):
             raise Impossible("Your health is already full.")
 ```
 
-`Consumable.get_action()` returns the action produced by using this item. In this chapter it returns a plain `ItemAction`, but future consumable types can override it to request additional input before acting, for example a targeting scroll that needs a destination tile.
+`activate()` is declared with `_action: Action` (the base action type). `Action` is already importable in Block 1; `ItemAction` is not defined until Block 2's `game/actions.py` update. Block 2 adds `get_action()` to `Consumable` and narrows the annotation to `ItemAction` once that class exists. This keeps `consumable.py` free of forward references to Block 2 code and lets a type checker verify the file cleanly after completing Block 1.
 
 `consume()` imports `Inventory` locally to avoid a circular import: `consumable.py` and `inventory.py` would otherwise form a cycle at module level. The `isinstance` check serves double duty: it guards against consuming an unowned item and narrows the declared type from `GameMap | Inventory | None` to `Inventory`, making the subsequent `inventory.items` access well-typed. After removing the item, `entity.owner = None` clears the stale reference so the consumed item no longer points at the inventory it came from.
 
-`HealingConsumable.activate()` calls `fighter.heal()`, which you wrote in Part 7. If the player is already at full health, `heal()` returns `0` and `activate()` raises `Impossible`. The event handler will catch it and show the reason as a yellow message.
+`HealingConsumable.activate()` calls `fighter.heal()`, which you wrote in Part 7. If the player is already at full health, `heal()` returns `0` and `activate()` raises `Impossible`. Once Block 2 rewrites the event handler, it will catch that exception and show the reason as a yellow message.
 
 ---
 
-## Update `game/entities/factories.py`
+### Update `game/entities/factories.py`
 
 Every `Actor` now requires an `Inventory`. Add the component to the existing templates:
 
@@ -545,7 +531,7 @@ Every `Actor` now requires an `Inventory`. Add the component to the existing tem
 
 The player starts with `capacity=10`. 10 makes a full inventory a real constraint worth managing. Enemies get `capacity=0`: their inventory exists (so the type is satisfied) but they cannot hold any items. An orc that walks over a potion will not pick it up.
 
-Then add the health potion template and the spawn table at the bottom of the file:
+Then add the health potion template at the bottom of the file:
 
 ```python
 # Items
@@ -555,25 +541,158 @@ health_potion = Item(
     name       = "Health Potion",
     consumable = HealingConsumable(amount=4),
 )
-
-chest = Entity(
-    char            = sprites.CHEST,
-    color           = colors.CHEST,
-    name            = "Chest",
-    blocks_movement = True,
-)
-
-item_chances = [
-    (health_potion, 40),
-    (chest,         60),
-]
 ```
 
-`item_chances` mirrors the `monster_chances` pattern from Part 5: a list of `(template, weight)` pairs that `map_generator.py` will use to pick which item to place in each room. Weights are relative: a chest (60) is created more often than a potion (40). Exercise 2 adds `backpack_scroll` to this list.
+`health_potion` is the template that `map_generator.py` will clone when placing potions in rooms. The spawn table that controls which items appear, and how often, is added in Block 2 alongside the chest definition.
 
 ---
 
-## Update `game/actions.py`
+### Update `game/map/map_generator.py`
+
+In Part 5, `place_entities` accepted a single monster limit. Part 8 adds **item** spawning, so the function receives both monster and item limits.
+
+!!! tip "If you completed Exercise 1 from Part 5"
+    That exercise added `min_monsters` to `place_entities`. The diffs below assume it is already there. If you skipped it, add `min_monsters: int` alongside `max_monsters` and replace `max_monsters` with `random.randint(min_monsters, max_monsters)` while you are here.
+
+!!! tip "If you skipped Exercise 2 from Part 5"
+    The monster loop below assumes the weighted table from that exercise: `factories.monster_chances`, split into `monster_templates` and `monster_weights`, then selected with `random.choices`. If your code still has a hardcoded orc/troll `if/else`, replace it with the `random.choices` version here. It is the version future spawn tables build on.
+
+Expand the function signature:
+
+```diff
+ def place_entities(
+     room: RectangularRoom,
+     dungeon: GameMap,
+     min_monsters: int,
+     max_monsters: int,
++    min_items: int,
++    max_items: int,
+ ) -> None:
+     number_of_monsters = random.randint(min_monsters, max_monsters)
++    number_of_items    = random.randint(min_items, max_items)
+```
+
+Then add the item spawning loop at the end of the function body. The diff also renames the `monster` variable to `monsters` and moves the `[0]` index onto its own line so the comment reads on its own line:
+
+```diff
+        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
+-            monster = random.choices(
++            monsters = random.choices(
+                 monster_templates,
+                 weights=monster_weights,
+-                k=1,
+-            )[0]
+-            monster.spawn(dungeon, x, y)
++                k=1,
++            )
++            # First element (because random.choices returns a list)
++            monsters[0].spawn(dungeon, x, y)
++
++    for _ in range(number_of_items):
++        x = random.randint(room.x1 + 1, room.x2 - 1)
++        y = random.randint(room.y1 + 1, room.y2 - 1)
++        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
++            factories.health_potion.spawn(dungeon, x, y)
+```
+
+Also expand the signature of `generate_dungeon` itself to accept the item parameters:
+
+```diff
+ def generate_dungeon(
+     max_rooms: int,
+     room_min_size: int,
+     room_max_size: int,
+     map_width: int,
+     map_height: int,
+     min_monsters_per_room: int,
+     max_monsters_per_room: int,
++    min_items_per_room: int,
++    max_items_per_room: int,
+     player: Entity,
+ ) -> GameMap:
+```
+
+While in `generate_dungeon`, update the first-room branch to use `place()` instead of `set_position()`:
+
+```diff
+         if not rooms:
+-            player.set_position(*new_room.center)
++            player.place(*new_room.center, dungeon)
+```
+
+`place()` sets `player.owner = dungeon`. Without this, the player would be present in `dungeon.entities` but still have `owner = None`, which would make the ownership state inconsistent from the first map onward.
+
+Update the call site in `generate_dungeon`:
+
+```diff
+             place_entities(
+                 new_room,
+                 dungeon,
+                 min_monsters_per_room,
+                 max_monsters_per_room,
++                min_items_per_room,
++                max_items_per_room,
+             )
+```
+
+---
+
+### Update `main.py`
+
+Add the item density parameters alongside the monster parameters:
+
+```diff
+     min_monsters_per_room = 0
+     max_monsters_per_room = 2
++    min_items_per_room    = 0
++    max_items_per_room    = 2
+```
+
+Pass them to `generate_dungeon`:
+
+```diff
+     game_map = generate_dungeon(
+         ...
+         min_monsters_per_room = min_monsters_per_room,
+         max_monsters_per_room = max_monsters_per_room,
++        min_items_per_room    = min_items_per_room,
++        max_items_per_room    = max_items_per_room,
+         player                = player,
+     )
+```
+
+---
+
+### Testing Block 1
+
+Run the game and verify the following:
+
+- Health potions (`!`) appear on the dungeon floor in most rooms.
+- Moving the mouse over a potion shows "Health Potion" in the status bar.
+- No keyboard interactions with items exist yet. The `G`, `I`, and `D` keys are added in Block 2.
+
+If potions appear and the hover name works, Block 1 is complete.
+
+---
+
+## Block 2: Inventory
+
+In Block 1 we built the item data model: items exist in the dungeon, and can be seen but not touched. This block adds the player-facing side: actions, keyboard bindings, and the inventory overlay.
+
+### What You Will Build
+
+By the end of Block 2, the player can pick up health potions with `G`, browse the inventory with `I`, use items by letter, drop items with `D`, and collect treasure chests by walking over them. A gold counter appears below the HP bar.
+
+### Learning goals
+
+- Implement `PickupAction`, `ItemAction`, and `DropItem`
+- Refactor `EventHandler` so each handler controls its own post-action flow
+- Build the inventory overlay using the modal handler pattern
+- Add treasure chests as auto-collected items with a gold counter
+
+---
+
+### Update `game/actions.py`
 
 Add the three new action classes and two new imports at the top of the file:
 
@@ -645,9 +764,37 @@ Also add `PickupAction` to the import list at the top of `game/input_handlers.py
 +from game.actions import (Action, BumpAction, EscapeAction, PickupAction, WaitAction)
 ```
 
+Now that `ItemAction` exists, add `get_action()` to `Consumable` in `game/entities/components/consumable.py` and tighten the `_action` annotations to `ItemAction`:
+
+```diff
+ if TYPE_CHECKING:
+-    from game.actions import Action
++    from game.actions import Action, ItemAction
+```
+
+```diff
+ class Consumable(ItemComponent):
++
++    def get_action(self, _consumer: Actor, _engine: Engine) -> Action | None:
++        """Return the action this consumable produces when used."""
++        from game.actions import ItemAction
++
++        return ItemAction(item=self.entity)
++
+-    def activate(self, _action: Action, _engine: Engine, _consumer: Actor) -> None:
++    def activate(self, _action: ItemAction, _engine: Engine, _consumer: Actor) -> None:
+```
+
+```diff
+-    def activate(self, _action: Action, _engine: Engine, consumer: Actor) -> None:
++    def activate(self, _action: ItemAction, _engine: Engine, consumer: Actor) -> None:
+```
+
+`get_action()` returns the action produced by using this item. The base implementation returns a plain `ItemAction`, but future consumable types can override it to request additional input before acting, for example a targeting scroll that needs a destination tile. The local import inside `get_action()` avoids a module-level circular import between `consumable.py` and `actions.py`.
+
 ---
 
-## Move action execution into `EventHandler`
+### Move action execution into `EventHandler`
 
 So far `Engine.handle_events()` ran the action returned by the event handler. That worked when there was only one handler, but modal handlers (the inventory overlay) need to switch the active handler *after* an action completes. Only the handler knows which handler it should return to; the engine does not.
 
@@ -670,7 +817,7 @@ Update `game/engine.py`. The `handle_events` signature changes from `Iterable[An
 Then simplify `handle_events()` to a one-line dispatch:
 
 ```diff
--def handle_events(self, events) -> None:
+-def handle_events(self, events: Iterable[Any]) -> None:
 +def handle_events(self, events: Iterable[tcod.event.Event]) -> None:
      for event in events:
 -        action = self.event_handler.handle_events(event)
@@ -680,6 +827,16 @@ Then simplify `handle_events()` to a one-line dispatch:
 -            self.update_fov()
 +        self.event_handler.handle_events(event)
 ```
+
+Also add `INVALID` to `game/constants/colors.py`, since the rewritten `handle_events` uses it for rejection messages:
+
+```diff
+ WELCOME_TEXT = (0x20, 0xA0, 0xFF)
+ ...
++INVALID      = (0xFF, 0xFF, 0x00)
+```
+
+`INVALID` is yellow: it is used for every rejection the player should read, from a full inventory to an already-healed condition.
 
 Now rewrite `EventHandler.handle_events()` in `game/input_handlers.py` to own the full execution cycle. `from game.constants import colors` was already imported in Part 7; only `Impossible` is new:
 
@@ -734,7 +891,7 @@ The return type of `handle_events` changes from `Action | None` to `None`. Updat
 
 ---
 
-## Trim movement keys
+### Trim movement keys
 
 Vi keys (`b`, `h`, `j`, `k`, `l`, `n`, `u`, `y`) have been part of roguelikes since the original *Rogue* (1980), which ran on VT100 terminals with no arrow keys. On a modern keyboard, arrow keys and the numpad cover the same directions with less ambiguity, and freeing those letters matters here: this chapter adds `G`, `I`, and `D` as action keys, and Exercise 3 assigns the remaining letters to items for direct use from the map.
 
@@ -757,7 +914,7 @@ Remove the vi keys block from `MOVE_KEYS` in `game/input_handlers.py`:
 
 ---
 
-## Update `MainGameEventHandler`
+### Update `MainGameEventHandler`
 
 Add three key bindings at the end of `event_keydown`:
 
@@ -781,9 +938,23 @@ Add three key bindings at the end of `event_keydown`:
 
 ---
 
-## Inventory handlers
+### Inventory handlers
 
 Three new handler classes go at the bottom of `game/input_handlers.py`.
+
+Add the inventory overlay colors to `game/constants/colors.py`:
+
+```diff
+ INVALID = (0xFF, 0xFF, 0x00)
++
++# Inventory overlay colors
++INVENTORY_USE_FG  = (132, 198, 140)
++INVENTORY_USE_BG  = ( 16,  99,  27)
++INVENTORY_DROP_FG = (192, 128, 255)
++INVENTORY_DROP_BG = (128,   0, 255)
+```
+
+The inventory overlay uses two distinct color schemes: green tones for item use (activation) and purple tones for item dropping. At a glance, the player always knows which overlay is open.
 
 !!! tip "Modal handlers"
     An inventory handler follows exactly the same pattern as `GameOverEventHandler` from Part 7: it overrides `on_render()` to draw an overlay on top of the map, and `event_keydown()` to handle its own key set. The overlay closes when the player selects a valid item (an action executes, then `EventHandler.handle_events` switches back to `MainGameEventHandler`) or presses `Escape` (handled explicitly in `event_keydown`, which sets the handler directly without returning an action). Any other unrecognised key does nothing. This pattern composes cleanly: any handler can open any other handler, and the "stack" is simply `self.engine.event_handler` with no handler stack to maintain.
@@ -913,136 +1084,40 @@ Also add `Item` to the imports at the top of `input_handlers.py` so that `on_ite
 
 ---
 
-## Update `game/map/map_generator.py`
+### Treasure chests
 
-In Part 5, `place_entities` accepted a single monster limit. Part 8 adds **item** spawning, so the function receives both monster and item limits.
+Now that `Item` and `Consumable` exist, we can add treasure chests as collectible items that reward the player with gold. If you completed the optional chest exercise from Part 5, this gives that idea a real interaction.
 
-!!! tip "If you completed Exercise 1 from Part 5"
-    That exercise added `min_monsters` to `place_entities`. The diffs below assume it is already there. If you skipped it, add `min_monsters: int` alongside `max_monsters` and replace `max_monsters` with `random.randint(min_monsters, max_monsters)` while you are here.
+#### Chest and gold constants
 
-!!! tip "If you skipped Exercise 2 from Part 5"
-    The monster loop below assumes the weighted table from that exercise: `factories.monster_chances`, split into `monster_templates` and `monster_weights`, then selected with `random.choices`. If your code still has a hardcoded orc/troll `if/else`, replace it with the `random.choices` version here. It is the version future spawn tables build on.
+Add the chest sprite, the chest color, and the gold color.
 
-Expand the function signature:
+In `game/constants/sprites.py`:
 
 ```diff
- def place_entities(
-     room: RectangularRoom,
-     dungeon: GameMap,
-     min_monsters: int,
-     max_monsters: int,
-+    min_items: int,
-+    max_items: int,
- ) -> None:
-     number_of_monsters = random.randint(min_monsters, max_monsters)
-+    number_of_items    = random.randint(min_items, max_items)
++CHEST   = "$"
+ CORPSE  = "%"
 ```
 
-Then add the item spawning loop at the end of the function body. The diff also renames the `monster` variable to `monsters` and moves the `[0]` index onto its own line so the comment reads on its own line:
+In `game/constants/colors.py`, add `CHEST` in the entity colors section (alongside `ORC`, `TROLL`, and `CORPSE`):
 
 ```diff
-        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
--            monster = random.choices(
-+            monsters = random.choices(
-                 monster_templates,
-                 weights=monster_weights,
--                k=1,
--            )[0]
--            monster.spawn(dungeon, x, y)
-+                k=1,
-+            )
-+            # First element (because random.choices returns a list)
-+            monsters[0].spawn(dungeon, x, y)
-+
-+    for _ in range(number_of_items):
-+        x = random.randint(room.x1 + 1, room.x2 - 1)
-+        y = random.randint(room.y1 + 1, room.y2 - 1)
-+        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
-+            factories.health_potion.spawn(dungeon, x, y)
+ TROLL  = (  0, 127,   0)
++CHEST  = (255, 240,   0)
+ CORPSE = (191,   0,   0)
 ```
 
-Also expand the signature of `generate_dungeon` itself to accept the item parameters:
+Then add `GOLD` at the end of the UI colors block:
 
 ```diff
- def generate_dungeon(
-     max_rooms: int,
-     room_min_size: int,
-     room_max_size: int,
-     map_width: int,
-     map_height: int,
-     min_monsters_per_room: int,
-     max_monsters_per_room: int,
-+    min_items_per_room: int,
-+    max_items_per_room: int,
-     player: Entity,
- ) -> GameMap:
-```
-
-While in `generate_dungeon`, update the first-room branch to use `place()` instead of `set_position()`:
-
-```diff
-         if not rooms:
--            player.set_position(*new_room.center)
-+            player.place(*new_room.center, dungeon)
-```
-
-`place()` sets `player.owner = dungeon`. Without this, the player would be present in `dungeon.entities` but still have `owner = None`, which would make the ownership state inconsistent from the first map onward.
-
-Update the call site in `generate_dungeon`:
-
-```diff
-             place_entities(
-                 new_room,
-                 dungeon,
-                 min_monsters_per_room,
-                 max_monsters_per_room,
-+                min_items_per_room,
-+                max_items_per_room,
-             )
-```
-
----
-
-## Update `main.py`
-
-Add the item density parameters alongside the monster parameters:
-
-```diff
-     min_monsters_per_room = 0
-     max_monsters_per_room = 2
-+    min_items_per_room    = 0
-+    max_items_per_room    = 2
-```
-
-Pass them to `generate_dungeon`:
-
-```diff
-     game_map = generate_dungeon(
-         ...
-         min_monsters_per_room = min_monsters_per_room,
-         max_monsters_per_room = max_monsters_per_room,
-+        min_items_per_room    = min_items_per_room,
-+        max_items_per_room    = max_items_per_room,
-         player                = player,
-     )
-```
-
----
-
-## Treasure chests
-
-The chest introduced in Part 5 has been blocking movement without doing anything useful. Now that `Item` and `Consumable` exist, the chest can become a collectible that rewards the player with gold.
-
-### New color constant
-
-In `game/constants/colors.py`:
-
-```diff
- INVALID = (0xFF, 0xFF, 0x00)
+ INVENTORY_DROP_BG = (128,   0, 255)
 +GOLD    = (0xFF, 0xD7, 0x00)
 ```
 
-### `TreasureConsumable`
+!!! note "If you completed the Part 5 chest exercise"
+    `sprites.CHEST` and `colors.CHEST` may already be defined. Keep the existing definitions.
+
+#### `TreasureConsumable`
 
 Add a new consumable class in `game/entities/components/consumable.py`. It differs from `HealingConsumable` in one important way: the item is never added to the inventory. It is collected directly from the floor and disappears immediately. Add a class-level flag to mark this behavior, and override it:
 
@@ -1070,7 +1145,7 @@ class TreasureConsumable(Consumable):
 
 `activate()` adds `value` to `consumer.gold`, logs the find, and removes the chest from the map in the same call. There is no `self.consume()` here because `consume()` removes an item from an inventory; the chest was never in one.
 
-### `gold` field on `Actor`
+#### `gold` field on `Actor`
 
 Add `self.gold = 0` at the end of `Actor.__init__`. It sits alongside `inventory` and `ai` as a first-class actor attribute, readable anywhere as `actor.gold`:
 
@@ -1082,28 +1157,59 @@ Add `self.gold = 0` at the end of `Actor.__init__`. It sits alongside `inventory
 +        self.gold = 0
 ```
 
-### Convert `chest` in `factories.py`
+#### Add `chest` to `factories.py`
 
-Replace the passive `Entity` with an `Item`:
+Add a `TreasureConsumable` import alongside the `HealingConsumable` import at the top of the file. Also remove `Entity` from the entity import: by this point, every factory template in `factories.py` is either an `Actor` or an `Item`, so `Entity` is no longer used directly.
 
 ```diff
--chest = Entity(
--    char            = sprites.CHEST,
--    color           = colors.CHEST,
--    name            = "Chest",
--    blocks_movement = True,
--)
-+chest = Item(
-+    char       = sprites.CHEST,
-+    color      = colors.CHEST,
-+    name       = "Chest",
-+    consumable = TreasureConsumable(value=10),
-+)
+-from game.entities.components.consumable import HealingConsumable
++from game.entities.components.consumable import HealingConsumable, TreasureConsumable
 ```
 
-The chest no longer blocks movement (items never block movement). The player walks over it to collect it.
+```diff
+-from game.entities.entity import Actor, Entity, Item
++from game.entities.entity import Actor, Item
+```
 
-### Auto-collect in `MovementAction`
+Then add the chest template and the spawn table at the bottom of the file:
+
+```python
+chest = Item(
+    char       = sprites.CHEST,
+    color      = colors.CHEST,
+    name       = "Chest",
+    consumable = TreasureConsumable(value=10),
+)
+
+item_chances = [
+    (health_potion, 40),
+    (chest,         60),
+]
+```
+
+!!! note "If you completed the Part 5 chest exercise"
+    Replace the passive `Entity` definition with this `Item` definition, and remove any old spawn logic or spawn table entry you added for it. The `item_chances` table above supersedes that.
+
+`item_chances` mirrors the `monster_chances` pattern from Part 5: a list of `(template, weight)` pairs. Weights are relative: a chest (60) is created more often than a potion (40). Exercise 2 adds `backpack_scroll` to this list.
+
+Now update `map_generator.py` to use `item_chances` instead of spawning health potions directly. In `place_entities`, unpack the table before the item loop and replace the direct spawn call with a weighted selection:
+
+```diff
++    item_templates, item_weights = zip(*factories.item_chances)
+     for _ in range(number_of_items):
+         x = random.randint(room.x1 + 1, room.x2 - 1)
+         y = random.randint(room.y1 + 1, room.y2 - 1)
+         if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
+-            factories.health_potion.spawn(dungeon, x, y)
++            items = random.choices(
++                item_templates,
++                weights=item_weights,
++                k=1,
++            )
++            items[0].spawn(dungeon, x, y)
+```
+
+#### Auto-collect in `MovementAction`
 
 `PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. After `entity.move()` in `MovementAction.perform()`, scan the new tile for auto-collect items:
 
@@ -1119,7 +1225,7 @@ The chest no longer blocks movement (items never block movement). The player wal
 
 The guard is `entity is engine.player`, not `isinstance(entity, Actor)`: enemy movement also goes through `MovementAction`, so without this check an orc or troll that walks onto a chest would collect it and trigger "You found 10 gold!". `list(engine.game_map.items)` creates a snapshot before iterating because `activate()` modifies `game_map.entities` during the loop.
 
-### `render_gold` in `hud.py`
+#### `render_gold` in `hud.py`
 
 Add a one-line gold display below the HP bar:
 
@@ -1145,11 +1251,11 @@ Call it from `Engine.render()`:
 
 ---
 
-## Testing your work
+### Testing Block 2
 
 Run the game and verify the following:
 
-- Health potions (`!`) appear on the dungeon floor in most rooms.
+- Health potions (`!`) appear on the dungeon floor.
 - Walking over a potion and pressing `G` adds it to the inventory and shows "You picked up the Health Potion!".
 - Pressing `G` on an empty tile shows "There is nothing here to pick up." in yellow.
 - Pressing `I` opens the "Select an item to use" overlay and lists carried items by letter.
@@ -1179,7 +1285,7 @@ Items are now a first-class part of the game. Key additions:
 
 **Current architecture**:
 
-- `Entity.owner`: set to `GameMap` on spawn, changed to `Inventory` on pickup, back to `GameMap` on drop; never `None` while the entity is alive
+- `Entity.owner`: set to `GameMap` on spawn, changed to `Inventory` on pickup, back to `GameMap` on drop; never `None` while the entity is active on the map or carried in an inventory
 - `Inventory`: component on `Actor`; holds items up to `capacity`, enforces the limit, and handles drop logic
 - `Consumable.auto_collect`: class-level flag; `MovementAction` checks it after every step and activates any matching item on the tile
 - `HealingConsumable.activate()`: applies healing and calls `self.consume()` to remove the item from inventory
@@ -1231,8 +1337,8 @@ game/
 
 ## Exercises
 
-!!! tip "Exercises 1-3 make the game noticeably more fun"
-    Exercises 1 through 3 together produce a game that is genuinely enjoyable to play: items stack cleanly in the overlay, the backpack scroll adds a progression mechanic worth hunting for, and persistent keys let the player activate items without opening the overlay at all. Exercise 4 is housekeeping that pays off in later parts. If you implement only three exercises this chapter, make it those three.
+!!! tip "Exercises 1 and 2 together make the game noticeably more fun"
+    Stacking keeps the inventory list clean, and the backpack gives the player a reason to seek scrolls. Exercises 3 and 4 polish the user interface.
 
 1. **Item stacking**:
 
@@ -1249,7 +1355,7 @@ game/
     consumer.inventory.capacity += actual
     ```
 
-    If the inventory is already at the cap, raise `Impossible` before touching anything. Wire up a `backpack_scroll` item in `factories.py` (sprite `"?"`, parchment color, name `"Backpack Growing Scroll"`) and add it to the spawn table alongside the health potion.
+    If the inventory is already at the cap, raise `Impossible` before touching anything. After increasing the capacity, log a message and call `self.consume()` so the scroll is removed from the inventory. Wire up a `backpack_scroll` item in `factories.py` (sprite `"?"`, parchment color, name `"Backpack Growing Scroll"`) and add it to `item_chances` alongside the health potion and chest.
 
     The player starts at `capacity=10` and can use scrolls (`+4` each) up to the ceiling of 26. Each scroll consumed is a permanent, irreversible upgrade, so finding them is meaningful.
 

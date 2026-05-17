@@ -155,6 +155,9 @@ class "Consumable" as game.entities.components.consumable.Consumable #e0e0d0 {
 class "HealingConsumable" as game.entities.components.consumable.HealingConsumable #e0e0d0 {
 }
 
+class "TreasureConsumable" as game.entities.components.consumable.TreasureConsumable #e0e0d0 {
+}
+
 '--------------------------------------
 ' Relations
 '--------------------------------------
@@ -183,6 +186,7 @@ game.entities.components.ai.BaseAI <|-- game.entities.components.ai.CowardEnemy
 game.entities.components.base_component.BaseComponent <|-- game.entities.components.base_component.ItemComponent
 game.entities.components.base_component.ItemComponent <|-- game.entities.components.consumable.Consumable
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.HealingConsumable
+game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.TreasureConsumable
 
 game.input_handlers.EventHandler <|-- game.input_handlers.MainGameEventHandler
 game.input_handlers.EventHandler <|-- game.input_handlers.GameOverEventHandler
@@ -261,6 +265,7 @@ game.entities.components.ai.BaseAI -[hidden]down- game.entities.components.ai.Ho
 
 game.entities.components.base_component.ItemComponent -[hidden]down- game.entities.components.consumable.Consumable
 game.entities.components.consumable.Consumable -[hidden]down- game.entities.components.consumable.HealingConsumable
+game.entities.components.consumable.Consumable -[hidden]down- game.entities.components.consumable.TreasureConsumable
 
 game.input_handlers.EventHandler -[hidden]down- game.input_handlers.GameOverEventHandler
 game.input_handlers.EventHandler -[hidden]down- game.input_handlers.MainGameEventHandler
