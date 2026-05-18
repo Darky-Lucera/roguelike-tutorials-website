@@ -209,34 +209,14 @@ At the same time, add the imports that the new classes and annotations in this c
 -        self.ai              = ai
 ```
 
-### Step 2: Add the `owner` field
+#### Step 2: Add the `owner` field
 
-Every entity now tracks its owner. The field is declared in two places, and each serves a different purpose.
-
-The class-level annotation covers the full range of values the field can hold at runtime:
+Add `owner` as the first parameter of `__init__`, and auto-register the entity when an owner is provided:
 
 ```diff
  class Entity:
 +    owner: GameMap | Inventory | None
 +
-     def __init__(
-```
-
-The `__init__` parameter is intentionally narrower:
-
-```python
-owner: GameMap | None = None
-```
-
-The constructor parameter is `GameMap | None` because those are the only valid *initial* states: an entity is always created either on the map or with no owner yet. Accepting `Inventory` at construction time would be misleading.
-
-The class-level annotation covers the full *lifetime* of the attribute. Over its life, `owner` moves from `None` (template) to `GameMap` (spawned) to `Inventory` (picked up) and back to `GameMap` (dropped). Those are all valid states, just not at construction time.
-
-This is a useful Python pattern: declare the field's full type at class level, and use a narrower `__init__` parameter for the valid initial values. The class-level annotation is authoritative; the assignment in `__init__` is just the first of several values the field will take. A type checker respects the class-level declaration and will not flag the later reassignments to `Inventory`.
-
-Add `owner` as the first parameter of `__init__`, and auto-register the entity when an owner is provided:
-
-```diff
      def __init__(
          self,
 +        owner: GameMap | None = None,
@@ -253,16 +233,25 @@ Add `owner` as the first parameter of `__init__`, and auto-register the entity w
 +            owner.entities.add(self)
 ```
 
+Every entity tracks its owner. The class-level annotation covers all values the field holds over its lifetime, while the `__init__` parameter is intentionally narrower.
+
+!!! tip "Class-level annotation vs `__init__` parameter"
+    Declare the field's full type at class level and use a narrower `__init__` parameter for the valid *initial* states only. The class-level annotation is authoritative: a type checker respects it and will not flag later reassignments to `Inventory`. This pattern is useful whenever an attribute can legitimately change type over its lifetime but only starts in a subset of those states.
+
 The constructor parameter is `GameMap | None`: entities start on the map or unowned. Item *templates* (defined in `game/entities/factories.py`) are created with no owner. When `spawn()` places a clone on the floor, the clone gets `owner = dungeon`. When `PickupAction` picks it up, `item.owner` changes to `inventory`. The class-level annotation covers all three runtime states.
 
 !!! info "The three ownership states"
-    ```txt
-    Template:     entity.owner = None
-    On the map:   entity.owner = GameMap
-    In inventory: entity.owner = Inventory
-    ```
+    - **Template**: `entity.owner = None`
 
-    Templates should never need a map reference. When spawned entities or inventory items need the map (for example, to drop an item back on the floor), the caller passes `game_map` explicitly.
+        `None` means the entity currently has no owner. At construction time, this is how factory templates are represented.
+
+    - **On the map**: `entity.owner = GameMap`
+
+        `GameMap` means it has just been spawned.
+
+    - **In inventory**: `entity.owner = Inventory`
+
+        `Inventory` is only set later, on pickup, so accepting it at construction time would be misleading.
 
 ### Step 3: Update `spawn()`
 
@@ -285,6 +274,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 ```diff
 +    def place(self, x: int, y: int, game_map: GameMap | None = None) -> None:
 +        from game.map.game_map import GameMap
++
 +        self.x = x
 +        self.y = y
 +        if game_map is not None:
@@ -337,12 +327,12 @@ Update `Actor.__init__`:
 +        self.inventory = inventory
 +        self.inventory.entity = self
 +
-+        self.ai: BaseAI | None = ai
-+        if self.ai:
++        self.ai = ai
++        if self.ai is not None:
 +            self.ai.entity = self
 ```
 
-`ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it. `self.ai: BaseAI | None = ai` both annotates and assigns the attribute in one statement, which is the correct Python pattern: the annotation belongs at the point of declaration, not split across conditional branches.
+`ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it.
 
 ### Step 6: Add the `Item` class
 
@@ -398,6 +388,7 @@ Items do not usually block movement (you can stand on top of a potion) and rende
 +    @property
 +    def items(self) -> Iterator[Item]:
 +        from game.entities.entity import Item
++
 +        yield from (e for e in self.entities if isinstance(e, Item))
 ```
 
@@ -423,12 +414,28 @@ class Inventory(ActorComponent):
         self.capacity = capacity
         self.items: list[Item] = []
 
-    def drop(self, item: Item, game_map: GameMap) -> None:
+    def add_item(self, item: Item, game_map: GameMap | None) -> bool:
+        if len(self.items) >= self.capacity:
+            return False
+
+        if game_map is not None:
+            game_map.entities.discard(item)
+
+        item.owner = self
+        self.items.append(item)
+
+        return True
+
+    def drop_item(self, item: Item, game_map: GameMap) -> None:
         self.items.remove(item)
         item.place(self.entity.x, self.entity.y, game_map)
 ```
 
-`drop()` removes the item from `items`, then calls `item.place()` to move it back to the dungeon floor at the actor's current position. The caller passes `game_map` explicitly: `DropItem.perform` already has `engine` and can supply `engine.game_map` directly, so `Inventory` does not need to navigate the ownership chain itself.
+`add_item()` checks capacity, transfers ownership to the inventory, and appends the item to `items`. When the item comes from the dungeon floor, the caller passes the current `game_map`, and `add_item()` removes it from the map's entity set via `game_map.entities.discard()`. When the item was never placed on a map, for example a debug starting item, the caller can pass `None`.
+
+`game_map` accepts `None`, but it does not have a default value. This makes each call state its intent explicitly: `inventory.add_item(item, engine.game_map)` means "take this item from the map", while `inventory.add_item(item, None)` means "add an item that is not on any map". That explicit argument helps avoid accidentally leaving a floor item both in the map and in the inventory. The method returns `False` if the inventory is full so that the caller can raise `Impossible` with a reason.
+
+`drop_item()` removes the item from `items`, then calls `item.place()` to move it back to the dungeon floor at the actor's current position. The caller passes `game_map` explicitly: `DropItem.perform` already has `engine` and can supply `engine.game_map` directly, so `Inventory` does not need to navigate the ownership chain itself.
 
 ---
 
@@ -491,6 +498,8 @@ class HealingConsumable(Consumable):
         else:
             raise Impossible("Your health is already full.")
 ```
+
+The file defines `Consumable` as the base class for all item effects and `HealingConsumable` as its first concrete subclass.
 
 `Consumable.get_action()` returns the action produced by using this item. In this chapter it returns a plain `ItemAction`, but future consumable types can override it to request additional input before acting, for example a targeting scroll that needs a destination tile.
 
@@ -592,12 +601,8 @@ class PickupAction(Action):
 
         for item in engine.game_map.items:
             if entity.x == item.x and entity.y == item.y:
-                if len(inventory.items) >= inventory.capacity:
+                if not inventory.add_item(item, game_map=engine.game_map):
                     raise Impossible("Your inventory is full.")
-
-                engine.game_map.entities.discard(item)
-                item.owner = inventory
-                inventory.items.append(item)
 
                 MessageLog.add_message(f"You picked up the {item.name}!")
                 return
@@ -620,13 +625,13 @@ class DropItem(ItemAction):
 
     def perform(self, engine: Engine, entity: Entity) -> None:
         assert isinstance(entity, Actor)
-        entity.inventory.drop(self.item, engine.game_map)
+        entity.inventory.drop_item(self.item, engine.game_map)
         MessageLog.add_message(f"You dropped the {self.item.name}.")
 ```
 
-`PickupAction` iterates `engine.game_map.items` (the new property) looking for an item at the player's position. If found, it removes the item from the map's entity set, sets `item.owner = inventory`, and appends it to `inventory.items`. Both trailing `raise Impossible` statements ensure the player always gets feedback.
+`PickupAction` iterates `engine.game_map.items` (the new property) looking for an item at the player's position. If found, it delegates to `inventory.add_item()`, which removes the item from the map's entity set, transfers ownership to the inventory, and appends it to `inventory.items`. Both trailing `raise Impossible` statements ensure the player always gets feedback.
 
-`ItemAction` delegates to `consumable.activate()`. `DropItem` extends `ItemAction` because dropping also needs the item reference, but calls `inventory.drop()` instead.
+`ItemAction` delegates to `consumable.activate()`. `DropItem` extends `ItemAction` because dropping also needs the item reference, but calls `inventory.drop_item()` instead.
 
 The `assert isinstance(entity, Actor)` calls enforce a design contract: `Action.perform` is declared with `entity: Entity`, but these three actions require an `Actor` (only actors have `inventory`). The asserts make that constraint explicit at runtime and narrow the declared type, so a type checker can verify the subsequent attribute accesses without casts.
 
@@ -641,8 +646,19 @@ Since `Actor` is now imported at the top of the file, remove the local import th
 Also add `PickupAction` to the import list at the top of `game/input_handlers.py`:
 
 ```diff
--from game.actions import (Action, BumpAction, EscapeAction, WaitAction)
-+from game.actions import (Action, BumpAction, EscapeAction, PickupAction, WaitAction)
+-from game.actions import (
+-    Action,
+-    BumpAction,
+-    EscapeAction,
+-    WaitAction,
+-)
++from game.actions import (
++    Action,
++    BumpAction,
++    EscapeAction,
++    PickupAction,
++    WaitAction,
++)
 ```
 
 ---
@@ -663,7 +679,11 @@ Update `game/engine.py`. The `handle_events` signature changes from `Iterable[An
 
  import tcod.event
  ...
--from game.input_handlers import EventHandler, GameOverEventHandler, MainGameEventHandler
+-from game.input_handlers import (
+-    EventHandler,
+-    GameOverEventHandler,
+-    MainGameEventHandler
+-)
 +from game.input_handlers import EventHandler, MainGameEventHandler
 ```
 
@@ -1127,7 +1147,7 @@ Add a one-line gold display below the HP bar:
 def render_gold(
     console: Console,
     gold: int,
-    y: int = 46,
+    y: int = 44,
 ) -> None:
     console.print(x=0, y=y, text=f"$ {gold}", fg=colors.GOLD)
 ```

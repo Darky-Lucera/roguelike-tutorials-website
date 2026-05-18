@@ -56,6 +56,7 @@ PLAYER_DEATH  = (0xFF, 0x30, 0x30)
 ENEMY_DEATH   = (0xFF, 0xA0, 0x30)
 
 # UI colors
+HUD_BG        = (0x0F, 0x0F, 0x3F)
 WELCOME_TEXT  = (0x20, 0xA0, 0xFF)
 BAR_TEXT      = WHITE
 HP_BAR_FILLED = (0x0, 0x60, 0x0)
@@ -157,7 +158,7 @@ class MessageLog:
 
 ## hud.py
 
-Two standalone HUD helpers that the engine calls each frame.
+Three standalone HUD helpers that the engine calls each frame.
 
 Create `game/hud.py`:
 
@@ -172,6 +173,17 @@ from game.entities.entity import Actor
 if TYPE_CHECKING:
     from tcod import Console
     from game.map.game_map import GameMap
+
+
+def render_panel(console: Console, y: int = 44, height: int = 6) -> None:
+    console.draw_rect(
+        x      = 0,
+        y      = y,
+        width  = console.width,
+        height = height,
+        ch     = ord(' '),
+        bg     = colors.HUD_BG
+    )
 
 
 def render_bar(
@@ -216,7 +228,7 @@ def render_names_at_mouse_location(
         console.print(x=x, y=y, text=names)
 ```
 
-`render_bar` draws a filled rectangle for the filled portion and an empty rectangle for the background, then overlays the text `"HP: N/M"`. `render_names_at_mouse_location` collects all entity names at the cursor position and joins them with commas. Both functions take only what they need: no `Engine` reference, no hidden dependencies.
+`render_panel` fills the five-row HUD area with `HUD_BG` before anything else is drawn on top of it. `render_bar` draws a filled rectangle for the filled portion and an empty rectangle for the background, then overlays the text `"HP: N/M"`. `render_names_at_mouse_location` collects all entity names at the cursor position and joins them with commas. All three functions take only what they need: no `Engine` reference, no hidden dependencies.
 
 ---
 
@@ -230,7 +242,11 @@ Add the imports at the top of `game/engine.py`:
 +from game.message_log import MessageLog
 +from game import hud
 -from game.input_handlers import EventHandler, GameOverEventHandler
-+from game.input_handlers import EventHandler, MainGameEventHandler, GameOverEventHandler
++from game.input_handlers import (
++    EventHandler,
++    GameOverEventHandler,
++    MainGameEventHandler
++)
 ```
 
 Update `__init__` to use the new handler class and track mouse position:
@@ -274,6 +290,8 @@ Replace the existing `render()` method. It no longer receives `context` or contr
 ```python
     def render(self, console: Console) -> None:
         self.game_map.render(console)
+
+        hud.render_panel(console=console)
 
         MessageLog.render(
             console = console,
@@ -601,6 +619,7 @@ Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/
 
 Run `python main.py`:
 
+- [ ] The bottom panel has a dark background, visually distinct from the map area above it
 - [ ] A health bar appears in the bottom-left corner showing `HP: 30/30`
 - [ ] The welcome message appears in the message log panel
 - [ ] Attacking an enemy adds a colored line to the message log

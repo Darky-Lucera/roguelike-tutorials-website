@@ -277,7 +277,7 @@ class DropItem(ItemAction):
         if entity.equipment.item_is_equipped(self.item):
             entity.equipment.toggle_equip(self.item)
 
-        entity.inventory.drop(self.item, engine.game_map)
+        entity.inventory.drop_item(self.item, engine.game_map)
         MessageLog.add_message(f"You dropped the {self.item.name}.")
 ```
 
