@@ -366,5 +366,3 @@ game/
 3. **Item drought**:
 
     Add a `(2, 0)` entry to `health_potion` in `item_chances`, meaning no potions on floor 2. This forces players to ration their healing early. Observe how this changes risk-taking behavior.
-
-**Next**: [Part 13: Equipment](part-13.md)

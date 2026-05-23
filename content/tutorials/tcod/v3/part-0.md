@@ -249,5 +249,3 @@ When you ask for help, paste the exact error message and the smallest piece of c
 - A roguelike is characterized by procedural generation, permadeath, turn-based gameplay, and a grid-based world.
 - We use Python 3.12+ with tcod 21.2+ and numpy 2.x, managed by uv.
 - The project lives in a single folder; we will add files progressively.
-
-**Next**: [Part 1: Drawing the @ and Moving It Around](part-1.md)

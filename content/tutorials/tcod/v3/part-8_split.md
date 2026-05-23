@@ -1054,7 +1054,7 @@ class InventoryEventHandler(EventHandler):
     FG_COLOR = colors.WHITE
     BG_COLOR = colors.BLACK
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)  # draws the map behind the overlay
 
         inventory = self.engine.player.inventory
@@ -1360,7 +1360,7 @@ game/
     KEY_INVENTORY   = tcod.event.KeySym.I
     KEY_DROP        = tcod.event.KeySym.D
     KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
-    KEY_EXIT_MENU   = tcod.event.KeySym.ESCAPE
+    KEY_EXIT        = tcod.event.KeySym.ESCAPE
 
     # Part 7. Exercise 2: Scroll the message panel
     SCROLL_UP       = tcod.event.KeySym.PAGEUP
@@ -1371,6 +1371,4 @@ game/
     BACKPACK_SCROLL = tcod.event.KeySym.B
     ```
 
-    `KEY_QUIT_GAME` and `KEY_EXIT_MENU` both map to `ESCAPE` but carry different names to express intent: one quits the game, the other closes an overlay. Update `input_handlers.py` to `from game.constants import colors, keys` and replace every raw `tcod.event.KeySym.*` reference with the corresponding constant. Update `factories.py` the same way: `keys.HEALTH_POTION` and `keys.BACKPACK_SCROLL` instead of hardcoded `KeySym` values, and remove the `import tcod.event` that is no longer needed there. A player can now remap all controls by editing one file without touching any handler or factory.
-
-**Next**: [Part 9: Spells and Targeting](part-9.md)
+    `KEY_QUIT_GAME` and `KEY_EXIT` both map to `ESCAPE` but carry different names to express intent: one quits the game, the other closes an overlay. Update `input_handlers.py` to `from game.constants import colors, keys` and replace every raw `tcod.event.KeySym.*` reference with the corresponding constant. Update `factories.py` the same way: `keys.HEALTH_POTION` and `keys.BACKPACK_SCROLL` instead of hardcoded `KeySym` values, and remove the `import tcod.event` that is no longer needed there. A player can now remap all controls by editing one file without touching any handler or factory.

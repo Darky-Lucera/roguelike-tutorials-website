@@ -84,3 +84,13 @@ Lines starting with `-` are removed. Lines starting with `+` are added.
 
 - [Appendix 1: Damage Formulas](apend-1.md)
 - [Appendix 2: Combat Effects](apend-2.md)
+
+---
+
+## Analytics and privacy
+
+This site uses Google Analytics to collect anonymous usage statistics. No personal data is collected or stored.
+
+The only thing tracked is which pages are visited and in what order. This helps answer questions like: do readers finish the tutorial? Which parts get the most traffic? Where do people stop?
+
+There are no ads, no user accounts, no cookies used for tracking individuals, and the data is never shared or sold. If you prefer not to be tracked, a browser extension like [uBlock Origin](https://ublockteam.github.io/uBlockOrigin/) will block Google Analytics automatically.

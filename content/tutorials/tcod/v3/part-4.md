@@ -400,5 +400,3 @@ game/
     Instead of remembering explored tiles forever, add a `memory` array to `GameMap` using integers. Every time a tile is visible, set its memory value to `10`. After each player action, decrement memory values greater than 0. Render tiles as explored while their memory value is greater than 0; when it reaches 0, they become unseen again.
 
     Walk through a corridor, wait or move away, and watch the remembered area fade back into darkness.
-
-**Next**: [Part 5: Enemies and the Turn System](part-5.md)

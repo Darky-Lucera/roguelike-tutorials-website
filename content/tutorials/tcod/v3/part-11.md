@@ -415,7 +415,7 @@ Add to `game/input_handlers.py`:
 class LevelUpEventHandler(EventHandler):
     TITLE = "Level Up"
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
         x, y = 40, 0
@@ -598,5 +598,3 @@ game/
 3. **Level cap**:
 
     Cap the player at level 10. Above level 10, `add_xp` still accumulates but `requires_level_up` always returns `False`. Print `"You are at maximum level."` instead of the modal.
-
-**Next**: Part 12: Procedural Difficulty

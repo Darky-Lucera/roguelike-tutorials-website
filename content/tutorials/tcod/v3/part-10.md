@@ -195,7 +195,7 @@ class BaseEventHandler:
     def event_keydown(self, event: tcod.event.KeyDown):
         return None
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         raise NotImplementedError()
 
 
@@ -206,10 +206,10 @@ class PopupMessage(BaseEventHandler):
         self.parent = parent_handler
         self.text = text
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         self.parent.on_render(console)
-        console.rgb["fg"] //= 8
-        console.rgb["bg"] //= 8
+        console.fg //= 8
+        console.bg //= 8
         console.print(
             console.width // 2,
             console.height // 2,
@@ -236,7 +236,7 @@ from game.setup_game import SAVE_PATH, load_game, new_game
 class MainMenu(BaseEventHandler):
     """Renders the main menu and handles New / Continue / Quit."""
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         console.print(
             console.width // 2,
             console.height // 2 - 4,
@@ -348,7 +348,7 @@ class EventHandler(BaseEventHandler):
     def event_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Action | None:
         return None
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         self.engine.render(console)
 ```
 
@@ -408,7 +408,7 @@ Then override it in the targeting consumables. Remove the old `get_action()` ove
 -        from game.input_handlers import SingleRangedAttackHandler
 -        engine.event_handler = SingleRangedAttackHandler(
 -            engine,
--            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+-            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
 -        )
 -        return None
 -
@@ -417,7 +417,7 @@ Then override it in the targeting consumables. Remove the old `get_action()` ove
 +        from game.input_handlers import SingleRangedAttackHandler
 +        return SingleRangedAttackHandler(
 +            engine,
-+            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
++            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
 +        )
 +
 
@@ -428,7 +428,7 @@ Then override it in the targeting consumables. Remove the old `get_action()` ove
 -        engine.event_handler = AreaRangedAttackHandler(
 -            engine,
 -            radius=self.radius,
--            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+-            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
 -        )
 -        return None
 -
@@ -438,7 +438,7 @@ Then override it in the targeting consumables. Remove the old `get_action()` ove
 +        return AreaRangedAttackHandler(
 +            engine,
 +            radius=self.radius,
-+            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
++            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
 +        )
 ```
 
@@ -475,7 +475,7 @@ from game.setup_game import SAVE_PATH
 def run(
     handler: BaseEventHandler,
     context: tcod.context.Context,
-    console: tcod.Console,
+    console: tcod.console.Console,
     on_exit=None,
 ) -> None:
     """Drive the handler state machine until SystemExit. Calls on_exit(handler) before re-raising."""
@@ -522,7 +522,7 @@ def main() -> None:
         title="Roguelike Tutorial",
         vsync=True,
     ) as context:
-        root_console = tcod.Console(screen_width, screen_height, order="F")
+        root_console = tcod.console.Console(screen_width, screen_height, order="F")
         run(handler, context, root_console, on_exit=save_game)
 
 
@@ -554,7 +554,7 @@ Then add the class:
 
 ```python
 class GameOverEventHandler(EventHandler):
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
     def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
@@ -719,5 +719,3 @@ game/
 3. **Autosave**:
 
     Call `engine.save_as(SAVE_PATH)` after every `handle_enemy_turns()`. The game is now crash-proof, a power outage only loses the current turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state).
-
-**Next**: [Part 11: Dungeon Levels and Experience](part-11.md)

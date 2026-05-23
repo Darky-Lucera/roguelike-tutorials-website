@@ -446,5 +446,3 @@ game/
 3. **Add a wait action**:
 
     In many roguelikes, pressing `.` or `5` (numpad) passes a turn without moving. Create a `WaitAction(Action)` class and handle it in both `game/input_handlers.py` and `main.py`.
-
-**Next**: [Part 2: Entities, the Map, and the Engine](part-2.md)

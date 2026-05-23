@@ -127,7 +127,7 @@ class MessageLog:
 
     @staticmethod
     def render(
-        console: tcod.Console,
+        console: tcod.console.Console,
         x: int,
         y: int,
         width: int,
@@ -425,7 +425,7 @@ class EventHandler:
     def event_keydown(self, _event: tcod.event.KeyDown) -> Action | None:
         return None
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         self.engine.render(console)
 
 
@@ -451,7 +451,7 @@ class GameOverEventHandler(EventHandler):
     FG_COLOR = colors.GAME_OVER_FG
     BG_COLOR = colors.GAME_OVER_BG
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
         hint   = "Press ESC to quit"
@@ -533,7 +533,7 @@ Rename the console variable in the context block:
 ```diff
 -        console = tcod.console.Console(screen_width, screen_height, order="F")
 -        engine.run(context, console)
-+        root_console = tcod.Console(screen_width, screen_height, order="F")
++        root_console = tcod.console.Console(screen_width, screen_height, order="F")
 +        engine.run(context, root_console)
 ```
 
@@ -592,7 +592,7 @@ Update `Fighter.die()` in `game/entities/components/fighter.py` to write to the 
 Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/fighter.py`:
 
 ```python
-    def heal(self, amount: int) -> int:
+    def heal(self, amount: float) -> int:
         if self.hp == self.max_hp:
             return 0
 
@@ -604,7 +604,7 @@ Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/
 
         return recovered
 
-    def take_damage(self, amount: int) -> None:
+    def take_damage(self, amount: float) -> None:
         self.hp -= amount
 ```
 
@@ -699,5 +699,3 @@ game/
 3. **Entity details**:
 
     When hovering over an entity, show full combat stats if it is an `Actor`: `"Player (HP: 30/30, ATK: 5, DEF: 2)"`. Plain entities (items, corpses) still show just their name. Modify `hud.render_names_at_mouse_location` to iterate with an explicit loop, check `isinstance(entity, Actor)`, and format the stats line accordingly.
-
-**Next**: Part 8: Items and Inventory

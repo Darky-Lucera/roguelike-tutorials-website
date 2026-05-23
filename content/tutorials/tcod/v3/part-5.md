@@ -839,5 +839,3 @@ game/
 3. **Passive entities**:
 
     Add a `chest` entity that has `blocks_movement=True` but no AI. Verify that `BumpAction` prints an attack message when you walk into it (because it is blocking). In Part 8, items like chests will have a different interaction.
-
-**Next**: [Part 6: Combat](part-6.md)

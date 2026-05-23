@@ -7,9 +7,12 @@ By the end of this part, the player will be able to use scrolls with targeted ef
 ## Learning goals
 
 - Add a targeting cursor the player moves with keyboard or mouse
-- Implement three spell scrolls: lightning bolt (auto-target), confusion (cursor), fireball (area of effect)
-- Show a visual radius ring for AoE targeting
+- Implement three spell scrolls: lightning bolt (auto-target), confusion (cursor), fireball (Area of Effect)
+- Show a visual radius ring for Area of Effect (AoE) targeting
 - Add a `ConfusedEnemy` AI that wanders randomly
+
+!!! note "Prerequisite: Part 8 Exercise 4"
+    This part assumes you completed Exercise 4 from Part 8: centralising all keybindings in `game/constants/keys.py`. That exercise moved every key constant into one file so they are not spread across `input_handlers.py`, `actions.py`, or anywhere else. If you skipped it, complete it before continuing — the code in this chapter references `keys.*` throughout.
 
 ---
 
@@ -29,7 +32,7 @@ MainGameEventHandler
   │  player presses i → use scroll
   ▼
 InventoryActivateHandler
-  │  scroll.consumable.get_action() returns targeting handler
+  │  scroll.consumable.get_action() installs targeting handler
   ▼
 SingleRangedAttackHandler  (or AreaRangedAttackHandler)
   │  player confirms target
@@ -41,21 +44,95 @@ MainGameEventHandler  ← back to normal play
 
 ## Add entity.distance()
 
-Fireball needs to measure distance from the explosion center to each entity. Add to `Entity`:
+The spell code needs a reusable way to measure the distance from an entity to a map coordinate. Add to `Entity`:
 
 ```python
+import math
+
+...
+
 def distance(self, x: int, y: int) -> float:
-    return ((self.x - x) ** 2 + (self.y - y) ** 2) ** 0.5
+    return math.hypot(self.x - x, self.y - y)
 ```
+
+`entity.py` did not need `math` before this chapter, so add the import at the top of the file.
+
+!!! tip "`math.hypot` vs manual sqrt"
+    `math.hypot(a, b)` computes `sqrt(a² + b²)` in one call. It is more readable than `math.sqrt(a*a + b*b)` and numerically stable. Performance is equivalent. When you only need to *compare* a distance against a threshold, you can skip `sqrt` entirely: `dx*dx + dy*dy <= r*r` is equivalent to `hypot(dx, dy) <= r` but avoids any floating-point root. We will use that trick later in `get_aoe_tiles_in_radius` (aoe -> Area of Effect).
+
+---
+
+## ActionModalHandler: a marker for auto-closing handlers
+
+Some handlers (inventory screens, targeting cursors, ...) should return the player
+to normal gameplay automatically after a successful action. In Part 8,
+`handle_events` identified these handlers by listing them explicitly:
+
+```python
+elif isinstance(self.engine.event_handler, (InventoryActivateHandler, InventoryDropHandler)):
+    self.engine.event_handler = MainGameEventHandler(self.engine)
+```
+
+Adding targeting handlers would mean extending that tuple every time. Instead,
+we are going to introduce a shared base class that expresses the intent once:
+
+```python
+class ActionModalHandler(EventHandler):
+    """Handler that returns to the main game after a successful action."""
+```
+
+Any handler that inherits from `ActionModalHandler` will be closed automatically on finish.
+
+Update `InventoryEventHandler` from Part 8 to inherit from it:
+
+```diff
+-class InventoryEventHandler(EventHandler):
++class InventoryEventHandler(ActionModalHandler):
+```
+
+And update the isinstance check in `EventHandler.handle_events`:
+
+```diff
+-elif isinstance(self.engine.event_handler, (InventoryActivateHandler, InventoryDropHandler)):
++elif isinstance(self.engine.event_handler, ActionModalHandler):
+     self.engine.event_handler = MainGameEventHandler(self.engine)
+```
+
+Adding a new modal handler in the future requires no changes to `handle_events`.
 
 ---
 
 ## SelectIndexHandler: cursor base class
 
-Add to `game/input_handlers.py`:
+This part builds two targeting handlers: `SingleRangedAttackHandler` (single-tile cursor) and `AreaRangedAttackHandler` (AoE radius ring). Both share cursor movement, keyboard shortcuts, and mouse-click logic. `SelectIndexHandler` extracts that common behavior so each concrete handler only needs to implement `on_index_selected`:
+
+Before writing the class, add the cursor navigation constants to `game/constants/keys.py`:
+
+```diff
+ KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
+-KEY_EXIT_MENU   = tcod.event.KeySym.ESCAPE
++KEY_EXIT        = tcod.event.KeySym.ESCAPE
++KEY_SELECT      = {tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER}
++
++CURSOR_FAST     = tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT  # ×5
++CURSOR_FASTER   = tcod.event.Modifier.LCTRL  | tcod.event.Modifier.RCTRL   # ×10
+```
+
+`KEY_EXIT` replaces `KEY_EXIT_MENU`: both were `ESCAPE`, but the new name fits any modal overlay (menus, cursors, dialogs), not just inventory screens. Update the `InventoryEventHandler` usage accordingly:
+
+```diff
+-if key == keys.KEY_EXIT_MENU:
++if key == keys.KEY_EXIT:
+```
+
+Now add to `game/input_handlers.py`. This class uses the centralised key bindings from Part 8 Exercise 4, so make sure the imports at the top include `keys`:
 
 ```python
-class SelectIndexHandler(EventHandler):
+from game.constants import colors, keys
+```
+
+```python
+class SelectIndexHandler(ActionModalHandler):
     """Base for handlers that ask the player to select a map tile."""
 
     def __init__(self, engine: Engine) -> None:
@@ -63,38 +140,46 @@ class SelectIndexHandler(EventHandler):
         player = self.engine.player
         engine.mouse_location = player.x, player.y
 
-    def on_render(self, console: tcod.Console) -> None:
+    def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
         x, y = self.engine.mouse_location
         if self.engine.game_map.in_bounds(x, y):
-            console.rgb["bg"][x, y] = colors.WHITE
-            console.rgb["fg"][x, y] = colors.BLACK
+            console.bg[x, y] = colors.WHITE
+            console.fg[x, y] = colors.BLACK
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         key = event.sym
-        if key in MOVE_KEYS:
+        # Part 8. Exercise 4: Centralise keybindings (keys.*)
+        if key in keys.MOVE_KEYS:
             modifier = 1
-            if event.mod & (tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT):
+            if event.mod & keys.CURSOR_FAST:
                 modifier *= 5
-            if event.mod & (tcod.event.Modifier.LCTRL | tcod.event.Modifier.RCTRL):
+            if event.mod & keys.CURSOR_FASTER:
                 modifier *= 10
+
             x, y = self.engine.mouse_location
-            dx, dy = MOVE_KEYS[key]
+            dx, dy = keys.MOVE_KEYS[key]
             x = max(0, min(x + dx * modifier, self.engine.game_map.width - 1))
             y = max(0, min(y + dy * modifier, self.engine.game_map.height - 1))
             self.engine.mouse_location = x, y
+
             return None
-        if key in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
+
+        if key in keys.KEY_SELECT:
             return self.on_index_selected(*self.engine.mouse_location)
-        if key == tcod.event.KeySym.ESCAPE:
+
+        if key == keys.KEY_EXIT:
             self.engine.event_handler = MainGameEventHandler(self.engine)
             return None
+
         return super().event_keydown(event)
 
     def event_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Action | None:
-        if self.engine.game_map.in_bounds(*event.integer_position):
+        x, y = event.integer_position
+        if self.engine.game_map.in_bounds(x, y):
             if event.button == 1:
-                return self.on_index_selected(*event.integer_position)
+                return self.on_index_selected(x, y)
+
         return None
 
     def on_index_selected(self, x: int, y: int) -> Action | None:
@@ -131,48 +216,313 @@ The `callback` is a function that accepts `(x, y)` and returns an `Action`. The 
 
 ## AreaRangedAttackHandler
 
+`AreaRangedAttackHandler` extends `SelectIndexHandler` and asks the player to pick an explosion center. It highlights the affected area on every frame so the player sees exactly which tiles will be hit.
+
+The handler does not hardcode a color. Different spells may want different highlight colors, so `color` is passed as a parameter alongside `radius`. The calling consumable decides which color to use. Add `FIREBALL_AOE` to `game/constants/colors.py`:
+
+```python
+FIREBALL_AOE = (0xFF, 0x00, 0x00)
+```
+
+Add the class to `game/input_handlers.py`:
+
 ```python
 class AreaRangedAttackHandler(SelectIndexHandler):
-    """Shows an AoE radius ring and asks the player to confirm."""
+    """Shows an Area of Effect (AoE) radius and asks the player to confirm."""
 
     def __init__(
         self,
         engine: Engine,
         radius: int,
+        color: tuple[int, int, int],
         callback,
     ) -> None:
         super().__init__(engine)
-        self.radius = radius
+        self.radius   = radius
+        self.color    = color
         self.callback = callback
-
-    def on_render(self, console: tcod.Console) -> None:
-        super().on_render(console)
-        x, y = self.engine.mouse_location
-        diameter = self.radius * 2 + 1
-        console.draw_frame(
-            x=x - self.radius,
-            y=y - self.radius,
-            width=diameter,
-            height=diameter,
-            fg=colors.RED,
-            bg=None,
-            clear=False,
-        )
 
     def on_index_selected(self, x: int, y: int) -> Action | None:
         return self.callback((x, y))
 ```
 
-Add `RED` to `game/constants/colors.py`:
+The `on_render` method handles the highlighting. We will build it in three steps.
+
+### Step 1: Square outline
+
+The simplest approach draws a rectangular frame around the cursor:
 
 ```python
-RED = (0xFF, 0x0, 0x0)
+def on_render(self, console: tcod.console.Console) -> None:
+    super().on_render(console)
+    x, y = self.engine.mouse_location
+    diameter = self.radius * 2 + 1
+    console.draw_frame(
+        x      = x - self.radius,
+        y      = y - self.radius,
+        width  = diameter,
+        height = diameter,
+        fg     = self.color,
+        bg     = None,
+        clear  = False,
+    )
 ```
 
-`draw_frame` draws a rectangle outline. We pass `clear=False` so the tiles inside are not blanked, the frame is a visual indicator only.
+`draw_frame` draws a rectangle outline. `clear=False` leaves the tiles inside untouched.
 
-!!! info "The radius ring is approximate"
-    `draw_frame` draws a square, not a circle. A true circular highlight requires iterating every tile within radius. The square is a good-enough approximation for a tutorial, and is what the reference implementation uses.
+*[TODO: screenshot -- square outline around AoE cursor]*
+
+The square is quick to implement, but misleading: corner tiles are further from the center than the stated radius, and the outline ignores walls. Let's replace it with a real circle.
+
+### Step 2: True circle
+
+To highlight exactly the tiles within radius we need a few helper methods in `GameMap`.
+
+First add small tile-query helpers. They keep the AoE code readable and give us one place to define what counts as blocking:
+
+```python
+def is_transparent(self, x: int, y: int) -> bool:
+    if not self.in_bounds(x, y):
+        return False
+
+    return bool(self.tiles["transparent"][x, y])
+
+def is_opaque(self, x: int, y: int) -> bool:
+    return not self.is_transparent(x, y)
+
+def is_walkable(self, x: int, y: int) -> bool:
+    if not self.in_bounds(x, y):
+        return False
+
+    return bool(self.tiles["walkable"][x, y])
+
+def is_blocking(self, x: int, y: int) -> bool:
+    return not self.is_walkable(x, y)
+```
+
+Now add two straight-line checks. They share the same shape, but answer different gameplay questions:
+
+- **`has_line_of_sight`** asks whether vision can pass along the line, so it uses `is_opaque`.
+- **`has_line_of_movement`** asks whether a straight-line path can be traversed, so it uses `is_blocking`.
+
+The fireball AoE will use `has_line_of_sight`. That keeps this targeting rule tied to what the map currently knows about visibility: opaque tiles stop the blast preview, transparent tiles do not. `has_line_of_movement` is still useful for straight-line movement rules that should be blocked by non-walkable tiles.
+
+```python
+import math
+import tcod
+
+...
+
+def has_line_of_sight(self, origin_x: int, origin_y: int, target_x: int, target_y: int) -> bool:
+    if not self.in_bounds(origin_x, origin_y) or not self.in_bounds(target_x, target_y):
+        return False
+
+    if self.is_opaque(origin_x, origin_y):
+        return False
+
+    if self.is_opaque(target_x, target_y):
+        return False
+
+    path = tcod.los.bresenham((origin_x, origin_y), (target_x, target_y))
+    for x, y in path[1:-1]:
+        if self.is_opaque(x, y):
+            return False
+
+    return True
+
+def has_line_of_movement(self, origin_x: int, origin_y: int, target_x: int, target_y: int) -> bool:
+    if not self.in_bounds(origin_x, origin_y) or not self.in_bounds(target_x, target_y):
+        return False
+
+    if self.is_blocking(origin_x, origin_y):
+        return False
+
+    if self.is_blocking(target_x, target_y):
+        return False
+
+    path = tcod.los.bresenham((origin_x, origin_y), (target_x, target_y))
+    for x, y in path[1:-1]:
+        if self.is_blocking(x, y):
+            return False
+
+    return True
+```
+
+!!! info "`tcod.los.bresenham`"
+    `tcod.los.bresenham((x0, y0), (x1, y1))` returns a numpy array of `(x, y)` integer pairs tracing the straight line from `(x0, y0)` to `(x1, y1)`, endpoints included. It uses the [Bresenham line algorithm](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm): integer arithmetic only, no floating-point rounding. We slice `path[1:-1]` to skip origin and target since both line helpers already verified those tiles above; only the intermediate cells determine whether the line is clear.
+
+**`get_aoe_tiles_in_radius`** returns a boolean numpy mask of every tile within radius that has line of sight to the center:
+
+```python
+def get_aoe_tiles_in_radius(self, center_x: int, center_y: int, radius: float):
+    area = np.zeros((self.width, self.height), dtype=bool, order='F')
+
+    if not self.in_bounds(center_x, center_y):
+        return area
+
+    if radius < 0:
+        return area
+
+    if self.is_blocking(center_x, center_y):
+        return area
+
+    min_x = max(0,           math.floor(center_x - radius))
+    max_x = min(self.width,  math.ceil( center_x + radius) + 1)
+    min_y = max(0,           math.floor(center_y - radius))
+    max_y = min(self.height, math.ceil( center_y + radius) + 1)
+
+    radius_sqr = radius * radius
+    for y in range(min_y, max_y):
+        dy = y - center_y
+        dy_sqr = dy * dy
+        for x in range(min_x, max_x):
+            dx = x - center_x
+            if dx * dx + dy_sqr > radius_sqr:
+                continue
+
+            if self.has_line_of_sight(center_x, center_y, x, y):
+                area[x, y] = True
+
+    return area
+```
+
+The circle test is `dx² + dy² <= r²`. Comparing squared distances is mathematically equivalent to comparing distances, but avoids `math.sqrt` entirely. The line-of-sight check then cuts out tiles that an opaque wall would shield.
+
+Rewrite `on_render` to highlight the matching tiles:
+
+```python
+def on_render(self, console: tcod.console.Console) -> None:
+    super().on_render(console)
+    x, y = self.engine.mouse_location
+    aoe = self.engine.game_map.get_aoe_tiles_in_radius(x, y, self.radius)
+    console.bg[aoe] = self.color
+```
+
+`console.bg` is a numpy array of shape `(width, height, 3)`. Indexing it with a boolean mask sets the background color of every `True` tile in one operation.
+
+!!! note "Shorthand aliases"
+    `console.bg` and `console.fg` are shorthand for `console.rgb["bg"]` and `console.rgb["fg"]`. You may see either form in tcod documentation or other tutorials.
+
+*[TODO: screenshot -- clean circle highlight, hard edges]*
+
+### Step 3: Antialiased circle
+
+The circle above has a hard edge: each tile is either fully highlighted or not. Tiles right at the boundary look jagged. We can soften this by giving edge tiles a fractional weight.
+
+Add `get_aoe_weights_in_radius` to `GameMap`. It returns a `float32` array where interior tiles carry `1.0` and edge tiles carry a value between `0.0` and `1.0`:
+
+```python
+def get_aoe_weights_in_radius(self, center_x: int, center_y: int, radius: float):
+    weights = np.zeros((self.width, self.height), dtype=np.float32, order='F')
+
+    if not self.in_bounds(center_x, center_y):
+        return weights
+
+    if radius < 0:
+        return weights
+
+    if self.is_blocking(center_x, center_y):
+        return weights
+
+    min_x = max(0,           math.floor(center_x - radius - 1.0))
+    max_x = min(self.width,  math.ceil( center_x + radius + 1.0) + 1)
+    min_y = max(0,           math.floor(center_y - radius - 1.0))
+    max_y = min(self.height, math.ceil( center_y + radius + 1.0) + 1)
+
+    for y in range(min_y, max_y):
+        dy = y - center_y
+        for x in range(min_x, max_x):
+            dx = x - center_x
+            dist = math.hypot(dx, dy)
+
+            if dist > radius + 1.0:
+                continue
+
+            if not self.has_line_of_sight(center_x, center_y, x, y):
+                continue
+
+            if dist <= radius:
+                alpha = 1.0
+            else:
+                alpha = max(0.0, 1.0 - (dist - radius))
+
+            weights[x, y] = alpha
+
+    return weights
+```
+
+Here we need the actual distance, not just a comparison, so `math.hypot(dx, dy)` is the right tool, as we saw in `Entity.distance`. Tiles within `radius` get `alpha = 1.0`. Tiles in the one-unit border zone get a linear fade down to `0.0`. Tiles beyond `radius + 1` are skipped.
+
+Update `on_render` to scale the highlight color by each tile's weight. Add these imports to `game/input_handlers.py`:
+
+```python
+import math
+from game.render_utils import scale_color
+```
+
+Then the final `on_render`:
+
+```python
+def on_render(self, console: tcod.console.Console) -> None:
+    super().on_render(console)
+    x, y = self.engine.mouse_location
+
+    weights = self.engine.game_map.get_aoe_weights_in_radius(x, y, self.radius)
+    width  = self.engine.game_map.width
+    height = self.engine.game_map.height
+    min_x = max(0,      math.floor(x - self.radius - 1.0))
+    max_x = min(width,  math.ceil( x + self.radius + 1.0) + 1)
+    min_y = max(0,      math.floor(y - self.radius - 1.0))
+    max_y = min(height, math.ceil( y + self.radius + 1.0) + 1)
+
+    for grid_y in range(min_y, max_y):
+        for grid_x in range(min_x, max_x):
+            alpha = weights[grid_x, grid_y]
+            if alpha > 0:
+                console.bg[grid_x, grid_y] = scale_color(self.color, alpha)
+```
+
+The bounds `min_x/max_x/min_y/max_y` are precomputed to avoid iterating the entire map on every render frame. `scale_color` is a small helper in `game/render_utils.py`:
+
+```python
+def scale_color(color: tuple[int, int, int], factor: float) -> tuple[int, int, int]:
+    factor = max(0.0, min(1.0, factor))
+    return (
+        round(color[0] * factor),
+        round(color[1] * factor),
+        round(color[2] * factor),
+    )
+```
+
+It multiplies each RGB channel by `factor` and rounds to the nearest integer. At `factor = 1.0` the color is unchanged; at `factor = 0.5` it is half as bright.
+
+*[TODO: screenshot -- smooth antialiased circle with faded edges]*
+
+---
+
+## Adding scroll constants
+
+Three new sprites and three new colors. All scrolls share the same `~` glyph but each gets its own named constant so they can be retextured independently.
+
+Extend `game/constants/sprites.py`:
+
+```diff
+ HEALTH_POTION = "!"
++
++CONFUSION_SCROLL = "~"
++FIREBALL_SCROLL  = "~"
++LIGHTNING_SCROLL = "~"
+```
+
+Extend `game/constants/colors.py`:
+
+```diff
+ HEALTH_POTION = (127, 0, 255)
++
++CONFUSION_SCROLL = (207,  63, 255)
++FIREBALL_SCROLL  = (255,   0,   0)
++LIGHTNING_SCROLL = (255, 255,   0)
+```
 
 ---
 
@@ -186,14 +536,14 @@ class LightningDamageConsumable(Consumable):
         self.damage = damage
         self.maximum_range = maximum_range
 
-    def activate(self, action, engine: Engine, consumer: Actor) -> None:
+    def activate(self, _action: ItemAction, engine: Engine, consumer: Actor) -> None:
         target = None
-        closest_distance = self.maximum_range + 1.0
+        closest_distance = float(self.maximum_range)
 
         for actor in engine.game_map.actors:
             if actor is not consumer and engine.game_map.visible[actor.x, actor.y]:
                 distance = consumer.distance(actor.x, actor.y)
-                if distance < closest_distance:
+                if distance <= closest_distance:
                     target = actor
                     closest_distance = distance
 
@@ -204,35 +554,47 @@ class LightningDamageConsumable(Consumable):
             )
             target.fighter.take_damage(self.damage)
             self.consume()
+
         else:
             raise Impossible("No enemy is close enough to strike.")
 ```
 
+`LightningDamageConsumable` finds the nearest visible actor within `maximum_range` and damages it directly, with no player input. If nothing is in range, it raises `Impossible` and the scroll is not consumed.
+
 ### ConfusionConsumable (cursor targeting)
+
+Add this import at the top of `consumable.py`:
+
+```python
+from game.entities.components.ai import ConfusedEnemy
+```
 
 ```python
 class ConfusionConsumable(Consumable):
     def __init__(self, number_of_turns: int) -> None:
         self.number_of_turns = number_of_turns
 
-    def get_action(self, consumer: Actor, engine: Engine):
-        MessageLog.add_message(
-            "Select a target location.", colors.NEEDS_TARGET
-        )
+    def get_action(self, _consumer: Actor, engine: Engine):
         from game.input_handlers import SingleRangedAttackHandler
+
+        MessageLog.add_message(
+            "Select a target location.",
+            colors.NEEDS_TARGET
+        )
         engine.event_handler = SingleRangedAttackHandler(
             engine,
-            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+            callback = lambda pos: ItemAction(item=self.entity, target_pos=pos),
         )
-        return None
 
     def activate(self, action, engine: Engine, consumer: Actor) -> None:
-        target = engine.game_map.get_actor_at_location(*action.target_xy)
+        target = engine.game_map.get_actor_at_location(*action.target_pos)
 
         if not target:
             raise Impossible("You must select an enemy to target.")
+
         if not engine.game_map.visible[target.x, target.y]:
             raise Impossible("You cannot target an area you cannot see.")
+
         if target is consumer:
             raise Impossible("You cannot confuse yourself!")
 
@@ -248,7 +610,7 @@ class ConfusionConsumable(Consumable):
         self.consume()
 ```
 
-`InventoryActivateHandler.on_item_selected` (from Part 8) calls `consumable.get_action()` when the player selects an item. Targeting consumables override it to install the cursor handler on the engine and return `None`; no action is performed yet. The actual `ItemAction` is built by the callback once the player confirms a target.
+`InventoryActivateHandler.on_item_selected` (from Part 8) calls `consumable.get_action()` when the player selects an item. Targeting consumables override it to install the cursor handler on the engine and leave the method without returning an action. In Python, a function that reaches the end without `return` returns `None`; no action is performed yet. The actual `ItemAction` is built by the callback once the player confirms a target.
 
 !!! note "This pattern is temporary"
     Mutating `engine.event_handler` inside `get_action()` works here, but it mixes handler transitions into a method that is supposed to return an action. Part 10 replaces this with a dedicated `get_targeting_handler()` method and a return-based state machine, making the transition explicit and clean.
@@ -256,19 +618,19 @@ class ConfusionConsumable(Consumable):
 Add colors to `game/constants/colors.py`:
 
 ```python
-NEEDS_TARGET = (0x3F, 0xFF, 0xFF)
+NEEDS_TARGET          = (0x3F, 0xFF, 0xFF)
 STATUS_EFFECT_APPLIED = (0x3F, 0xFF, 0x3F)
 ```
 
-`ItemAction` needs a `target_xy` parameter. Add it to `__init__` in `game/actions.py`:
+`ItemAction` needs a `target_pos` parameter. Add it to `__init__` in `game/actions.py`:
 
 ```diff
  class ItemAction(Action):
 -    def __init__(self, item: Item) -> None:
-+    def __init__(self, item: Item, target_xy: tuple[int, int] | None = None) -> None:
++    def __init__(self, item: Item, target_pos: tuple[int, int] | None = None) -> None:
          super().__init__()
          self.item = item
-+        self.target_xy = target_xy
++        self.target_pos = target_pos
 ```
 
 `perform` is unchanged from Part 8: it still asserts `isinstance(entity, Actor)` before calling `activate`.
@@ -281,27 +643,35 @@ class FireballDamageConsumable(Consumable):
         self.damage = damage
         self.radius = radius
 
-    def get_action(self, consumer: Actor, engine: Engine):
-        MessageLog.add_message(
-            "Select a target location.", colors.NEEDS_TARGET
-        )
+    def get_action(self, _consumer: Actor, engine: Engine):
         from game.input_handlers import AreaRangedAttackHandler
+
+        MessageLog.add_message(
+            "Select a target location.",
+            colors.NEEDS_TARGET
+        )
+
         engine.event_handler = AreaRangedAttackHandler(
             engine,
-            radius=self.radius,
-            callback=lambda xy: ItemAction(item=self.entity, target_xy=xy),
+            radius   = self.radius,
+            color    = colors.FIREBALL_AOE,
+            callback = lambda pos: ItemAction(item=self.entity, target_pos=pos),
         )
-        return None
 
-    def activate(self, action, engine: Engine, consumer: Actor) -> None:
-        target_xy = action.target_xy
+    def activate(self, action: ItemAction, engine: Engine, _consumer: Actor) -> None:
+        if action.target_pos is None:
+            raise Impossible("You need to select a target")
 
-        if not engine.game_map.visible[target_xy]:
+        target_pos = action.target_pos
+
+        if not engine.game_map.visible[target_pos]:
             raise Impossible("You cannot target an area you cannot see.")
 
+        x, y = target_pos
+        target_area = engine.game_map.get_aoe_tiles_in_radius(x, y, self.radius)
         targets_hit = False
         for actor in engine.game_map.actors:
-            if actor.distance(*target_xy) <= self.radius:
+            if target_area[actor.x, actor.y]:
                 MessageLog.add_message(
                     f"The {actor.name} is engulfed in a fiery explosion,"
                     f" taking {self.damage} damage!",
@@ -312,8 +682,11 @@ class FireballDamageConsumable(Consumable):
 
         if not targets_hit:
             raise Impossible("There are no targets in the radius.")
+
         self.consume()
 ```
+
+`FireballDamageConsumable` opens `AreaRangedAttackHandler` for AoE targeting. On confirm it builds the same AoE mask used by the targeting preview and damages every actor inside it, including the player. It raises `Impossible` only if the tile is not visible or no actor was hit.
 
 ---
 
@@ -325,7 +698,9 @@ Add to `game/entities/components/ai.py`:
 import random
 
 from game.message_log import MessageLog
+```
 
+```python
 class ConfusedEnemy(BaseAI):
     def __init__(
         self,
@@ -344,6 +719,7 @@ class ConfusedEnemy(BaseAI):
                 f"The {entity.name} is no longer confused."
             )
             entity.ai = self.previous_ai
+
         else:
             direction_x, direction_y = random.choice(
                 [
@@ -353,7 +729,6 @@ class ConfusedEnemy(BaseAI):
                 ]
             )
             self.turns_remaining -= 1
-            from game.actions import BumpAction
             BumpAction(direction_x, direction_y).perform(engine, entity)
 ```
 
@@ -364,162 +739,96 @@ A confused enemy picks a random direction each turn. It can still accidentally a
 
 ---
 
-## Adding scroll constants
-
-Three new sprites and three new colors. All scrolls share the same `~` glyph but each gets its own named constant so they can be retextured independently.
-
-Extend `game/constants/sprites.py`:
-
-```diff
- PLAYER = "@"
- ORC = "o"
- TROLL = "T"
-
- CORPSE = "%"
-
- HEALTH_POTION = "!"
-+
-+CONFUSION_SCROLL = "~"
-+FIREBALL_SCROLL = "~"
-+LIGHTNING_SCROLL = "~"
-```
-
-Extend `game/constants/colors.py`:
-
-```diff
- PLAYER = (255, 255, 255)
- ORC = (63, 127, 63)
- TROLL = (0, 127, 0)
-
- CORPSE = (191, 0, 0)
-
- HEALTH_POTION = (127, 0, 255)
-+
-+CONFUSION_SCROLL = (207, 63, 255)
-+FIREBALL_SCROLL = (255, 0, 0)
-+LIGHTNING_SCROLL = (255, 255, 0)
-```
-
----
-
 ## game/entities/factories.py: add scrolls
 
+Add the scroll hotkeys to `keys.py`:
+
+```diff
+ HEALTH_POTION    = tcod.event.KeySym.H
+ BACKPACK_SCROLL  = tcod.event.KeySym.B  # Part 8. Exercise 2: Backpack growing scroll
++CONFUSION_SCROLL = tcod.event.KeySym.C
++FIREBALL_SCROLL  = tcod.event.KeySym.F
++LIGHTNING_SCROLL = tcod.event.KeySym.L
+```
+
 ```python
+from game.constants import colors, keys, sprites
 from game.entities.components.consumable import (
+    BackpackConsumable,
     ConfusionConsumable,
     FireballDamageConsumable,
     HealingConsumable,
     LightningDamageConsumable,
+    TreasureConsumable,
 )
-from game.constants import colors, sprites
 
 confusion_scroll = Item(
-    char=sprites.CONFUSION_SCROLL,
-    color=colors.CONFUSION_SCROLL,
-    name="Confusion Scroll",
-    consumable=ConfusionConsumable(number_of_turns=10),
+    char       = sprites.CONFUSION_SCROLL,
+    color      = colors.CONFUSION_SCROLL,
+    name       = "Confusion Scroll",
+    consumable = ConfusionConsumable(number_of_turns=10),
+    # Part 8. Exercise 3: Persistent item keys
+    key        = keys.CONFUSION_SCROLL,     # Part 8. Exercise 4: Centralise keybindings (keys.*)
 )
 
 fireball_scroll = Item(
-    char=sprites.FIREBALL_SCROLL,
-    color=colors.FIREBALL_SCROLL,
-    name="Fireball Scroll",
-    consumable=FireballDamageConsumable(damage=12, radius=3),
+    char       = sprites.FIREBALL_SCROLL,
+    color      = colors.FIREBALL_SCROLL,
+    name       = "Fireball Scroll",
+    consumable = FireballDamageConsumable(damage=12, radius=3),
+    # Part 8. Exercise 3: Persistent item keys
+    key        = keys.FIREBALL_SCROLL,       # Part 8. Exercise 4: Centralise keybindings (keys.*)
 )
 
 lightning_scroll = Item(
-    char=sprites.LIGHTNING_SCROLL,
-    color=colors.LIGHTNING_SCROLL,
-    name="Lightning Scroll",
-    consumable=LightningDamageConsumable(damage=20, maximum_range=5),
+    char       = sprites.LIGHTNING_SCROLL,
+    color      = colors.LIGHTNING_SCROLL,
+    name       = "Lightning Scroll",
+    consumable = LightningDamageConsumable(damage=20, maximum_range=5),
+    # Part 8. Exercise 3: Persistent item keys
+    key        = keys.LIGHTNING_SCROLL,      # Part 8. Exercise 4: Centralise keybindings (keys.*)
 )
 ```
 
----
+Each scroll pairs a sprite and color constant with its consumable. The parameters set the default difficulty values: confusion lasts 10 turns, fireball deals 12 damage over radius 3, lightning deals 20 damage up to range 5.
 
-## Update the map generator to spawn scrolls
+`item_chances` already exists from Part 8 with `health_potion`, `chest`, and `backpack_scroll`. Extend it with the three new scroll types:
 
-Update `place_entities()` to pick randomly from several item types.
-
-First, add the item probability table at **module level** in `map_generator.py`, before `place_entities`:
-
-```python
-item_chances = [
-    (factories.health_potion, 35),
-    (factories.confusion_scroll, 10),
-    (factories.lightning_scroll, 25),
-    (factories.fireball_scroll, 25),
-]
+```diff
+ item_chances = [
+     (health_potion,    15),
+     (chest,            25),
+     (backpack_scroll,  15),
++    (confusion_scroll, 15),
++    (fireball_scroll,  15),
++    (lightning_scroll, 15),
+ ]
 ```
 
-Then update the item spawn loop inside `place_entities`. While here, restore the full typed signature:
-
-```python
-def place_entities(
-    room: RectangularRoom,
-    dungeon: GameMap,
-    min_monsters: int,
-    max_monsters: int,
-    min_items: int,
-    max_items: int,
-) -> None:
-    ...
-    for _ in range(number_of_items):
-        x = random.randint(room.x1 + 1, room.x2 - 1)
-        y = random.randint(room.y1 + 1, room.y2 - 1)
-        if not any(entity.x == x and entity.y == y for entity in dungeon.entities):
-            chosen = random.choices(
-                [item for item, _ in item_chances],
-                weights=[w for _, w in item_chances],
-            )
-            chosen[0].spawn(dungeon, x, y)
-```
-
-`random.choices` with weights handles the probability table in one line.
+Because `place_entities` already reads `factories.item_chances` via `zip`, the map generator picks up the new items without any changes.
 
 ---
 
 ## Update EventHandler.handle_events
 
-The targeting handlers respond to mouse input. Update `EventHandler.handle_events()` to dispatch mouse button clicks, and to restore the main game handler after an inventory or targeting action resolves:
+The targeting handlers respond to mouse input. Add the `MouseButtonDown` dispatch to the `match` block in `EventHandler.handle_events`:
+
+```diff
+         case tcod.event.MouseMotion():
+             self.engine.mouse_location = event.integer_position
+
++        case tcod.event.MouseButtonDown():
++            action = self.event_mousebuttondown(event)
+
+         case tcod.event.KeyDown():
+             action = self.event_keydown(event)
+```
+
+And add the default stub to `EventHandler`:
 
 ```python
-class EventHandler:
-    def handle_events(self, event: tcod.event.Event) -> None:
-        action: Action | None = None
-        match event:
-            case tcod.event.Quit():
-                action = EscapeAction()
-            case tcod.event.MouseMotion():
-                self.engine.mouse_location = event.integer_position
-            case tcod.event.MouseButtonDown():
-                action = self.event_mousebuttondown(event)
-            case tcod.event.KeyDown():
-                action = self.event_keydown(event)
-
-        if action is not None:
-            try:
-                action.perform(self.engine, self.engine.player)
-            except Impossible as exc:
-                MessageLog.add_message(str(exc), colors.INVALID)
-                return
-
-            if self.engine.player.is_alive:
-                self.engine.handle_enemy_turns()
-
-            if not self.engine.player.is_alive:
-                self.engine.event_handler = GameOverEventHandler(self.engine)
-
-            elif isinstance(
-                self.engine.event_handler,
-                (InventoryActivateHandler, InventoryDropHandler, SelectIndexHandler),
-            ):
-                self.engine.event_handler = MainGameEventHandler(self.engine)
-
-            self.engine.update_fov()
-
-    def event_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Action | None:
-        return None
+def event_mousebuttondown(self, _event: tcod.event.MouseButtonDown) -> Action | None:
+    return None
 ```
 
 ---
@@ -529,10 +838,10 @@ class EventHandler:
 Run `python main.py`:
 
 - [ ] `~` scrolls appear on the floor in different colors (purple, red, yellow)
-- [ ] Picking up a lightning scroll and pressing `i → a` strikes the nearest enemy
-- [ ] Picking up a confusion scroll opens a targeting cursor (blue highlight on player tile)
+- [ ] Picking up a lightning scroll and pressing `i → l` strikes the nearest enemy
+- [ ] Picking up a confusion scroll opens a targeting cursor (white highlight on player tile)
 - [ ] Moving the cursor to an enemy and pressing Enter confuses it; it wanders randomly for ~10 turns
-- [ ] A fireball scroll opens AoE targeting with a red square border
+- [ ] A fireball scroll opens AoE targeting with a red circle highlight
 - [ ] The fireball damages all actors (including the player!) within the radius
 - [ ] Pressing Escape during targeting cancels and returns to normal play
 - [ ] Using a scroll removes it from the inventory
@@ -556,9 +865,13 @@ The targeting system is now in place. Key additions:
 
 - Targeting handlers are temporary input states layered on top of normal gameplay
 - Consumables can return an action immediately or push a targeting handler first
-- `ItemAction` carries both the selected item and optional target coordinates
+- `ItemAction` carries both the selected item and optional target position
 - AI can be swapped at runtime, as with `ConfusedEnemy`
 - Existing inventory and action systems now support targeted effects
+
+**Class Diagram**:
+
+![classes](images/part9_classes.png)
 
 **File structure**:
 
@@ -572,6 +885,7 @@ game/
 ├── hud.py
 ├── input_handlers.py           ← modified
 ├── message_log.py
+├── render_utils.py             ← new
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py               ← modified
@@ -590,9 +904,9 @@ game/
 │       └── inventory.py
 └── map/
     ├── __init__.py
-    ├── game_map.py
+    ├── game_map.py             ← modified
     ├── tile_types.py
-    └── map_generator.py        ← modified
+    └── map_generator.py
 ```
 
 ---
@@ -609,6 +923,4 @@ game/
 
 3. **Confusion self-damage**:
 
-    Modify `ConfusedEnemy` so that on each wandering move, there is a 20% chance the entity also takes 1 point of damage (it's stumbling into walls). Add a message: `"The Orc stumbles into a wall!"`.
-
-**Next**: [Part 10: Save and Load](part-10.md)
+    Modify `ConfusedEnemy` so that on each wandering move, there is a 20% chance the entity also takes 1 point of damage (it's stumbling into walls). Add a message: `f"The {entity.name} stumbles into a wall!"`.

@@ -765,5 +765,3 @@ game/
 3. **Flee behavior**:
 
     Add a `CowardEnemy` AI class that moves *away* from the player when its HP drops below 25 % of max. Hook the swap in `Fighter.hp.setter`: when HP crosses the threshold for an entity that currently has `HostileEnemy`, create `new_ai = CowardEnemy()`, set `new_ai.entity = self.entity`, then assign `self.entity.ai = new_ai`. Observe how its behavior changes mid-combat.
-
-**Next**: [Part 7: The User Interface](part-7.md)

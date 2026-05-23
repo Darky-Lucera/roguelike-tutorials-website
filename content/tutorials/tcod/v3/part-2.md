@@ -71,6 +71,20 @@ Maps in roguelikes are grids of tiles. Each tile needs several properties:
 - **transparent**: does this tile block the field of view?
 - **appearance**: what character and colors to draw
 
+`walkable` and `transparent` are separate ideas. Many tiles use the obvious
+combinations, but all four combinations can be useful:
+
+| walkable | transparent | Example |
+| --- | --- | --- |
+| `False` | `False` | A wall, closed stone door, or pillar. You cannot walk through it, and it blocks vision. |
+| `False` | `True` | Water, a low fence, a window, or iron bars. You cannot walk through it, but you can see past it. |
+| `True` | `False` | Smoke, fog, magical darkness, or tall grass. You can enter the tile, but it blocks or limits vision. |
+| `True` | `True` | A floor, open door, or normal corridor. You can walk through it, and it does not block vision. |
+
+This separation pays off later. Movement checks will look at `walkable`, while
+field-of-view checks will look at `transparent`. A tile can affect one system
+without affecting the other.
+
 We use **numpy structured arrays** to hold all of this efficiently. This might look unusual at first, take it step by step.
 
 Create `game/tile_types.py`:
@@ -477,5 +491,3 @@ game/
 3. **Add a new tile type**:
 
     In `game/tile_types.py`, define a new `water` tile with a blue background, `walkable=False`, and `transparent=True`. In `GameMap.__init__`, paint a small lake somewhere on the map. Verify that it renders differently and blocks movement just like the wall.
-
-**Next**: [Part 3: Generating a Dungeon](part-3.md)

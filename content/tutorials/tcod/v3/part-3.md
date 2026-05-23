@@ -433,5 +433,3 @@ game/
 3. **Mark visited rooms**:
 
     Draw a `+` at the center of each room after it is placed (then clear it once the dungeon is done). This lets you see the generation order while debugging. Remove it before moving on.
-
-**Next**: [Part 4: Field of View](part-4.md)
