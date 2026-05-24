@@ -108,15 +108,15 @@ from game.map.map_generator import generate_dungeon
 
 SAVE_PATH = "savegame.sav"
 
-MAP_WIDTH = 80
-MAP_HEIGHT = 45
-MAX_ROOMS = 30
-ROOM_MIN_SIZE = 6
-ROOM_MAX_SIZE = 10
+MAP_WIDTH             = 80
+MAP_HEIGHT            = 44
+MAX_ROOMS             = 30
+ROOM_MIN_SIZE         = 6
+ROOM_MAX_SIZE         = 10
 MIN_MONSTERS_PER_ROOM = 0
 MAX_MONSTERS_PER_ROOM = 2
-MIN_ITEMS_PER_ROOM = 0
-MAX_ITEMS_PER_ROOM = 2
+MIN_ITEMS_PER_ROOM    = 0
+MAX_ITEMS_PER_ROOM    = 2
 
 
 def new_game() -> Engine:

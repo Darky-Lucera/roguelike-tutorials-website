@@ -532,7 +532,7 @@ Extend `game/constants/colors.py`:
 
 ```python
 class LightningDamageConsumable(Consumable):
-    def __init__(self, damage: int, maximum_range: int) -> None:
+    def __init__(self, damage: float, maximum_range: int) -> None:
         self.damage = damage
         self.maximum_range = maximum_range
 
@@ -639,7 +639,7 @@ STATUS_EFFECT_APPLIED = (0x3F, 0xFF, 0x3F)
 
 ```python
 class FireballDamageConsumable(Consumable):
-    def __init__(self, damage: int, radius: int) -> None:
+    def __init__(self, damage: float, radius: int) -> None:
         self.damage = damage
         self.radius = radius
 
@@ -913,14 +913,14 @@ game/
 
 ## Exercises
 
-1. **Teleport scroll**:
-
-    Add a `TeleportConsumable` that uses `SingleRangedAttackHandler` to let the player pick any visible tile and teleport to it. The player should not be able to teleport into walls.
-
-2. **Scroll of mapping**:
+1. **Scroll of mapping**:
 
     Add a consumable that sets `game_map.explored` to `True` for every tile, revealing the whole floor. No targeting needed, use the base `get_action()` directly.
 
-3. **Confusion self-damage**:
+2. **Drain scroll**:
 
-    Modify `ConfusedEnemy` so that on each wandering move, there is a 20% chance the entity also takes 1 point of damage (it's stumbling into walls). Add a message: `f"The {entity.name} stumbles into a wall!"`.
+    Add a `DrainConsumable` that uses `SingleRangedAttackHandler` to target one visible enemy in range. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
+
+3. **Teleport scroll**:
+
+    Add a `TeleportConsumable` that uses `SingleRangedAttackHandler` to let the player pick any explored, walkable tile and teleport there. The destination must be in bounds, explored, and walkable.

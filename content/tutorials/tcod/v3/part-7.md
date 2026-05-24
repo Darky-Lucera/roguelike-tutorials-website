@@ -22,12 +22,12 @@ A roguelike UI has one design constraint: every piece of information the player 
 - **Recent events**: what just happened? (especially damage numbers)
 - **Context**: what is this tile or entity I'm hovering over?
 
-For now, this tutorial dedicates 45 rows to the map and 5 rows to a UI panel at the bottom. That is enough for a health bar and a short message history. Later, you can decide where to place the panel and which size makes the most sense for each part of your UI.
+For now, this tutorial dedicates 44 rows to the map and 6 rows to a UI panel at the bottom. Row 44 belongs to the panel: it shows entity names under the mouse cursor, while the remaining rows hold the health bar and a short message history. Later, you can decide where to place the panel and which size makes the most sense for each part of your UI.
 
 ```txt
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                                                                              │
-│                           MAP AREA  (80 × 45)                                │
+│                           MAP AREA  (80 × 44)                                │
 │                                                                              │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ HP: ████████░░  14/30    You attack the Orc for 3 hit points.                │
@@ -188,7 +188,7 @@ def render_panel(console: Console, y: int = 44, height: int = 6) -> None:
 
 def render_bar(
     console: Console,
-    current_value: int,
+    current_value: float,
     maximum_value: int,
     total_width: int,
     y: int = 45,
@@ -205,7 +205,7 @@ def render_bar(
     console.print(
         x=1,
         y=y,
-        text=f"HP: {current_value}/{maximum_value}",
+        text=f"HP: {int(current_value)}/{maximum_value}",
         fg=colors.BAR_TEXT,
     )
 
@@ -228,7 +228,7 @@ def render_names_at_mouse_location(
         console.print(x=x, y=y, text=names)
 ```
 
-`render_panel` fills the five-row HUD area with `HUD_BG` before anything else is drawn on top of it. `render_bar` draws a filled rectangle for the filled portion and an empty rectangle for the background, then overlays the text `"HP: N/M"`. `render_names_at_mouse_location` collects all entity names at the cursor position and joins them with commas. All three functions take only what they need: no `Engine` reference, no hidden dependencies.
+`render_panel` fills the six-row HUD area with `HUD_BG` before anything else is drawn on top of it. `render_bar` draws a filled rectangle for the filled portion and an empty rectangle for the background, then overlays the text `"HP: N/M"`. `render_names_at_mouse_location` collects all entity names at the cursor position and joins them with commas. All three functions take only what they need: no `Engine` reference, no hidden dependencies.
 
 ---
 
@@ -505,7 +505,7 @@ The `MouseMotion` case stores the cursor tile position in `engine.mouse_location
 
 ## Update main.py
 
-Three small changes: two new imports, posting the welcome message, and renaming `console` to `root_console` for clarity now that the engine owns the frame loop.
+Four small changes: two new imports, reducing the map height to leave room for the hover text, posting the welcome message, and renaming `console` to `root_console` for clarity now that the engine owns the frame loop.
 
 Add the imports:
 
@@ -515,6 +515,13 @@ Add the imports:
  from game.engine import Engine
  from game.map.map_generator import generate_dungeon
 +from game.message_log import MessageLog
+```
+
+Reduce the generated map height so the dungeon stops before the panel starts:
+
+```diff
+-    map_height = 45
++    map_height = 44
 ```
 
 Post the welcome message after creating the engine:
@@ -596,13 +603,13 @@ Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/
         if self.hp == self.max_hp:
             return 0
 
-        new_hp_value = self.hp + amount
-        new_hp_value = min(new_hp_value, self.max_hp)
+        new_hp_value = self._hp + amount
+        new_hp_value = min(new_hp_value, float(self.max_hp))
 
-        recovered = new_hp_value - self.hp
+        recovered = new_hp_value - self._hp
         self.hp = new_hp_value
 
-        return recovered
+        return int(recovered)
 
     def take_damage(self, amount: float) -> None:
         self.hp -= amount
@@ -624,7 +631,7 @@ Run `python main.py`:
 - [ ] The welcome message appears in the message log panel
 - [ ] Attacking an enemy adds a colored line to the message log
 - [ ] When enemies attack you, the message appears in a different color
-- [ ] Hovering the mouse over a visible entity shows its name above the panel
+- [ ] Hovering the mouse over a visible entity shows its name on the panel's top row
 - [ ] On death, `"You died!"` appears in the log and the bar shows 0 HP
 - [ ] Repeated identical messages stack: `"Orc attacks Player for 2 hit points. (x3)"`
 
@@ -694,7 +701,7 @@ game/
 
 2. **Scroll the message panel**:
 
-    The five-row panel shows only the most recent messages. Add `Page Up` / `Page Down` bindings that shift which portion of the log is visible. Store the current scroll value in `MessageLog`. When rendering, wrap all messages first, clamp `scroll` between `0` and `max(0, total - height)`, then use it to offset the visible slice: `start = max(0, total - height - scroll)` and `end = start + height`. Reset `scroll` to `0` when a new message is added.
+    The message log shows only the five most recent wrapped lines. Add `Page Up` / `Page Down` bindings that shift which portion of the log is visible. Store the current scroll value in `MessageLog`. When rendering, wrap all messages first, clamp `scroll` between `0` and `max(0, total - height)`, then use it to offset the visible slice: `start = max(0, total - height - scroll)` and `end = start + height`. Reset `scroll` to `0` when a new message is added.
 
 3. **Entity details**:
 

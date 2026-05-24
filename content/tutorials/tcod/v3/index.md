@@ -84,6 +84,7 @@ Lines starting with `-` are removed. Lines starting with `+` are added.
 
 - [Appendix 1: Damage Formulas](apend-1.md)
 - [Appendix 2: Combat Effects](apend-2.md)
+- [Appendix 3: Consumable Scaling](apend-3.md)
 
 ---
 

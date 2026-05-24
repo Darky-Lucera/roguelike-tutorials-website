@@ -229,19 +229,19 @@ from game.entities.render_order import RenderOrder
 
 
 class Fighter(BaseComponent):
-    def __init__(self, hp: int, defense: int, attack: int) -> None:
-        self.max_hp  = hp
-        self._hp     = hp
-        self.defense = defense
-        self.attack  = attack
+    def __init__(self, hp: int, defense: float, attack: float) -> None:
+        self.max_hp       = hp
+        self._hp: float   = float(hp)
+        self.defense      = float(defense)
+        self.attack       = float(attack)
 
     @property
-    def hp(self) -> int:
+    def hp(self) -> float:
         return self._hp
 
     @hp.setter
-    def hp(self, value: int) -> None:
-        self._hp = max(0, min(value, self.max_hp))
+    def hp(self, value: float) -> None:
+        self._hp = max(0.0, min(value, float(self.max_hp)))
         if self._hp == 0:
             self.die()
 

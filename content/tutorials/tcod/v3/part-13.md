@@ -190,21 +190,21 @@ Update `game/entities/components/fighter.py`:
 
 ```python
 class Fighter(ActorComponent):
-    def __init__(self, hp: int, defense: int, attack: int) -> None:
-        self.max_hp = hp
-        self._hp = hp
-        self.base_defense = defense
-        self.base_attack = attack
+    def __init__(self, hp: int, defense: float, attack: float) -> None:
+        self.max_hp             = hp
+        self._hp: float         = float(hp)
+        self.base_defense: float = float(defense)
+        self.base_attack: float  = float(attack)
 
     @property
-    def defense(self) -> int:
+    def defense(self) -> float:
         bonus = 0
         if hasattr(self.entity, "equipment") and self.entity.equipment:
             bonus = self.entity.equipment.defense_bonus
         return self.base_defense + bonus
 
     @property
-    def attack(self) -> int:
+    def attack(self) -> float:
         bonus = 0
         if hasattr(self.entity, "equipment") and self.entity.equipment:
             bonus = self.entity.equipment.attack_bonus

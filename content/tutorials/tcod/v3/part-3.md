@@ -179,9 +179,9 @@ def tunnel_between(
     x2, y2 = end
 
     if random.random() < 0.5:
-        corner_x, corner_y = x2, y1  # Move right, then down
+        corner_x, corner_y = x2, y1  # Horizontal first, then vertical
     else:
-        corner_x, corner_y = x1, y2  # Move down, then right
+        corner_x, corner_y = x1, y2  # Vertical first, then horizontal
 
     for x, y in tcod.los.bresenham((x1, y1), (corner_x, corner_y)).tolist():
         yield x, y
