@@ -12,7 +12,7 @@ By the end of this part, the player will be able to use scrolls with targeted ef
 - Add a `ConfusedEnemy` AI that wanders randomly
 
 !!! note "Prerequisite: Part 8 Exercise 4"
-    This part assumes you completed Exercise 4 from Part 8: centralising all keybindings in `game/constants/keys.py`. That exercise moved every key constant into one file so they are not spread across `input_handlers.py`, `actions.py`, or anywhere else. If you skipped it, complete it before continuing — the code in this chapter references `keys.*` throughout.
+    This part assumes you completed Exercise 4 from Part 8: centralising all keybindings in `game/constants/keys.py`. That exercise moved every key constant into one file so they are not spread across `input_handlers.py`, `actions.py`, or anywhere else. If you skipped it, complete it before continuing; the code in this chapter references `keys.*` throughout.
 
 ---
 
@@ -32,12 +32,15 @@ MainGameEventHandler
   │  player presses i → use scroll
   ▼
 InventoryActivateHandler
-  │  scroll.consumable.get_action() installs targeting handler
+  │  scroll.consumable.get_action() returns TargetingAction
+  ▼
+EventHandler.handle_events()
+  │  isinstance dispatch: installs targeting handler
   ▼
 SingleRangedAttackHandler  (or AreaRangedAttackHandler)
   │  player confirms target
   ▼
-MainGameEventHandler  ← back to normal play
+MainGameEventHandler  (back to normal play)
 ```
 
 ---
@@ -526,6 +529,66 @@ Extend `game/constants/colors.py`:
 
 ---
 
+## TargetingAction: separating model from UI
+
+The most direct approach to targeting is to override `get_action()`, install the cursor handler as a side effect, and return nothing:
+
+```python
+# naive approach: side effect, no return value
+def get_action(self, _consumer, engine):
+    from game.input_handlers import SingleRangedAttackHandler
+    engine.event_handler = SingleRangedAttackHandler(...)
+    # returns None implicitly; the method appears to do nothing
+```
+
+Two problems with this:
+
+- `get_action()` is declared `-> Action | None` but uses `None` as a signal for "I already handled it." A caller reading the signature has no idea a handler was just installed.
+- `consumable.py` (model layer) imports from `input_handlers.py` (UI layer), which already imports from `actions.py`. That creates a dependency cycle at the module level.
+
+The fix is a thin data class in `game/actions.py`. `get_action()` returns it; `EventHandler.handle_events()` reads its fields and creates the handler. The model layer never imports from the UI layer.
+
+Add to `game/actions.py`, after `DropItem`:
+
+```python
+class TargetingAction(Action):
+    """Data container: EventHandler dispatches to the appropriate targeting handler."""
+    prompt: str
+
+    def perform(self, _engine: Engine, _entity: Entity) -> None:
+        pass  # satisfies ABC; EventHandler does the real work
+
+
+class SingleRangedTargetingAction(TargetingAction):
+
+    def __init__(self, item: Item, prompt: str = "Select a target.") -> None:
+        self.item     = item
+        self.prompt   = prompt
+        self.callback = lambda pos: ItemAction(item=item, target_pos=pos)
+
+
+class AreaRangedTargetingAction(TargetingAction):
+
+    def __init__(self, item: Item, radius: int,
+                 color: tuple[int, int, int],
+                 prompt: str = "Select a target location.") -> None:
+        self.item     = item
+        self.radius   = radius
+        self.color    = color
+        self.prompt   = prompt
+        self.callback = lambda pos: ItemAction(item=item, target_pos=pos)
+```
+
+`perform()` is a no-op that satisfies the abstract base class. The real work happens in `handle_events()` after `perform()` returns: it checks `isinstance(action, TargetingAction)`, reads `prompt` and `callback`, and installs the correct handler. `actions.py` never imports `input_handlers`.
+
+`callback` is a lambda built at construction time. When the player confirms a target, the targeting handler calls `callback((x, y))` and the result becomes the next action. The same pattern works for chained targeting: a callback that returns another `TargetingAction` would chain into a second cursor, handled automatically by the next loop iteration.
+
+Note that `callback` uses `ItemAction(item=item, target_pos=pos)`. The `target_pos` parameter does not exist in `ItemAction` yet; you will add it shortly in the `ConfusionConsumable` section.
+
+`prompt: str` is a class-level annotation without a value. It tells the type checker that every `TargetingAction` subclass provides a `.prompt` attribute, without forcing a default. Python does not enforce this at runtime; the subclass `__init__` is what actually sets the value.
+
+---
+
 ## Three new consumables
 
 ### LightningDamageConsumable (auto-target nearest)
@@ -563,10 +626,16 @@ class LightningDamageConsumable(Consumable):
 
 ### ConfusionConsumable (cursor targeting)
 
-Add this import at the top of `consumable.py`:
+Update the imports at the top of `consumable.py`. The targeting classes now come from `actions.py`, so the local `import game.input_handlers` disappears:
 
-```python
-from game.entities.components.ai import ConfusedEnemy
+```diff
+-from game.actions import ItemAction
++from game.actions import (
++    AreaRangedTargetingAction,
++    ItemAction,
++    SingleRangedTargetingAction,
++)
++from game.entities.components.ai import ConfusedEnemy
 ```
 
 ```python
@@ -574,16 +643,10 @@ class ConfusionConsumable(Consumable):
     def __init__(self, number_of_turns: int) -> None:
         self.number_of_turns = number_of_turns
 
-    def get_action(self, _consumer: Actor, engine: Engine):
-        from game.input_handlers import SingleRangedAttackHandler
-
-        MessageLog.add_message(
-            "Select a target location.",
-            colors.NEEDS_TARGET
-        )
-        engine.event_handler = SingleRangedAttackHandler(
-            engine,
-            callback = lambda pos: ItemAction(item=self.entity, target_pos=pos),
+    def get_action(self, _consumer: Actor, _engine: Engine) -> Action:
+        return SingleRangedTargetingAction(
+            item   = self.entity,
+            prompt = "Select a target location.",
         )
 
     def activate(self, action, engine: Engine, consumer: Actor) -> None:
@@ -610,10 +673,7 @@ class ConfusionConsumable(Consumable):
         self.consume()
 ```
 
-`InventoryActivateHandler.on_item_selected` (from Part 8) calls `consumable.get_action()` when the player selects an item. Targeting consumables override it to install the cursor handler on the engine and leave the method without returning an action. In Python, a function that reaches the end without `return` returns `None`; no action is performed yet. The actual `ItemAction` is built by the callback once the player confirms a target.
-
-!!! note "This pattern is temporary"
-    Mutating `engine.event_handler` inside `get_action()` works here, but it mixes handler transitions into a method that is supposed to return an action. Part 10 replaces this with a dedicated `get_targeting_handler()` method and a return-based state machine, making the transition explicit and clean.
+`get_action()` now returns a value. `_engine` becomes genuinely unused and is underscored. `EventHandler.handle_events()` reads the returned `SingleRangedTargetingAction`, installs the handler, and shows the prompt; the consumable does none of that work.
 
 Add colors to `game/constants/colors.py`:
 
@@ -643,19 +703,12 @@ class FireballDamageConsumable(Consumable):
         self.damage = damage
         self.radius = radius
 
-    def get_action(self, _consumer: Actor, engine: Engine):
-        from game.input_handlers import AreaRangedAttackHandler
-
-        MessageLog.add_message(
-            "Select a target location.",
-            colors.NEEDS_TARGET
-        )
-
-        engine.event_handler = AreaRangedAttackHandler(
-            engine,
-            radius   = self.radius,
-            color    = colors.FIREBALL_AOE,
-            callback = lambda pos: ItemAction(item=self.entity, target_pos=pos),
+    def get_action(self, _consumer: Actor, _engine: Engine) -> Action:
+        return AreaRangedTargetingAction(
+            item   = self.entity,
+            radius = self.radius,
+            color  = colors.FIREBALL_AOE,
+            prompt = "Select a target location.",
         )
 
     def activate(self, action: ItemAction, engine: Engine, _consumer: Actor) -> None:
@@ -686,7 +739,7 @@ class FireballDamageConsumable(Consumable):
         self.consume()
 ```
 
-`FireballDamageConsumable` opens `AreaRangedAttackHandler` for AoE targeting. On confirm it builds the same AoE mask used by the targeting preview and damages every actor inside it, including the player. It raises `Impossible` only if the tile is not visible or no actor was hit.
+`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackHandler`. On confirm, `activate()` builds the same AoE mask used by the targeting preview and damages every actor inside it, including the player. It raises `Impossible` only if the tile is not visible or no actor was hit.
 
 ---
 
@@ -811,7 +864,11 @@ Because `place_entities` already reads `factories.item_chances` via `zip`, the m
 
 ## Update EventHandler.handle_events
 
-The targeting handlers respond to mouse input. Add the `MouseButtonDown` dispatch to the `match` block in `EventHandler.handle_events`:
+Two changes are needed to `handle_events()` in this part.
+
+### MouseButtonDown dispatch
+
+The targeting handlers respond to mouse clicks. Add the `MouseButtonDown` case to the `match` block and a default stub method to `EventHandler`:
 
 ```diff
          case tcod.event.MouseMotion():
@@ -824,12 +881,66 @@ The targeting handlers respond to mouse input. Add the `MouseButtonDown` dispatc
              action = self.event_keydown(event)
 ```
 
-And add the default stub to `EventHandler`:
-
 ```python
 def event_mousebuttondown(self, _event: tcod.event.MouseButtonDown) -> Action | None:
     return None
 ```
+
+### TargetingAction dispatch
+
+The second change happens after `action.perform()` succeeds. If the result is a `TargetingAction`, install the correct handler and return early, without advancing enemy turns or updating FOV:
+
+```diff
+         if action is not None:
+             try:
+                 action.perform(self.engine, self.engine.player)
+
+             except Impossible as ex:
+                 MessageLog.add_message(str(ex), colors.INVALID)
+                 return
++
++            if isinstance(action, TargetingAction):
++                MessageLog.add_message(action.prompt, colors.NEEDS_TARGET)
++
++                if isinstance(action, SingleRangedTargetingAction):
++                    self.engine.event_handler = SingleRangedAttackHandler(
++                        self.engine,
++                        callback=action.callback,
++                    )
++
++                elif isinstance(action, AreaRangedTargetingAction):
++                    self.engine.event_handler = AreaRangedAttackHandler(
++                        self.engine,
++                        radius=action.radius,
++                        color=action.color,
++                        callback=action.callback,
++                    )
++
++                return
+
+             if self.engine.player.is_alive:
+                 self.engine.handle_enemy_turns()
+```
+
+Import the new classes at the top of `input_handlers.py`:
+
+```diff
+ from game.actions import (
+     Action,
++    AreaRangedTargetingAction,
+     BumpAction,
+     EscapeAction,
+     PickupAction,
++    SingleRangedTargetingAction,
++    TargetingAction,
+     WaitAction
+ )
+```
+
+The `return` is placed after the `try/except`, not before. If a `TargetingAction.perform()` override ever raises `Impossible` (for example "you cannot target while stunned"), the existing `except` already catches it. Placing the targeting check before the try would bypass that protection.
+
+!!! tip "Why `perform()` is a no-op"
+    The alternative is to do the import and handler creation inside `perform()`. It runs correctly, but pylint still flags `consumable.py → input_handlers.py → actions.py → consumable.py` as a cycle, even with a local import. With the current design, `actions.py` has zero imports from `input_handlers.py`; the dependency is strictly one-way.
 
 ---
 
@@ -857,17 +968,17 @@ The targeting system is now in place. Key additions:
 
 - **`SelectIndexHandler`**: cursor movement + confirm/cancel
 - **`SingleRangedAttackHandler`** and **`AreaRangedAttackHandler`**: targeting modes
-- **`get_action()`**: consumables can push their own handler instead of returning an action immediately
+- **`TargetingAction`** / **`SingleRangedTargetingAction`** / **`AreaRangedTargetingAction`**: data classes returned by `get_action()`; carry `prompt`, `callback`, and (for AoE) `radius` and `color`
 - **`ConfusedEnemy`**: temporary AI swap with countdown
 - Three scroll types covering auto-target, single-target, and AoE
 
 **Current architecture**:
 
 - Targeting handlers are temporary input states layered on top of normal gameplay
-- Consumables can return an action immediately or push a targeting handler first
+- Targeting consumables return a `TargetingAction`; `handle_events()` installs the handler and shows the prompt, with no involvement from the consumable
 - `ItemAction` carries both the selected item and optional target position
 - AI can be swapped at runtime, as with `ConfusedEnemy`
-- Existing inventory and action systems now support targeted effects
+- Dependency direction is strictly one-way: `input_handlers` → `actions` ← `consumable`
 
 **Class Diagram**:
 

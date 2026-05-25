@@ -338,11 +338,9 @@ Update `Actor.__init__`:
 +        self.ai = ai
 +        if self.ai is not None:
 +            self.ai.entity = self
-+
-+        self.gold = 0
 ```
 
-`ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it. `self.gold = 0` initialises the gold counter; it is a plain integer on the actor, readable anywhere as `actor.gold`.
+`ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it.
 
 #### Step 6: Add the `Item` class
 
@@ -423,6 +421,7 @@ class Inventory(ActorComponent):
     def __init__(self, capacity: int) -> None:
         self.capacity = capacity
         self.items: list[Item] = []
+        self.gold: int = 0
 
     def add_item(self, item: Item, game_map: GameMap | None) -> bool:
         if len(self.items) >= self.capacity:
@@ -440,6 +439,8 @@ class Inventory(ActorComponent):
         self.items.remove(item)
         item.place(self.entity.x, self.entity.y, game_map)
 ```
+
+`self.gold: int = 0` stores the player's accumulated treasure. Gold is something the player carries, so it lives here alongside the item list rather than as a bare attribute on `Actor`.
 
 `add_item()` checks capacity, transfers ownership to the inventory, and appends the item to `items`. When the item comes from the dungeon floor, the caller passes the current `game_map`, and `add_item()` removes it from the map's entity set via `game_map.entities.discard()`. When the item was never placed on a map, for example a starting item, the caller can pass `None`.
 
@@ -511,7 +512,7 @@ class TreasureConsumable(Consumable):
         self.value = value
 
     def activate(self, _action: Action, engine: Engine, consumer: Actor) -> None:
-        consumer.gold += self.value
+        consumer.inventory.gold += self.value
         MessageLog.add_message(
             f"You found {self.value} gold!",
             colors.GOLD,
@@ -530,7 +531,7 @@ The file defines three classes: `Consumable` as the base for all item effects, `
 
 `HealingConsumable.activate()` calls `fighter.heal()`, which you wrote in Part 7. If the player is already at full health, `heal()` returns `0` and `activate()` raises `Impossible`.
 
-`TreasureConsumable.activate()` adds `value` to `consumer.gold`, logs the find, and removes the chest from the map in the same call. There is no `self.consume()` here because `consume()` removes an item from an inventory; the chest was never in one.
+`TreasureConsumable.activate()` adds `value` to `consumer.inventory.gold`, logs the find, and removes the chest from the map in the same call. There is no `self.consume()` here because `consume()` removes an item from an inventory; the chest was never in one.
 
 ---
 
@@ -1211,7 +1212,7 @@ Call it from `Engine.render()`:
 +
 +    hud.render_gold(
 +        console = console,
-+        gold    = self.player.gold,
++        gold    = self.player.inventory.gold,
 +    )
 ```
 
@@ -1247,7 +1248,7 @@ Items are now a first-class part of the game. Key additions:
 - **`HealingConsumable`**: first consumable component; knows how to apply its effect independently of the action layer
 - **`TreasureConsumable`**: second consumable; collected on contact rather than through the inventory; `auto_collect = True` triggers pickup on walk
 - **`InventoryEventHandler`**: modal overlay base class; subclasses override `TITLE`, `FG_COLOR`, `BG_COLOR`, and `on_item_selected()`
-- **`Actor.gold`**: running treasure total on the actor itself (not in `Fighter`); displayed in the HUD below the HP bar
+- **`Inventory.gold`**: running treasure total stored in the `Inventory` component; read as `player.inventory.gold`; keeping all player-held state in one place simplifies future serialization
 
 **Current architecture**:
 

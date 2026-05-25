@@ -1086,7 +1086,7 @@ class TreasureConsumable(Consumable):
         self.value = value
 
     def activate(self, _action: ItemAction, engine: Engine, consumer: Actor) -> None:
-        consumer.gold += self.value
+        consumer.inventory.gold += self.value
         MessageLog.add_message(
             f"You found {self.value} gold!",
             colors.GOLD,
@@ -1095,18 +1095,17 @@ class TreasureConsumable(Consumable):
         self.entity.owner = None
 ```
 
-`activate()` adds `value` to `consumer.gold`, logs the find, and removes the chest from the map in the same call. There is no `self.consume()` here because `consume()` removes an item from an inventory; the chest was never in one.
+`activate()` adds `value` to `consumer.inventory.gold`, logs the find, and removes the chest from the map in the same call. There is no `self.consume()` here because `consume()` removes an item from an inventory; the chest was never in one.
 
-### `gold` field on `Actor`
+### `gold` field on `Inventory`
 
-Add `self.gold = 0` at the end of `Actor.__init__`. It sits alongside `inventory` and `ai` as a first-class actor attribute, readable anywhere as `actor.gold`:
+Gold is something the player carries, not a combat stat, so it belongs in `Inventory` alongside the item list. Add `self.gold: int = 0` to `Inventory.__init__`:
 
 ```diff
-         self.ai: BaseAI | None = ai
-         if self.ai:
-             self.ai.entity = self
-+
-+        self.gold = 0
+     def __init__(self, capacity: int) -> None:
+         self.capacity = capacity
+         self.items: list[Item] = []
++        self.gold: int = 0
 ```
 
 ### Convert `chest` in `factories.py`
@@ -1166,7 +1165,7 @@ Call it from `Engine.render()`:
 +
 +    hud.render_gold(
 +        console = console,
-+        gold    = self.player.gold,
++        gold    = self.player.inventory.gold,
 +    )
 ```
 
@@ -1202,7 +1201,7 @@ Items are now a first-class part of the game. Key additions:
 - **`HealingConsumable`**: first consumable component; knows how to apply its effect independently of the action layer
 - **`TreasureConsumable`**: second consumable; collected on contact rather than through the inventory; `auto_collect = True` triggers pickup on walk
 - **`InventoryEventHandler`**: modal overlay base class; subclasses override `TITLE`, `FG_COLOR`, `BG_COLOR`, and `on_item_selected()`
-- **`Actor.gold`**: running treasure total on the actor itself (not in `Fighter`); displayed in the HUD below the HP bar
+- **`Inventory.gold`**: running treasure total stored in the `Inventory` component; read as `player.inventory.gold`; keeping all player-held state in one place simplifies future serialization
 
 **Current architecture**:
 

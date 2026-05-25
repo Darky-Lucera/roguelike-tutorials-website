@@ -140,6 +140,15 @@ class "ItemAction" as game.actions.ItemAction {
 class "DropItem" as game.actions.DropItem {
 }
 
+class "TargetingAction" as game.actions.TargetingAction #e0e0d0 {
+}
+
+class "SingleRangedTargetingAction" as game.actions.SingleRangedTargetingAction #e0e0d0 {
+}
+
+class "AreaRangedTargetingAction" as game.actions.AreaRangedTargetingAction #e0e0d0 {
+}
+
 class "ActorComponent" as game.entities.components.base_component.ActorComponent {
 }
 
@@ -199,6 +208,9 @@ game.actions.Action <|-- game.actions.WaitAction
 game.actions.Action <|-- game.actions.PickupAction
 game.actions.Action <|-- game.actions.ItemAction
 game.actions.ItemAction <|-- game.actions.DropItem
+game.actions.Action <|-- game.actions.TargetingAction
+game.actions.TargetingAction <|-- game.actions.SingleRangedTargetingAction
+game.actions.TargetingAction <|-- game.actions.AreaRangedTargetingAction
 
 game.entities.entity.Entity <|-- game.entities.entity.Actor
 game.entities.entity.Entity <|-- game.entities.entity.Item
@@ -244,6 +256,8 @@ game.entities.components.base_component.ActorComponent -up-> game.entities.entit
 game.entities.components.base_component.ItemComponent -up-> game.entities.entity.Item : entity
 game.entities.components.inventory.Inventory -right-> " * " game.entities.entity.Item : items
 game.actions.ItemAction -up-> game.entities.entity.Item : item
+game.actions.SingleRangedTargetingAction -up-> game.entities.entity.Item : item
+game.actions.AreaRangedTargetingAction -up-> game.entities.entity.Item : item
 game.entities.entity.Actor --o game.entities.components.ai.ConfusedEnemy : entity
 
 ' MessageLog contains many Message objects and creates them.
@@ -279,10 +293,14 @@ game.actions.Action -[hidden]down- game.actions.WaitAction
 game.actions.Action -[hidden]down- game.actions.EscapeAction
 game.actions.Action -[hidden]down- game.actions.PickupAction
 game.actions.Action -[hidden]down- game.actions.ItemAction
+game.actions.Action -[hidden]down- game.actions.TargetingAction
 game.actions.Action -[hidden]down- game.exceptions.Impossible
 
 game.entities.entity.Item -[hidden]down- game.actions.ItemAction
 game.actions.ItemAction -[hidden]down- game.actions.DropItem
+game.actions.TargetingAction -[hidden]down- game.actions.SingleRangedTargetingAction
+game.actions.TargetingAction -[hidden]down- game.actions.AreaRangedTargetingAction
+game.actions.SingleRangedTargetingAction -[hidden]right- game.actions.AreaRangedTargetingAction
 
 game.actions.ActionWithDirection -[hidden]down- game.actions.BumpAction
 game.actions.ActionWithDirection -[hidden]down- game.actions.MeleeAction
@@ -324,9 +342,7 @@ game.input_handlers.InventoryEventHandler -[hidden]down- game.input_handlers.Inv
 game.input_handlers.SelectIndexHandler -[hidden]down- game.input_handlers.AreaRangedAttackHandler
 game.input_handlers.SelectIndexHandler -[hidden]down- game.input_handlers.SingleRangedAttackHandler
 
-' MessageLog should be above the messages
+' Keep small support classes away from the right edge of the action tree.
 game.message_log.MessageLog -[hidden]down- game.message_log.Message
-game.actions.WaitAction -[hidden]down- game.message_log.MessageLog
-
-game.message_log.MessageLog -[hidden]down- game.exceptions.Impossible
+game.message_log.Message -[hidden]down- game.exceptions.Impossible
 @enduml
