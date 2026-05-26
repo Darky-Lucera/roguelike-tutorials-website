@@ -191,6 +191,15 @@ class "HealingConsumable" as game.entities.components.consumable.HealingConsumab
 class "LightningDamageConsumable" as game.entities.components.consumable.LightningDamageConsumable #e0e0d0 {
 }
 
+class "MappingConsumable" as game.entities.components.consumable.MappingConsumable <<Ex. 9.1>> #e0e0d0 {
+}
+
+class "DrainConsumable" as game.entities.components.consumable.DrainConsumable <<Ex. 9.2>> #e0e0d0 {
+}
+
+class "TeleportConsumable" as game.entities.components.consumable.TeleportConsumable <<Ex. 9.3>> #e0e0d0 {
+}
+
 class "TreasureConsumable" as game.entities.components.consumable.TreasureConsumable {
 }
 
@@ -230,6 +239,9 @@ game.entities.components.consumable.Consumable <|-- game.entities.components.con
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.FireballDamageConsumable
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.HealingConsumable
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.LightningDamageConsumable
+game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.MappingConsumable
+game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.DrainConsumable
+game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.TeleportConsumable
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.TreasureConsumable
 
 game.input_handlers.EventHandler <|-- game.input_handlers.ActionModalHandler
@@ -330,6 +342,11 @@ game.entities.components.consumable.HealingConsumable -[hidden]down- game.entiti
 game.entities.components.consumable.TreasureConsumable -[hidden]down- game.entities.components.consumable.LightningDamageConsumable
 game.entities.components.consumable.ConfusionConsumable -[hidden]right- game.entities.components.consumable.FireballDamageConsumable
 game.entities.components.consumable.FireballDamageConsumable -[hidden]right- game.entities.components.consumable.LightningDamageConsumable
+game.entities.components.consumable.ConfusionConsumable -[hidden]down- game.entities.components.consumable.MappingConsumable
+game.entities.components.consumable.FireballDamageConsumable -[hidden]down- game.entities.components.consumable.DrainConsumable
+game.entities.components.consumable.LightningDamageConsumable -[hidden]down- game.entities.components.consumable.TeleportConsumable
+game.entities.components.consumable.MappingConsumable -[hidden]right- game.entities.components.consumable.DrainConsumable
+game.entities.components.consumable.DrainConsumable -[hidden]right- game.entities.components.consumable.TeleportConsumable
 
 game.input_handlers.EventHandler -[hidden]down- game.input_handlers.ActionModalHandler
 game.input_handlers.EventHandler -[hidden]down- game.input_handlers.GameOverEventHandler

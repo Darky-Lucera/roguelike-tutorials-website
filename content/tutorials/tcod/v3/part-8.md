@@ -1075,12 +1075,16 @@ Add a new consumable class in `game/entities/components/consumable.py`. It diffe
 
 ```diff
  class Consumable(ItemComponent):
-+    auto_collect: bool = False
++    auto_activate: bool = False
 ```
 
 ```python
 class TreasureConsumable(Consumable):
-    auto_collect = True
+    auto_activate = True
+
+    def on_contact(self, engine: Engine, consumer: Actor) -> None:
+        if consumer is engine.player:
+            super().on_contact(engine, consumer)
 
     def __init__(self, value: int) -> None:
         self.value = value
@@ -1131,19 +1135,40 @@ The chest no longer blocks movement (items never block movement). The player wal
 
 ### Auto-collect in `MovementAction`
 
-`PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. After `entity.move()` in `MovementAction.perform()`, scan the new tile for auto-collect items:
+`PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. This requires three additions.
+
+First, add a `GameMap.items_at(x, y)` helper that returns all items at a given position:
+
+```python
+def items_at(self, x: int, y: int) -> list[Item]:
+    from game.entities.entity import Item
+    return [e for e in self.entities if isinstance(e, Item) and e.x == x and e.y == y]
+```
+
+Second, add an `on_contact` method to `Consumable`. It activates the item if `auto_activate` is set, using the standard `ItemAction` path:
+
+```diff
+ class Consumable(ItemComponent):
+     auto_activate: bool = False
+
++    def on_contact(self, engine: Engine, consumer: Actor) -> None:
++        if self.auto_activate:
++            ItemAction(item=self.entity).perform(engine, consumer)
+```
+
+Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for every item on the new tile:
 
 ```diff
          entity.move(self.dx, self.dy)
 +
-+        # Auto-collect items that are picked up on contact (player only)
-+        if entity is engine.player:
-+            for item in list(engine.game_map.items):
-+                if item.x == entity.x and item.y == entity.y and item.consumable.auto_collect:
-+                    ItemAction(item=item).perform(engine, entity)
++        if isinstance(entity, Actor):
++            for item in engine.game_map.items_at(entity.x, entity.y):
++                item.consumable.on_contact(engine=engine, consumer=entity)
 ```
 
-The guard is `entity is engine.player`, not `isinstance(entity, Actor)`: enemy movement also goes through `MovementAction`, so without this check an orc or troll that walks onto a chest would collect it and trigger "You found 10 gold!". `list(engine.game_map.items)` creates a snapshot before iterating because `activate()` modifies `game_map.entities` during the loop.
+The `isinstance(entity, Actor)` check satisfies the type checker — `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
+
+`items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. There is no player-only guard here: every actor that steps on a tile triggers contact. Whether the consumable reacts depends on the consumable itself.
 
 ### `render_gold` in `hud.py`
 
@@ -1199,7 +1224,7 @@ Items are now a first-class part of the game. Key additions:
 - **`Entity.owner`**: single source of truth for whether an entity is on the floor or in an inventory
 - **`Item` / `Inventory`**: new entity subclass and actor component; pickup, use, and drop are modelled as actions
 - **`HealingConsumable`**: first consumable component; knows how to apply its effect independently of the action layer
-- **`TreasureConsumable`**: second consumable; collected on contact rather than through the inventory; `auto_collect = True` triggers pickup on walk
+- **`TreasureConsumable`**: second consumable; collected on contact rather than through the inventory; `auto_activate = True` triggers pickup on walk
 - **`InventoryEventHandler`**: modal overlay base class; subclasses override `TITLE`, `FG_COLOR`, `BG_COLOR`, and `on_item_selected()`
 - **`Inventory.gold`**: running treasure total stored in the `Inventory` component; read as `player.inventory.gold`; keeping all player-held state in one place simplifies future serialization
 
@@ -1207,7 +1232,7 @@ Items are now a first-class part of the game. Key additions:
 
 - `Entity.owner`: set to `GameMap` on spawn, changed to `Inventory` on pickup, back to `GameMap` on drop; never `None` while the entity is alive
 - `Inventory`: component on `Actor`; holds items up to `capacity`, enforces the limit, and handles drop logic
-- `Consumable.auto_collect`: class-level flag; `MovementAction` checks it after every step and activates any matching item on the tile
+- `Consumable.auto_activate`: class-level flag; `Consumable.on_contact()` checks it and activates the item via `ItemAction` when the player steps on the tile
 - `HealingConsumable.activate()`: applies healing and calls `self.consume()` to remove the item from inventory
 - `TreasureConsumable.activate()`: adds gold, logs the message, and removes the item from the map directly; it never enters inventory
 - `Impossible`: raised anywhere in the action chain; `handle_events` catches it and shows the message in the log

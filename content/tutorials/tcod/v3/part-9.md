@@ -273,7 +273,7 @@ def on_render(self, console: tcod.console.Console) -> None:
 
 `draw_frame` draws a rectangle outline. `clear=False` leaves the tiles inside untouched.
 
-*[TODO: screenshot -- square outline around AoE cursor]*
+![Fireball frame](images/firewall_1.png)
 
 The square is quick to implement, but misleading: corner tiles are further from the center than the stated radius, and the outline ignores walls. Let's replace it with a real circle.
 
@@ -406,7 +406,7 @@ def on_render(self, console: tcod.console.Console) -> None:
 !!! note "Shorthand aliases"
     `console.bg` and `console.fg` are shorthand for `console.rgb["bg"]` and `console.rgb["fg"]`. You may see either form in tcod documentation or other tutorials.
 
-*[TODO: screenshot -- clean circle highlight, hard edges]*
+![Fireball circle](images/firewall_2.png)
 
 ### Step 3: Antialiased circle
 
@@ -499,7 +499,7 @@ def scale_color(color: tuple[int, int, int], factor: float) -> tuple[int, int, i
 
 It multiplies each RGB channel by `factor` and rounds to the nearest integer. At `factor = 1.0` the color is unchanged; at `factor = 0.5` it is half as bright.
 
-*[TODO: screenshot -- smooth antialiased circle with faded edges]*
+![Fireball smooth](images/firewall_3.png)
 
 ---
 
@@ -721,16 +721,18 @@ class FireballDamageConsumable(Consumable):
             raise Impossible("You cannot target an area you cannot see.")
 
         x, y = target_pos
-        target_area = engine.game_map.get_aoe_tiles_in_radius(x, y, self.radius)
+        target_area = engine.game_map.get_aoe_weights_in_radius(x, y, self.radius)
         targets_hit = False
         for actor in engine.game_map.actors:
-            if target_area[actor.x, actor.y]:
+            weight = float(target_area[actor.x, actor.y])
+            if weight > 0.0:
+                damage = self.damage * weight
                 MessageLog.add_message(
                     f"The {actor.name} is engulfed in a fiery explosion,"
-                    f" taking {self.damage} damage!",
+                    f" taking {damage:.2f} damage!",
                     colors.PLAYER_ATTACK,
                 )
-                actor.fighter.take_damage(self.damage)
+                actor.fighter.take_damage(damage)
                 targets_hit = True
 
         if not targets_hit:
@@ -739,7 +741,10 @@ class FireballDamageConsumable(Consumable):
         self.consume()
 ```
 
-`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackHandler`. On confirm, `activate()` builds the same AoE mask used by the targeting preview and damages every actor inside it, including the player. It raises `Impossible` only if the tile is not visible or no actor was hit.
+`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackHandler`. On confirm, `activate()` uses the same weight grid that drives the visual preview — the same `get_aoe_weights_in_radius` call. Actors at the center receive full `damage`; actors in the outer ring receive a fraction proportional to their weight (between 0.0 and 1.0). It raises `Impossible` only if the tile is not visible or no actor was hit.
+
+!!! note "Damage falloff at the edges"
+    Using `get_aoe_weights_in_radius` instead of `get_aoe_tiles_in_radius` ties the damage model directly to the visual one: the gradient the player sees on screen is the same gradient that determines how hard each actor is hit. Actors fully inside the radius take `damage × 1.0`; actors in the antialiased outer ring take proportionally less. This makes the radius ring a meaningful indicator rather than a decorative effect.
 
 ---
 
@@ -789,6 +794,9 @@ A confused enemy picks a random direction each turn. It can still accidentally a
 
 !!! info "Why does `ConfusedEnemy` receive `entity` in `__init__`?"
     Every other component gets its `entity` set externally after creation (`component.entity = self` in `Actor.__init__`). `ConfusedEnemy` is different because it is created at runtime during gameplay, not at game initialisation. The target actor is already known at construction time, so passing `entity` directly and assigning `self.entity = entity` in `__init__` is the right approach here.
+
+!!! tip "Exercise 6.3: update CowardEnemy to use this pattern"
+    If you implemented the flee behavior from Exercise 6.3, `CowardEnemy` currently has no way to revert when the enemy recovers HP. Apply the same `previous_ai` pattern here: give `CowardEnemy` a `previous_ai` parameter in `__init__`, and at the start of `perform()` check `entity.fighter.should_flee()`. If it returns `False`, restore `previous_ai` and act normally. Pass `previous_ai=entity.ai` when constructing `CowardEnemy` in `HostileEnemy.perform()`.
 
 ---
 
@@ -1030,8 +1038,20 @@ game/
 
 2. **Drain scroll**:
 
-    Add a `DrainConsumable` that uses `SingleRangedAttackHandler` to target one visible enemy in range. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
+    Add a `DrainConsumable` that returns a `SingleRangedTargetingAction` from `get_action()` to target one visible enemy in range. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
 
 3. **Teleport scroll**:
 
-    Add a `TeleportConsumable` that uses `SingleRangedAttackHandler` to let the player pick any explored, walkable tile and teleport there. The destination must be in bounds, explored, and walkable.
+    Add a `TeleportConsumable` that returns a `SingleRangedTargetingAction` from `get_action()` to let the player pick any explored, walkable tile and teleport there. The destination must be in bounds, explored, and walkable.
+
+!!! tip "Auto-collect and teleport"
+    `TeleportConsumable` calls `consumer.place()` directly, which bypasses the `on_contact` check in `MovementAction`. A player who teleports onto a chest will not pick it up automatically unless you add the same call after `consumer.place()`:
+
+    ```diff
+         consumer.place(x, y, game_map)
+    +    for item in engine.game_map.items_at(consumer.x, consumer.y):
+    +        item.consumable.on_contact(engine=engine, consumer=consumer)
+         MessageLog.add_message("You teleport!", ...)
+    ```
+
+    The message is logged *after* the contact loop so that "You found X gold!" appears before "You teleport!" in the log.

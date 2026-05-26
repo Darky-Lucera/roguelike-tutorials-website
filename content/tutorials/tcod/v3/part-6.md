@@ -764,4 +764,11 @@ game/
 
 3. **Flee behavior**:
 
-    Add a `CowardEnemy` AI class that moves *away* from the player when its HP drops below 25 % of max. Hook the swap in `Fighter.hp.setter`: when HP crosses the threshold for an entity that currently has `HostileEnemy`, create `new_ai = CowardEnemy()`, set `new_ai.entity = self.entity`, then assign `self.entity.ai = new_ai`. Observe how its behavior changes mid-combat.
+    Add a `CowardEnemy` AI class that moves *away* from the player. Then make fleeing a per-creature property rather than hardcoded logic:
+
+    - Add a `flee_threshold: float = 0.0` parameter to `Fighter.__init__`. A value of `0.0` means the creature never flees; `0.25` means it flees when HP drops below 25 % of max.
+    - Add a `should_flee() -> bool` method to `Fighter` that returns `True` when the threshold is exceeded.
+    - In `HostileEnemy.perform()`, after the FOV check (the enemy can only decide to flee if it can see the player), call `entity.fighter.should_flee()`. If it returns `True`, create a `CowardEnemy`, assign it as the entity's AI, print a flee message, and let it act immediately this turn.
+    - In factories, give the orc `flee_threshold=0.25`. Leave the troll without a threshold — trolls are brave and never flee.
+
+    Observe how orcs and trolls behave differently at low HP.
