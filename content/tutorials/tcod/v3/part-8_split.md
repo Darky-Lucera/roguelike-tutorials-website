@@ -1150,6 +1150,11 @@ class InventoryDropHandler(InventoryEventHandler):
         return DropItem(item=item)
 ```
 
+!!! info "Pattern: Template Method"
+    `InventoryEventHandler` defines the complete algorithm (render the overlay, map keys to items, call `on_item_selected`) but leaves the final step as an abstract hook that each concrete subclass fills in. `InventoryActivateHandler` uses the item; `InventoryDropHandler` drops it. The skeleton of the algorithm lives in the base class; the variation lives in the subclasses.
+
+    The same structure appears with `on_index_selected` in `SelectIndexHandler` (Part 9).
+
 `on_render()` renders the map first via `super()`, then draws the overlay in two passes.
 
 The first pass is `console.draw_rect()` with `bg_blend=tcod.constants.BKGND_SET`. The SET blend mode writes the background color directly, producing an opaque fill. `ch=ord(' ')` replaces every character cell in the rectangle with a space, so the map tiles underneath are fully hidden. `fg=self.FG_COLOR` sets the foreground color on those cells as well, so the text printed on top inherits the right color from the start.
@@ -1213,7 +1218,7 @@ Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for 
 +                item.consumable.on_contact(engine=engine, consumer=entity)
 ```
 
-The `isinstance(entity, Actor)` check satisfies the type checker — `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
+The `isinstance(entity, Actor)` check satisfies the type checker: `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
 
 `items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. There is no player-only guard here: every actor that steps on a tile triggers contact. Whether the consumable reacts depends on the consumable itself.
 

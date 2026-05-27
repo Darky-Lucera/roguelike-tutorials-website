@@ -2,16 +2,17 @@
 
 ## What You Will Build
 
-By the end of this part, the dungeon will contain items the player can pick up, carry in an inventory, use for healing, and drop back onto the map.
+By the end of this part, the dungeon will contain items the player can pick up, carry in an inventory, use for healing, and drop back onto the map. Treasure chests will also become auto-collected items that reward the player with gold.
 
 ## Learning goals
 
 - Add `Item` as a new entity class and `HealingConsumable` as its first component
 - Give every entity an `owner` field so items know whether they are on the floor or in an inventory
 - Add an `Inventory` component to actors and implement pickup, use, and drop actions
+- Add `TreasureConsumable` for chests collected automatically on contact
 - Raise `Impossible` for action rejections that need player-facing feedback
 - Build a letter-keyed inventory overlay using the modal handler pattern
-- Spawn health potions in the dungeon
+- Spawn health potions and treasure chests in the dungeon
 
 ---
 
@@ -60,26 +61,30 @@ Compare the alternatives. Returning `None` is silent: the caller has to check fo
 
 ## New constants
 
-Two new visual elements arrive in this chapter: the health potion sprite and colors for item messages. Add them to the constants files.
+This chapter uses visuals for health potions and chests, plus colors for item messages and the inventory overlays. Add them to the constants files.
 
-In `game/constants/sprites.py`:
+In `game/constants/sprites.py`, make sure `CHEST` exists in the entity section, then add `HEALTH_POTION` below it:
 
 ```diff
- CHEST   = "$"
++CHEST   = "$"
  CORPSE  = "%"
 +
 +# Items
 +HEALTH_POTION = "!"
 ```
 
-In `game/constants/colors.py`, add an item color and two new message colors. Place the item color in the entity colors section (after `CORPSE`), and the message colors near the other UI colors:
+In `game/constants/colors.py`, make sure `CHEST` exists in the entity colors section, then add `HEALTH_POTION` below the entity colors:
 
 ```diff
- CORPSE        = (191,   0,   0)
+ TROLL  = (  0, 127,   0)
++CHEST  = (255, 240,   0)
+ CORPSE = (191,   0,   0)
 +
 +# Item colors
 +HEALTH_POTION = (127, 0, 255)
 ```
+
+Then add the message and overlay colors near the other UI colors:
 
 ```diff
  ENEMY_DEATH      = (0xFF, 0xA0, 0x30)
@@ -99,6 +104,9 @@ In `game/constants/colors.py`, add an item color and two new message colors. Pla
 ```
 
 `HEALTH_RECOVERED` is bright green for HP-restore messages. `INVALID` is yellow for action-rejection messages. The four inventory constants define the foreground (border and text) and background colors for the two overlays: green for "use item", purple for "drop item".
+
+!!! note "If you completed the Part 5 chest exercise"
+    `sprites.CHEST` and `colors.CHEST` may already be defined. Keep the existing definitions instead of adding duplicates.
 
 ---
 
@@ -501,7 +509,7 @@ class HealingConsumable(Consumable):
 
 The file defines `Consumable` as the base class for all item effects and `HealingConsumable` as its first concrete subclass.
 
-`Consumable.get_action()` returns the action produced by using this item. In this chapter it returns a plain `ItemAction`, but future consumable types can override it to request additional input before acting, for example a targeting scroll that needs a destination tile.
+`Consumable.get_action()` returns the action produced by using this item. In this chapter it returns a plain `ItemAction`, but future consumable types can override it to request additional input before acting, for example a targeting scroll that needs a destination tile. The local import inside `get_action()` avoids a module-level circular import between `consumable.py` and `actions.py`.
 
 `consume()` imports `Inventory` locally to avoid a circular import: `consumable.py` and `inventory.py` would otherwise form a cycle at module level. The `isinstance` check serves double duty: it guards against consuming an unowned item and narrows the declared type from `GameMap | Inventory | None` to `Inventory`, making the subsequent `inventory.items` access well-typed. After removing the item, `entity.owner = None` clears the stale reference so the consumed item no longer points at the inventory it came from.
 
@@ -579,6 +587,9 @@ item_chances = [
 ```
 
 `item_chances` mirrors the `monster_chances` pattern from Part 5: a list of `(template, weight)` pairs that `map_generator.py` will use to pick which item to place in each room. Weights are relative: a chest (60) is created more often than a potion (40). Exercise 2 adds `backpack_scroll` to this list.
+
+!!! note "If you completed the Part 5 chest exercise"
+    You may already have a passive `chest` template or custom chest spawn logic. Keep a single `chest` template, include it in `item_chances`, and remove any older separate spawn entry you added for it. Later in this chapter we will convert this template from `Entity` to `Item`.
 
 ---
 
@@ -690,7 +701,7 @@ Update `game/engine.py`. The `handle_events` signature changes from `Iterable[An
 Then simplify `handle_events()` to a one-line dispatch:
 
 ```diff
--def handle_events(self, events) -> None:
+-def handle_events(self, events: Iterable[Any]) -> None:
 +def handle_events(self, events: Iterable[tcod.event.Event]) -> None:
      for event in events:
 -        action = self.event_handler.handle_events(event)
@@ -907,6 +918,11 @@ class InventoryDropHandler(InventoryEventHandler):
         return DropItem(item=item)
 ```
 
+!!! info "Pattern: Template Method"
+    `InventoryEventHandler` defines the complete algorithm (render the overlay, map keys to items, call `on_item_selected`) but leaves the final step as an abstract hook that each concrete subclass fills in. `InventoryActivateHandler` uses the item; `InventoryDropHandler` drops it. The skeleton of the algorithm lives in the base class; the variation lives in the subclasses.
+
+    The same structure appears with `on_index_selected` in `SelectIndexHandler` (Part 9).
+
 `on_render()` renders the map first via `super()`, then draws the overlay in two passes.
 
 The first pass is `console.draw_rect()` with `bg_blend=tcod.constants.BKGND_SET`. The SET blend mode writes the background color directly, producing an opaque fill. `ch=ord(' ')` replaces every character cell in the rectangle with a space, so the map tiles underneath are fully hidden. `fg=self.FG_COLOR` sets the foreground color on those cells as well, so the text printed on top inherits the right color from the start.
@@ -1114,7 +1130,18 @@ Gold is something the player carries, not a combat stat, so it belongs in `Inven
 
 ### Convert `chest` in `factories.py`
 
-Replace the passive `Entity` with an `Item`:
+First update the imports in `game/entities/factories.py`. `chest` will no longer be a plain `Entity`, and it now needs `TreasureConsumable`:
+
+```diff
+-from game.entities.components.consumable import HealingConsumable
++from game.entities.components.consumable import HealingConsumable, TreasureConsumable
+ from game.entities.components.fighter import Fighter
+ from game.entities.components.inventory import Inventory
+-from game.entities.entity import Actor, Entity, Item
++from game.entities.entity import Actor, Item
+```
+
+Then replace the passive `Entity` with an `Item`:
 
 ```diff
 -chest = Entity(
@@ -1166,7 +1193,7 @@ Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for 
 +                item.consumable.on_contact(engine=engine, consumer=entity)
 ```
 
-The `isinstance(entity, Actor)` check satisfies the type checker — `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
+The `isinstance(entity, Actor)` check satisfies the type checker: `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
 
 `items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. There is no player-only guard here: every actor that steps on a tile triggers contact. Whether the consumable reacts depends on the consumable itself.
 
@@ -1200,7 +1227,7 @@ Call it from `Engine.render()`:
 
 Run the game and verify the following:
 
-- Health potions (`!`) appear on the dungeon floor in most rooms.
+- Health potions (`!`) appear on the dungeon floor.
 - Walking over a potion and pressing `G` adds it to the inventory and shows "You picked up the Health Potion!".
 - Pressing `G` on an empty tile shows "There is nothing here to pick up." in yellow.
 - Pressing `I` opens the "Select an item to use" overlay and lists carried items by letter.
@@ -1230,7 +1257,7 @@ Items are now a first-class part of the game. Key additions:
 
 **Current architecture**:
 
-- `Entity.owner`: set to `GameMap` on spawn, changed to `Inventory` on pickup, back to `GameMap` on drop; never `None` while the entity is alive
+- `Entity.owner`: set to `GameMap` on spawn, changed to `Inventory` on pickup, back to `GameMap` on drop; never `None` while the entity is active on the map or carried in an inventory
 - `Inventory`: component on `Actor`; holds items up to `capacity`, enforces the limit, and handles drop logic
 - `Consumable.auto_activate`: class-level flag; `Consumable.on_contact()` checks it and activates the item via `ItemAction` when the player steps on the tile
 - `HealingConsumable.activate()`: applies healing and calls `self.consume()` to remove the item from inventory
@@ -1300,7 +1327,7 @@ game/
     consumer.inventory.capacity += actual
     ```
 
-    If the inventory is already at the cap, raise `Impossible` before touching anything. Wire up a `backpack_scroll` item in `factories.py` (sprite `"?"`, parchment color, name `"Backpack Growing Scroll"`) and add it to the spawn table alongside the health potion.
+    If the inventory is already at the cap, raise `Impossible` before touching anything. After increasing the capacity, log a message and call `self.consume()` so the scroll is removed from the inventory. Wire up a `backpack_scroll` item in `factories.py` (sprite `"?"`, parchment color, name `"Backpack Growing Scroll"`) and add it to `item_chances` alongside the health potion and chest.
 
     The player starts at `capacity=10` and can use scrolls (`+4` each) up to the ceiling of 26. Each scroll consumed is a permanent, irreversible upgrade, so finding them is meaningful.
 

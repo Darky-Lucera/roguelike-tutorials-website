@@ -24,6 +24,11 @@ Components keep combat data separate from the base `Entity`. In this part, entit
 !!! info "Design decision: Fighter component + Actor subclass"
     This is composition-over-inheritance applied where it pays off. The alternative is an `Actor` base class with HP and a separate `Item` hierarchy with its own data: two parallel trees that grow apart over time. We keep one `Entity` base, introduce `Actor` only as the small specialization that bundles the components needed to fight, and let new systems (a `Poisoned` status, a `Trader` component) be added by writing a component class instead of editing the hierarchy.
 
+!!! info "Pattern: Component"
+    `Fighter` and `AI` are *components*: interchangeable behaviors attached to entities at construction time. The entity does not inherit capabilities; it delegates to them. This keeps the base `Entity` small and lets new systems be added as new component classes without touching the entity hierarchy. `Inventory` joins this same pattern in Part 8.
+
+    → [Game Programming Patterns: Component](https://gameprogrammingpatterns.com/component.html)
+
 ---
 
 ## Reorganizing into `game/entities/`
@@ -769,6 +774,6 @@ game/
     - Add a `flee_threshold: float = 0.0` parameter to `Fighter.__init__`. A value of `0.0` means the creature never flees; `0.25` means it flees when HP drops below 25 % of max.
     - Add a `should_flee() -> bool` method to `Fighter` that returns `True` when the threshold is exceeded.
     - In `HostileEnemy.perform()`, after the FOV check (the enemy can only decide to flee if it can see the player), call `entity.fighter.should_flee()`. If it returns `True`, create a `CowardEnemy`, assign it as the entity's AI, print a flee message, and let it act immediately this turn.
-    - In factories, give the orc `flee_threshold=0.25`. Leave the troll without a threshold — trolls are brave and never flee.
+    - In factories, give the orc `flee_threshold=0.25`. Leave the troll without a threshold: trolls are brave and never flee.
 
     Observe how orcs and trolls behave differently at low HP.

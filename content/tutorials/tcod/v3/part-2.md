@@ -393,6 +393,11 @@ class MovementAction(Action):
 !!! tip "Action is meant to be subclassed"
     `Action` is never intended to be instantiated directly: it is a contract that subclasses fulfill. Right now that intent lives only in the docstring. In Part 5, we will make it a formal, enforceable contract using Python's `abc` module.
 
+!!! info "Pattern: Command"
+    Each `Action` is an encapsulated *command*: it knows how to execute itself (`perform`). This separates who requests an action (the input handler) from who executes it (the action itself), and lets actions be treated as data (returned from methods, passed around, and handled uniformly by the engine).
+
+    → [Game Programming Patterns: Command](https://gameprogrammingpatterns.com/command.html)
+
 Now `Engine.handle_events` shrinks to a single line. Apply this diff to `game/engine.py`:
 
 ```diff

@@ -694,7 +694,7 @@ The `Iterable` and `Any` imports are already in `game/engine.py` from Part 4. We
     We leave repeat enabled because it makes early playtests less tedious; revisit when combat starts mattering.
 
 !!! note "Enemies react to the player's previous position"
-    `handle_enemy_turns()` runs before `update_fov()`, so the AI checks `game_map.visible` — the field of view computed at the *start* of the turn, before the player moved. An enemy the player just stepped into range of will not react until the following turn. Swapping the order — calling `update_fov()` before `handle_enemy_turns()` — fixes this, but introduces a different asymmetry: enemies would react to a position the player hasn't seen rendered yet. Both orderings are valid roguelike conventions; we keep `update_fov()` last so the rendered frame always reflects the state the player actually acted on.
+    `handle_enemy_turns()` runs before `update_fov()`, so the AI checks `game_map.visible` (the field of view computed at the *start* of the turn), before the player moved. An enemy the player just stepped into range of will not react until the following turn. Swapping the order (calling `update_fov()` before `handle_enemy_turns()`) fixes this, but introduces a different asymmetry: enemies would react to a position the player hasn't seen rendered yet. Both orderings are valid roguelike conventions; we keep `update_fov()` last so the rendered frame always reflects the state the player actually acted on.
 
 ---
 

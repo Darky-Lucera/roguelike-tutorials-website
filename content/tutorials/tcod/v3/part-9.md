@@ -587,6 +587,11 @@ Note that `callback` uses `ItemAction(item=item, target_pos=pos)`. The `target_p
 
 `prompt: str` is a class-level annotation without a value. It tells the type checker that every `TargetingAction` subclass provides a `.prompt` attribute, without forcing a default. Python does not enforce this at runtime; the subclass `__init__` is what actually sets the value.
 
+!!! info "Pattern: Strategy-shaped callback"
+    `TargetingAction` carries a `callback` that the targeting handler calls once the player picks a target. From the handler's point of view, this is the *Strategy* idea: the handler manages cursor input, but the variable behavior (what action to produce from `(x, y)`) is injected as a callable.
+
+    The consumable chooses which targeting action to return; the targeting action supplies the callback, and the item's `activate()` method still owns the actual effect.
+
 ---
 
 ## Three new consumables
@@ -741,7 +746,7 @@ class FireballDamageConsumable(Consumable):
         self.consume()
 ```
 
-`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackHandler`. On confirm, `activate()` uses the same weight grid that drives the visual preview — the same `get_aoe_weights_in_radius` call. Actors at the center receive full `damage`; actors in the outer ring receive a fraction proportional to their weight (between 0.0 and 1.0). It raises `Impossible` only if the tile is not visible or no actor was hit.
+`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackHandler`. On confirm, `activate()` uses the same weight grid that drives the visual preview (the same `get_aoe_weights_in_radius` call). Actors at the center receive full `damage`; actors in the outer ring receive a fraction proportional to their weight (between 0.0 and 1.0). It raises `Impossible` only if the tile is not visible or no actor was hit.
 
 !!! note "Damage falloff at the edges"
     Using `get_aoe_weights_in_radius` instead of `get_aoe_tiles_in_radius` ties the damage model directly to the visual one: the gradient the player sees on screen is the same gradient that determines how hard each actor is hit. Actors fully inside the radius take `damage × 1.0`; actors in the antialiased outer ring take proportionally less. This makes the radius ring a meaningful indicator rather than a decorative effect.

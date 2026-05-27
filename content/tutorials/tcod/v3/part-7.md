@@ -154,6 +154,13 @@ class MessageLog:
 !!! question "Why a static class instead of an instance on Engine (as in the 2019 and v2 tutorials)"
     The 2019 and v2 tutorials store a `MessageLog` instance on `Engine`. That works, but it means every component that wants to log (a `Fighter`, an AI, a consumable) must receive `engine` as a parameter just to reach `engine.message_log`. With a static `MessageLog`, any module can call `MessageLog.add_message(...)` after a one-line import, with no extra dependency on `Engine`.
 
+!!! info "Pattern: Singleton-like global state"
+    `MessageLog` acts as a globally shared resource via class-level state: no instance is ever created, and any module can reach it with a one-line import. This achieves the core benefit of a Singleton (a single, globally accessible object) without the `__new__` machinery. The trade-off is the same: it is easy to use from anywhere, and that ease can make dependencies implicit.
+
+    The *Game Programming Patterns* chapter on Singleton is worth reading.
+
+    → [Game Programming Patterns: Singleton](https://gameprogrammingpatterns.com/singleton.html)
+
 ---
 
 ## hud.py
@@ -348,6 +355,13 @@ Each handler:
 - Takes an `engine` in its constructor
 - Has a `handle_events(event)` method
 - Has an `on_render(console)` method that draws anything the handler needs
+
+!!! info "Pattern: State"
+    `EventHandler` and its subclasses implement the *State* pattern: each subclass represents a distinct game state (normal play, game over) and encapsulates both input handling and rendering for that state. `Engine` is the *context*: it holds the active handler and delegates `handle_events` and `on_render` to it.
+
+    At this point, `Engine` still performs the game-over transition. In later parts, modal handlers also initiate transitions themselves (`self.engine.event_handler = ...`), which keeps transition logic close to the handler that triggers it. Inventory and targeting states build on this same structure.
+
+    → [Game Programming Patterns: State](https://gameprogrammingpatterns.com/state.html)
 
 Replace `game/input_handlers.py`:
 
