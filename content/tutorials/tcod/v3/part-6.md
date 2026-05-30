@@ -37,7 +37,7 @@ Before we dive into components, we give entity-related modules a dedicated home.
 
 From this part on, everything that defines what entities *are* lives under `game/entities/`:
 
-```txt
+```text
 game/entities/
 ├── entity.py          ← was game/entity.py
 ├── render_order.py
@@ -50,7 +50,7 @@ game/entities/
 
 Move `game/entity.py` to `game/entities/entity.py` and `game/entity_factories.py` to `game/entities/factories.py` (the `entity_` prefix is redundant inside `entities/`). The `game/components/` folder also moves to `game/entities/components/`. Create empty `__init__.py` files in both new folders so Python treats them as packages:
 
-```txt
+```text
 game/entities/__init__.py
 game/entities/components/__init__.py
 ```
@@ -119,6 +119,7 @@ Update `game/entities/components/ai.py`:
 
 -class BaseAI:
 +class BaseAI(BaseComponent):
+
      def perform(self, engine: Engine, entity: Entity) -> None:
          raise NotImplementedError()
 ```
@@ -194,6 +195,7 @@ Update `game/entities/entity.py`:
 
 
  class Entity:
+
      def __init__(
          self,
          x: int = 0,
@@ -234,6 +236,7 @@ from game.entities.render_order import RenderOrder
 
 
 class Fighter(BaseComponent):
+
     def __init__(self, hp: int, defense: float, attack: float) -> None:
         self.max_hp       = hp
         self._hp: float   = float(hp)
@@ -358,7 +361,7 @@ orc = Actor(
     color           = colors.ORC,
     name            = "Orc",
     ai              = HostileEnemy(),
-    fighter         = Fighter(hp=10, defense=0, attack=3),
+    fighter         = Fighter(hp=16, defense=1, attack=4),
 )
 
 troll = Actor(
@@ -366,11 +369,11 @@ troll = Actor(
     color           = colors.TROLL,
     name            = "Troll",
     ai              = HostileEnemy(),
-    fighter         = Fighter(hp=16, defense=1, attack=4),
+    fighter         = Fighter(hp=12, defense=0, attack=3),
 )
 ```
 
-Trolls are harder to kill (more HP, some defense) and hit harder than orcs.
+Orcs are harder to kill (more HP, some defense) and hit harder than trolls.
 
 `blocks_movement=True` disappeared from `player`, `orc`, and `troll` because `Actor.__init__` now passes it to `Entity` internally. Anything that can fight blocks movement by default.
 
@@ -388,17 +391,17 @@ Trolls are harder to kill (more HP, some defense) and hit harder than orcs.
     ```python
     # Part 5 exercise: weighted monster table.
     monster_chances = [
-        (orc, 80),
-        (troll, 20),
+        (orc,   25),
+        (troll, 75),
     ]
 
     # Part 5 exercise: passive blocking entity.
     chest = Entity(
-        char=sprites.CHEST,
-        color=colors.CHEST,
-        name="Chest",
-        blocks_movement=True,
-        render_order=RenderOrder.ITEM,
+        char            = sprites.CHEST,
+        color           = colors.CHEST,
+        name            = "Chest",
+        blocks_movement = True,
+        render_order    = RenderOrder.ITEM,
     )
     ```
 
@@ -416,7 +419,7 @@ Add a TYPE_CHECKING import for `Actor` to `game/entities/components/fighter.py` 
  from __future__ import annotations
 +
 +from typing import TYPE_CHECKING
- 
+
  from game.entities.components.base_component import BaseComponent
  from game.constants import colors, sprites
  from game.entities.render_order import RenderOrder
@@ -433,6 +436,7 @@ Add a TYPE_CHECKING import for `Actor` to `game/entities/components/fighter.py` 
         if damage > 0:
             print(f"{attack_msg} for {damage} hit points.")
             target.fighter.hp -= damage
+
         else:
             print(f"{attack_msg} but does no damage.")
 ```
@@ -445,6 +449,7 @@ The damage formula is classic roguelike: `attack - defense`. If the attacker's `
 
 ```python
 class MeleeAction(ActionWithDirection):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         dest_x = entity.x + self.dx
         dest_y = entity.y + self.dy
@@ -488,6 +493,7 @@ if TYPE_CHECKING:
 
 
 class BaseAI(BaseComponent):
+
     def perform(self, engine: Engine, entity: Actor) -> None:
         raise NotImplementedError()
 
@@ -518,6 +524,7 @@ class BaseAI(BaseComponent):
 
 
 class HostileEnemy(BaseAI):
+
     def perform(self, engine: Engine, entity: Actor) -> None:
         if not engine.game_map.visible[entity.x, entity.y]:
             return  # Out of player FOV; cannot act.
@@ -601,6 +608,7 @@ Update `game/input_handlers.py`, add a `GameOverEventHandler`:
 
 ```python
 class EventHandler:
+
     def dispatch(self, event: tcod.event.Event) -> Action | None:
         match event:
             case tcod.event.Quit():
@@ -650,6 +658,7 @@ Now update `Engine` to swap the handler after each turn if the player is no long
 +from game.input_handlers import EventHandler, GameOverEventHandler
 
  class Engine:
+
      def __init__(
          self,
          game_map: GameMap,
@@ -678,6 +687,8 @@ Now update `Engine` to swap the handler after each turn if the player is no long
 +            if actor.ai:
 +                actor.ai.perform(self, actor)
 ```
+
+If you completed the variable torch radius or fading memory exercises in Part 4, keep the `fov_radius`, `fading_memory`, and `memory_duration` parameters and their assignments in `Engine.__init__()`. This diff only changes the player type and the death handler.
 
 We check `is_alive` **after** `handle_enemy_turns`, so a player killed by an enemy on its turn is detected before the next event is processed. After this point, only `Escape` is accepted. The player is stuck looking at their remains.
 
@@ -727,7 +738,7 @@ Combat is now fully functional. Key additions:
 
 **File structure**:
 
-```txt
+```text
 main.py
 game/
 ├── __init__.py
@@ -763,9 +774,23 @@ game/
 
     If you kept the chest exercise from Part 5, bumping into the chest now blocks movement but prints nothing, because the chest is an `Entity`, not an `Actor`. Update `MeleeAction.perform()` so that when the player bumps into a blocking non-actor, it prints something like `"The Chest blocks your way."` instead of silently doing nothing.
 
-2. **Critical hits**:
+2. **Combat effect: critical hits**:
 
-    Give attacks a 10% chance to ignore the target's defense entirely. Import `random`, use `random.random() < 0.1`, and print `"critical hit!"` when it triggers.
+    [Appendix 2](append-2.md) discusses combat effects in more detail. Add the simplest version of one of those effects now: a critical hit.
+
+    Add `critical_chance: float = 0.1` and `critical_multiplier: float = 2.0` parameters to `Fighter.__init__()`, store them on the component, and update `melee_attack()` so it calculates `base_damage` first:
+
+    ```python
+    base_damage = self.attack - target.fighter.defense
+
+    if random() < self.critical_chance:
+        damage = base_damage * self.critical_multiplier
+
+    else:
+        damage = base_damage
+    ```
+
+    Import the function with `from random import random`, and print `"critical hit!"` when the critical hit triggers and deals damage.
 
 3. **Flee behavior**:
 
@@ -774,6 +799,6 @@ game/
     - Add a `flee_threshold: float = 0.0` parameter to `Fighter.__init__`. A value of `0.0` means the creature never flees; `0.25` means it flees when HP drops below 25 % of max.
     - Add a `should_flee() -> bool` method to `Fighter` that returns `True` when the threshold is exceeded.
     - In `HostileEnemy.perform()`, after the FOV check (the enemy can only decide to flee if it can see the player), call `entity.fighter.should_flee()`. If it returns `True`, create a `CowardEnemy`, assign it as the entity's AI, print a flee message, and let it act immediately this turn.
-    - In factories, give the orc `flee_threshold=0.25`. Leave the troll without a threshold: trolls are brave and never flee.
+    - In factories, give the troll `flee_threshold=0.3`. Orcs are brave and never flee (default `flee_threshold=0.0`). The troll's early retreat will pay off later when you add regeneration.
 
     Observe how orcs and trolls behave differently at low HP.

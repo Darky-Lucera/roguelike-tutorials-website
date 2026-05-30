@@ -22,7 +22,7 @@ The classic roguelike dungeon uses the **rooms-and-corridors** approach:
 1. Pick a random position and size for a room
 2. Check if it overlaps with any existing room
 3. If not, place it and dig a tunnel to the previous room
-4. Repeat `max_rooms` times. Some attempts get skipped (overlap), so the final dungeon usually has fewer than `max_rooms` rooms.
+4. Keep trying until we have enough rooms, or until we run out of placement attempts.
 
 This gives dungeons that feel hand-designed (recognizable rooms connected by corridors) but with endless variety.
 
@@ -30,7 +30,7 @@ This gives dungeons that feel hand-designed (recognizable rooms connected by cor
     Many alternatives exist:
 
     | Algorithm | Feel | Complexity |
-    |---|---|---|
+    | --- | --- | --- |
     | Rooms-and-corridors | Classic dungeon | Low |
     | BSP (Binary Space Partitioning) | Structured, no wasted space | Medium |
     | Cellular automata | Organic caves | Medium |
@@ -44,7 +44,7 @@ This gives dungeons that feel hand-designed (recognizable rooms connected by cor
 
 Part 2 created `game/game_map.py` and `game/tile_types.py` directly inside `game/`. Now that we are adding dungeon generation, it is worth grouping the map-related files before the project grows further:
 
-```txt
+```text
 game/
   map/
     __init__.py
@@ -106,6 +106,7 @@ if TYPE_CHECKING:
 
 
 class RectangularRoom:
+
     def __init__(self, x: int, y: int, width: int, height: int) -> None:
         self.x1 = x
         self.y1 = y
@@ -142,7 +143,7 @@ Consider a room placed at `(1, 1)` to `(6, 6)`. If we dig out exactly that recta
 
 By starting the interior at `x1 + 1` and `y1 + 1`, we always leave at least one tile of wall around each room:
 
-```txt
+```text
 Without +1:                  With +1 (what we do):
 
   0 1 2 3 4 5 6 7            0 1 2 3 4 5 6 7
@@ -192,7 +193,7 @@ def tunnel_between(
 
 The two options look like this:
 
-```txt
+```text
 Option A (right then down):      Option B (down then right):
 
   ┌──────┐                    ┌──────┐
@@ -232,11 +233,12 @@ def generate_dungeon(
 
     rooms: list[RectangularRoom] = []
 
-    for _ in range(max_rooms):
-        room_width = random.randint(room_min_size, room_max_size)
+    max_room_attempts = max_rooms * 2
+    for _ in range(max_room_attempts):
+        room_width  = random.randint(room_min_size, room_max_size)
         room_height = random.randint(room_min_size, room_max_size)
 
-        x = random.randint(0, dungeon.width - room_width - 1)
+        x = random.randint(0, dungeon.width  - room_width  - 1)
         y = random.randint(0, dungeon.height - room_height - 1)
 
         new_room = RectangularRoom(x, y, room_width, room_height)
@@ -251,23 +253,28 @@ def generate_dungeon(
         if not rooms:
             # First room: place the player here.
             player.set_position(*new_room.center)
+
         else:
             # All subsequent rooms: dig a tunnel to the previous room.
             for x, y in tunnel_between(rooms[-1].center, new_room.center):
                 dungeon.tiles[x, y] = tile_types.floor
 
         rooms.append(new_room)
+        if len(rooms) >= max_rooms:
+            break
 
     return dungeon
 ```
 
 The algorithm in plain language:
 
-1. Attempt to place up to `max_rooms` rooms
+1. Attempt to place rooms, giving the generator extra chances when a room overlaps
 2. For each attempt, pick a random size and position
 3. If it overlaps an existing room, skip it (try again next iteration)
 4. Otherwise, dig it out and connect it to the last room with a tunnel
 5. Put the player in the first room that was successfully placed
+
+`max_rooms` is the maximum number of rooms we want to keep, not the number of placement attempts. Since many attempts are rejected because they overlap existing rooms, we give the generator extra chances with `max_room_attempts`. The loop stops early once enough rooms have been placed.
 
 !!! tip "Tweaking the dungeon"
     The three parameters `max_rooms`, `room_min_size`, and `room_max_size` control the dungeon character. More rooms = denser dungeon. Smaller rooms = tighter corridors. Experiment after Part 3 is working.
@@ -306,18 +313,19 @@ from game.map.map_generator import generate_dungeon
 
 
 def main() -> None:
-    screen_width = 80
+    screen_width  = 80
     screen_height = 50
 
-    map_width = 80
+    map_width  = 80
     map_height = 45
 
-    room_max_size = 10
-    room_min_size = 6
+    room_max_size = 12
+    room_min_size = 7
+
     max_rooms = 30
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
@@ -328,27 +336,42 @@ def main() -> None:
     player = Entity(x=0, y=0, char="@", color=(255, 255, 255))
 
     game_map = generate_dungeon(
-        max_rooms=max_rooms,
-        room_min_size=room_min_size,
-        room_max_size=room_max_size,
-        map_width=map_width,
-        map_height=map_height,
-        player=player,
+        max_rooms     = max_rooms,
+        room_min_size = room_min_size,
+        room_max_size = room_max_size,
+        map_width     = map_width,
+        map_height    = map_height,
+        player        = player,
     )
 
     engine = Engine(
-        entities={player},
-        event_handler=event_handler,
-        game_map=game_map,
-        player=player,
+        entities      = {player},
+        event_handler = event_handler,
+        game_map      = game_map,
+        player        = player,
+    )
+
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
     )
 
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         console = tcod.console.Console(screen_width, screen_height, order="F")
         engine.run(context, console)
@@ -403,7 +426,7 @@ We built a rooms-and-corridors dungeon generator in a dedicated `game/map/map_ge
 
 **File structure**:
 
-```txt
+```text
 main.py                     ← modified
 game/
 ├── __init__.py
@@ -422,6 +445,10 @@ game/
 
 ## Exercises
 
+0. **Remove lake if you implemented it**:
+
+    If you completed Part 2's water-tile exercise, remove the hard-coded lake before testing procedural generation. A fixed obstacle can accidentally cut a corridor or block a room entrance, which makes it harder to tell whether a problem comes from the dungeon generator or from the old test feature. Keep the `water` tile definition if you want, but remove any code that paints water into the generated map for now.
+
 1. **Reproducible dungeons**:
 
     Add a `seed` parameter to `generate_dungeon` and call `random.seed(seed)` at the top of the function. With a fixed seed, the dungeon is always the same. This is useful for debugging: if you find a problematic layout, record its seed to reproduce it.
@@ -430,6 +457,6 @@ game/
 
     Our current algorithm connects each room to the one placed before it. This sometimes creates long diagonal tunnels. Instead, find the already-placed room whose center is closest to the new room's center and connect to that. The dungeon will look more compact.
 
-3. **Mark visited rooms**:
+3. **Connect rooms using rough centers**:
 
-    Draw a `+` at the center of each room after it is placed (then clear it once the dungeon is done). This lets you see the generation order while debugging. Remove it before moving on.
+    Add a `roughly_center` property to `RectangularRoom` that starts from the exact center and then offsets it by a random amount proportional to the room size: up to one-third of the room's width along `x`, and up to one-third of the room's height along `y`. Use `roughly_center` as the tunnel endpoint instead of `center`, so corridors do not always connect to the exact middle of each room. Keep using `center` to place the player in the first room.

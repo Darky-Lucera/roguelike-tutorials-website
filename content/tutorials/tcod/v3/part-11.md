@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 
 class Level(ActorComponent):
+
     def __init__(
         self,
         current_level: int = 1,
@@ -172,33 +173,33 @@ from game.entities.components.level import Level
 from game.constants import colors, sprites
 
 player = Actor(
-    char=sprites.PLAYER,
-    color=colors.PLAYER,
-    name="Player",
-    ai=None,
-    fighter=Fighter(hp=30, defense=2, attack=5),
-    inventory=Inventory(capacity=26),
-    level=Level(level_up_base=200),
+    char      = sprites.PLAYER,
+    color     = colors.PLAYER,
+    name      = "Player",
+    ai        = None,
+    fighter   = Fighter(hp=30, defense=2, attack=5),
+    inventory = Inventory(capacity=26),
+    level     = Level(level_up_base=200),
 )
 
 orc = Actor(
-    char=sprites.ORC,
-    color=colors.ORC,
-    name="Orc",
-    ai=HostileEnemy(),
-    fighter=Fighter(hp=10, defense=0, attack=3),
-    inventory=Inventory(capacity=0),
-    level=Level(xp_given=35),
+    char      = sprites.ORC,
+    color     = colors.ORC,
+    name      = "Orc",
+    ai        = HostileEnemy(),
+    fighter   = Fighter(hp=16, defense=1, attack=4),
+    inventory = Inventory(capacity=0),
+    level     = Level(xp_given=35),
 )
 
 troll = Actor(
-    char=sprites.TROLL,
-    color=colors.TROLL,
-    name="Troll",
-    ai=HostileEnemy(),
-    fighter=Fighter(hp=16, defense=1, attack=4),
-    inventory=Inventory(capacity=0),
-    level=Level(xp_given=100),
+    char      = sprites.TROLL,
+    color     = colors.TROLL,
+    name      = "Troll",
+    ai        = HostileEnemy(),
+    fighter   = Fighter(hp=12, defense=0, attack=3),
+    inventory = Inventory(capacity=0),
+    level     = Level(xp_given=100),
 )
 ```
 
@@ -206,6 +207,7 @@ Update `Actor.__init__` in `game/entities/entity.py` to accept and wire up the `
 
 ```python
 class Actor(Entity):
+
     def __init__(
         self,
         *,
@@ -250,6 +252,7 @@ class GameWorld:
         max_monsters_per_room: int,
         min_items_per_room: int,
         max_items_per_room: int,
+        seed: int,
         current_floor: int = 0,
     ) -> None:
         self.engine = engine
@@ -262,6 +265,7 @@ class GameWorld:
         self.max_monsters_per_room = max_monsters_per_room
         self.min_items_per_room = min_items_per_room
         self.max_items_per_room = max_items_per_room
+        self.seed = seed
         self.current_floor = current_floor
 
     def generate_floor(self) -> None:
@@ -279,8 +283,11 @@ class GameWorld:
             min_items_per_room=self.min_items_per_room,
             max_items_per_room=self.max_items_per_room,
             player=self.engine.player,
+            seed=self.seed + self.current_floor,
         )
 ```
+
+`seed + self.current_floor` keeps the run reproducible while still giving each dungeon floor a different layout. Using the exact same seed for every floor would generate the same dungeon again.
 
 Update `Engine` to hold `game_world` instead of being given a `game_map` directly:
 
@@ -290,10 +297,14 @@ class Engine:
     game_world: GameWorld
 ```
 
+If you completed the variable torch radius or fading memory exercises in Part 4, keep those `Engine.__init__()` parameters when you remove `game_map` from the constructor. `fov_radius`, `fading_memory`, and `memory_duration` still belong to the engine.
+
 Update `game/setup_game.py`, replace direct `generate_dungeon` call with `GameWorld`:
 
 ```python
 import copy
+import os
+import secrets
 
 from game.game_world import GameWorld
 from game.message_log import MessageLog
@@ -301,6 +312,10 @@ from game.message_log import MessageLog
 def new_game() -> Engine:
     player = copy.deepcopy(factories.player)
     engine = Engine(player=player)
+
+    seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
+    #seed = 12345 # Write here the game seed to reproduce a map
+    print(f"Game seed: {seed}")
 
     engine.game_world = GameWorld(
         engine=engine,
@@ -313,6 +328,7 @@ def new_game() -> Engine:
         max_monsters_per_room=MAX_MONSTERS_PER_ROOM,
         min_items_per_room=MIN_ITEMS_PER_ROOM,
         max_items_per_room=MAX_ITEMS_PER_ROOM,
+        seed=seed,
     )
     engine.game_world.generate_floor()
     engine.update_fov()
@@ -380,6 +396,7 @@ Add to `game/actions.py`:
 
 ```python
 class TakeStairsAction(Action):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         if (entity.x, entity.y) == engine.game_map.downstairs_location:
             engine.game_world.generate_floor()
@@ -396,7 +413,7 @@ Add to `game/constants/colors.py`:
 DESCEND = (0x9F, 0x3F, 0xFF)
 ```
 
-Add the `>` keybinding in `MainGameEventHandler`:
+Add the `>` keybinding in `MainGameState`:
 
 ```python
         if key == tcod.event.KeySym.PERIOD and event.mod & tcod.event.Modifier.LSHIFT:
@@ -407,12 +424,12 @@ Add the `>` keybinding in `MainGameEventHandler`:
 
 ---
 
-## LevelUpEventHandler
+## LevelUpState
 
-Add to `game/input_handlers.py`:
+Add to `game/game_states.py`:
 
 ```python
-class LevelUpEventHandler(EventHandler):
+class LevelUpState(GameState):
     TITLE = "Level Up"
 
     def on_render(self, console: tcod.console.Console) -> None:
@@ -444,7 +461,7 @@ class LevelUpEventHandler(EventHandler):
             text=f"c) Agility (+1 defense, from {fighter.base_defense})",
         )
 
-    def event_keydown(self, event: tcod.event.KeyDown) -> BaseEventHandler | None:
+    def event_keydown(self, event: tcod.event.KeyDown) -> BaseGameState | None:
         player = self.engine.player
         index = event.sym - tcod.event.KeySym.A
 
@@ -458,9 +475,9 @@ class LevelUpEventHandler(EventHandler):
             MessageLog.add_message("Invalid entry.", colors.INVALID)
             return None
 
-        return MainGameEventHandler(self.engine)
+        return MainGameState(self.engine)
 
-    def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
+    def handle_events(self, event: tcod.event.Event) -> BaseGameState:
         result = super().handle_events(event)
         if result is not self:
             return result
@@ -468,21 +485,21 @@ class LevelUpEventHandler(EventHandler):
         return self
 ```
 
-Trigger the modal from `EventHandler.handle_events()` after enemy turns and death handling:
+Trigger the modal from `GameState.handle_events()` after enemy turns and death handling:
 
 ```python
             if self.engine.player.is_alive:
                 self.engine.handle_enemy_turns()
 
             if not self.engine.player.is_alive:
-                new_handler = GameOverEventHandler(self.engine)
-                new_handler.on_enter()
-                return new_handler
+                new_state = GameOverState(self.engine)
+                new_state.on_enter()
+                return new_state
 
             self.engine.update_fov()
 
             if self.engine.player.level.requires_level_up:
-                return LevelUpEventHandler(self.engine)
+                return LevelUpState(self.engine)
 ```
 
 ---
@@ -534,7 +551,7 @@ Character progression and dungeon depth are now linked. Key additions:
 - **`Level` component**: XP tracking, level-up threshold, stat-increase methods
 - **`GameWorld`**: owns generation parameters, creates new floors on demand
 - **`TakeStairsAction`**: triggers floor generation when player is on stairs
-- **`LevelUpEventHandler`**: modal stat-selection screen
+- **`LevelUpState`**: modal stat-selection screen
 - **XP on kill**: `Fighter.die()` awards XP to the player
 
 **Current architecture**:
@@ -543,11 +560,11 @@ Character progression and dungeon depth are now linked. Key additions:
 - `Engine`: owns the current `GameMap` plus a `GameWorld` for new floors
 - `Level`: component that owns XP, level thresholds, and stat increases
 - `TakeStairsAction`: asks `GameWorld` to generate the next floor
-- `LevelUpEventHandler`: modal state entered when the player must choose a stat
+- `LevelUpState`: modal state entered when the player must choose a stat
 
 **File structure**:
 
-```txt
+```text
 main.py
 game/
 ├── __init__.py
@@ -556,7 +573,7 @@ game/
 ├── exceptions.py
 ├── game_world.py               ← new
 ├── hud.py                      ← modified
-├── input_handlers.py           ← modified
+├── game_states.py              ← modified
 ├── message_log.py
 ├── setup_game.py               ← modified
 ├── constants/

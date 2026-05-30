@@ -8,7 +8,7 @@ By the end of this part, your roguelike will have a main menu and a save system,
 
 - Serialize the entire game state to disk with `pickle` + `lzma`
 - Add a main menu with New Game / Continue options
-- Refactor event handlers to return handlers (not just actions)
+- Refactor game states to return states (not just actions)
 - Delete the save file on player death
 - Verify: save, quit, reload, game state is exactly as left
 
@@ -18,7 +18,7 @@ By the end of this part, your roguelike will have a main menu and a save system,
 
 Saving a game means converting the entire live object graph (engine, game map, entities, components, AI instances) into bytes that can be written to disk and reconstructed later.
 
-```txt
+```text
 Engine
   ├── player (Actor)
   │     ├── fighter (Fighter)   ← component back-reference to player
@@ -59,11 +59,11 @@ from game.message_log import MessageLog
 class Engine:
     ...
 
-    def save_as(self, filename: str) -> None:
+    def save_as(self, filename: str, active_state: object = None) -> None:
         save_data = lzma.compress(
             pickle.dumps(
                 {
-                    "engine": self,
+                    "state": active_state,
                     "message_log": MessageLog.messages,
                 }
             )
@@ -71,26 +71,28 @@ class Engine:
         Path(filename).write_bytes(save_data)
 ```
 
-That is the entire save implementation. `pickle.dumps(...)` serializes the engine (and everything it references) plus the static message log into bytes. `lzma.compress` shrinks it. `Path.write_bytes` writes the compressed bytes to disk.
+`pickle.dumps(...)` serializes `active_state` (which transitively includes the engine and everything it references) plus the static message log. `lzma.compress` shrinks it. `Path.write_bytes` writes the compressed bytes to disk.
 
 Loading is the inverse:
 
 ```python
     @staticmethod
-    def load(filename: str) -> Engine:
+    def load(filename: str):
         save_data = Path(filename).read_bytes()
         data = pickle.loads(lzma.decompress(save_data))
         MessageLog.messages = data["message_log"]
-        return data["engine"]
+        return data["state"]
 ```
 
 `MessageLog.messages` is stored explicitly because it is class-level state, not an instance attribute of `Engine`. Without this extra field, loading would restore the map and entities but lose the visible message history.
+
+The active state is now the root of the saved object graph. Any state that inherits from `GameState` stores the engine on `self.engine`, so code that needs the engine can access it through the current state after checking that the state is engine-backed.
 
 ---
 
 ## setup_game.py
 
-We need a function that creates a fresh game (used by "New Game") and one that loads an existing save (used by "Continue"). Extract them into a dedicated module so `main.py` and the main menu handler stay clean.
+We need a function that creates a fresh game (used by "New Game") and one that loads an existing save (used by "Continue"). Extract them into a dedicated module so `main.py` and the main menu state stay clean.
 
 Create `game/setup_game.py`:
 
@@ -98,7 +100,9 @@ Create `game/setup_game.py`:
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
+import secrets
 
 from game.constants import colors
 from game.entities import factories
@@ -123,6 +127,10 @@ def new_game() -> Engine:
     """Return a fresh engine for a brand-new game."""
     MessageLog.clear()
 
+    seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
+    #seed = 12345 # Write here the game seed to reproduce a map
+    print(f"Game seed: {seed}")
+
     player = copy.deepcopy(factories.player)
 
     game_map = generate_dungeon(
@@ -136,6 +144,7 @@ def new_game() -> Engine:
         min_items_per_room=MIN_ITEMS_PER_ROOM,
         max_items_per_room=MAX_ITEMS_PER_ROOM,
         player=player,
+        seed=seed,
     )
     engine = Engine(game_map=game_map, player=player)
     engine.update_fov()
@@ -147,8 +156,8 @@ def new_game() -> Engine:
     return engine
 
 
-def load_game(filename: str) -> Engine:
-    """Load a save file and return the engine."""
+def load_game(filename: str):
+    """Load a save file and return the saved game state."""
     if not Path(filename).exists():
         raise FileNotFoundError(f"No save file found at {filename!r}")
     return Engine.load(filename)
@@ -156,31 +165,32 @@ def load_game(filename: str) -> Engine:
 
 ---
 
-## BaseEventHandler and PopupMessage
+## BaseGameState and PopupMessageState
 
-Before adding the main menu, we need one more abstraction: a handler that does *not* delegate to `Engine`. The main menu runs before any engine exists, so it cannot inherit from the current `EventHandler`.
+Before adding the main menu, we need one more abstraction: a state that does *not* delegate to `Engine`. The main menu runs before any engine exists, so it cannot inherit from the current `GameState`.
 
 We split the hierarchy:
 
-```txt
-BaseEventHandler
-  ├── EventHandler (has engine, handles actions)
-  │     ├── MainGameEventHandler
-  │     ├── GameOverEventHandler
-  │     └── InventoryEventHandler (and subclasses)
-  │           ├── InventoryActivateHandler
-  │           └── InventoryDropHandler
-  ├── MainMenu  (no engine yet)
-  └── PopupMessage (shows a message over a frozen background)
+```text
+BaseGameState
+  ├── GameState (has engine, handles actions)
+  │     ├── MainGameState
+  │     ├── GameOverState
+  │     └── InventoryState (and subclasses)
+  │           ├── InventoryUseState
+  │           └── InventoryDropState
+  ├── MainMenuState  (no engine yet)
+  └── PopupMessageState (shows a message over a frozen background)
 ```
 
-Add to `game/input_handlers.py`:
+Add to `game/game_states.py`:
 
 ```python
-class BaseEventHandler:
+class BaseGameState:
+
     def handle_events(self, event: tcod.event.Event):
         state = self.dispatch(event)
-        if isinstance(state, BaseEventHandler):
+        if isinstance(state, BaseGameState):
             return state
         return self
 
@@ -199,11 +209,11 @@ class BaseEventHandler:
         raise NotImplementedError()
 
 
-class PopupMessage(BaseEventHandler):
+class PopupMessageState(BaseGameState):
     """Display a message over a screenshot of the current state."""
 
-    def __init__(self, parent_handler: BaseEventHandler, text: str) -> None:
-        self.parent = parent_handler
+    def __init__(self, parent_state: BaseGameState, text: str) -> None:
+        self.parent = parent_state
         self.text = text
 
     def on_render(self, console: tcod.console.Console) -> None:
@@ -223,17 +233,17 @@ class PopupMessage(BaseEventHandler):
         return self.parent
 ```
 
-`PopupMessage` darkens the existing frame by right-shifting all color channels by 3 (dividing by 8), then overlays centered text. Any keypress dismisses it and returns to the parent handler.
+`PopupMessageState` darkens the existing frame by right-shifting all color channels by 3 (dividing by 8), then overlays centered text. Any keypress dismisses it and returns to the parent state.
 
 ---
 
-## MainMenu handler
+## MainMenuState
 
 ```python
 from game.setup_game import SAVE_PATH, load_game, new_game
 
 
-class MainMenu(BaseEventHandler):
+class MainMenuState(BaseGameState):
     """Renders the main menu and handles New / Continue / Quit."""
 
     def on_render(self, console: tcod.console.Console) -> None:
@@ -264,24 +274,23 @@ class MainMenu(BaseEventHandler):
 
             case tcod.event.KeySym.C:
                 try:
-                    engine = load_game(SAVE_PATH)
-                    return MainGameEventHandler(engine)
+                    return load_game(SAVE_PATH)
 
                 except FileNotFoundError:
-                    return PopupMessage(self, "No saved game to load.")
+                    return PopupMessageState(self, "No saved game to load.")
 
                 except Exception as exc:
-                    return PopupMessage(self, f"Failed to load save:\n{exc}")
+                    return PopupMessageState(self, f"Failed to load save:\n{exc}")
 
             case tcod.event.KeySym.N:
-                return new_game_handler()
+                return new_game_state()
 
         return None
 
 
-def new_game_handler() -> MainGameEventHandler:
+def new_game_state() -> MainGameState:
     engine = new_game()
-    return MainGameEventHandler(engine)
+    return MainGameState(engine)
 ```
 
 Add to `game/constants/colors.py`:
@@ -293,19 +302,20 @@ MENU_TEXT = WHITE
 
 ---
 
-## Refactor: handlers return handlers
+## Refactor: states return states
 
-The current `EventHandler.handle_events()` returns `Action | None`. The new `BaseEventHandler.handle_events()` returns a handler. We need to unify these.
+The current `GameState.handle_events()` returns `Action | None`. The new `BaseGameState.handle_events()` returns a state. We need to unify these.
 
-Update `EventHandler` to extend `BaseEventHandler` and return the correct type:
+Update `GameState` to extend `BaseGameState` and return the correct type:
 
 ```python
-class EventHandler(BaseEventHandler):
+class GameState(BaseGameState):
+
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
-    def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
-        action: Action | None = None
+    def handle_events(self, event: tcod.event.Event) -> BaseGameState:
+        action: Action | BaseGameState | None = None
         match event:
             case tcod.event.Quit():
                 action = EscapeAction()
@@ -317,7 +327,7 @@ class EventHandler(BaseEventHandler):
             case tcod.event.KeyDown():
                 action = self.event_keydown(event)
 
-        if isinstance(action, BaseEventHandler):
+        if isinstance(action, BaseGameState):
             return action
 
         if action is not None:
@@ -327,21 +337,30 @@ class EventHandler(BaseEventHandler):
                 MessageLog.add_message(str(exc), colors.INVALID)
                 return self
 
+            if isinstance(action, TargetingAction):
+                MessageLog.add_message(action.prompt, colors.NEEDS_TARGET)
+                if isinstance(action, SingleRangedTargetingAction):
+                    return SingleRangedAttackState(self.engine, callback=action.callback)
+                elif isinstance(action, AreaRangedTargetingAction):
+                    return AreaRangedAttackState(
+                        self.engine,
+                        radius=action.radius,
+                        color=action.color,
+                        callback=action.callback,
+                    )
+
             if self.engine.player.is_alive:
                 self.engine.handle_enemy_turns()
 
             if not self.engine.player.is_alive:
-                new_handler = GameOverEventHandler(self.engine)
-                new_handler.on_enter()
-                return new_handler
+                new_state = GameOverState(self.engine)
+                new_state.on_enter()
+                return new_state
 
             self.engine.update_fov()
 
-            if isinstance(
-                self,
-                (InventoryActivateHandler, InventoryDropHandler, SelectIndexHandler),
-            ):
-                return MainGameEventHandler(self.engine)
+            if isinstance(self, ActionModalState):
+                return MainGameState(self.engine)
 
         return self
 
@@ -352,110 +371,45 @@ class EventHandler(BaseEventHandler):
         self.engine.render(console)
 ```
 
-The key change: `handle_events` now **returns a handler**. The caller replaces its current handler with the returned one. This makes handler transitions explicit and self-contained.
+The key change: `handle_events` now **returns a state**. The caller replaces its current state with the returned one. This makes state transitions explicit and self-contained.
 
-Update temporary handlers so they return handlers instead of mutating `engine.event_handler`:
+Update states so they return states instead of mutating `engine.game_state`:
 
 ```python
-class InventoryEventHandler(EventHandler):
+class InventoryState(ActionModalState):
     ...
 
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseEventHandler | None:
+    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
         ...
         if event.sym == tcod.event.KeySym.ESCAPE:
-            return MainGameEventHandler(self.engine)
+            return MainGameState(self.engine)
         ...
 
 
-class MainGameEventHandler(EventHandler):
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseEventHandler | None:
+class MainGameState(GameState):
+
+    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
         ...
         if key == tcod.event.KeySym.I:
-            return InventoryActivateHandler(self.engine)
+            return InventoryUseState(self.engine)
         if key == tcod.event.KeySym.D:
-            return InventoryDropHandler(self.engine)
+            return InventoryDropState(self.engine)
         ...
 
 
-class SelectIndexHandler(EventHandler):
+class SelectIndexState(ActionModalState):
     ...
 
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseEventHandler | None:
+    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
         ...
         if key == tcod.event.KeySym.ESCAPE:
-            return MainGameEventHandler(self.engine)
+            return MainGameState(self.engine)
         ...
 ```
 
-`BaseEventHandler.handle_events()` already returns handler objects directly, so `InventoryActivateHandler` and `InventoryDropHandler` can now transition without touching `engine.event_handler`.
+`BaseGameState.handle_events()` already returns state objects directly, so `InventoryUseState` and `InventoryDropState` can now transition without touching `engine.game_state`.
 
-Targeting consumables also need to be migrated. In Part 9, `ConfusionConsumable.get_action()` and `FireballDamageConsumable.get_action()` installed their targeting handler by mutating `engine.event_handler` and returning `None`. That worked when the engine owned the active handler, but now the main loop drives state through `handle_events`'s return value. A `None` return leaves the inventory handler active and the targeting cursor never appears.
-
-Rather than mixing handler transitions into `get_action()`, which is supposed to return an action, we give `Consumable` a dedicated method. Add `get_targeting_handler()` to the base class:
-
-```python
-class Consumable:
-    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
-        return None
-```
-
-Then override it in the targeting consumables. Remove the old `get_action()` overrides from Part 9 at the same time, since that code is now dead:
-
-```diff
- class ConfusionConsumable(Consumable):
--    def get_action(self, consumer: Actor, engine: Engine):
--        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
--        from game.input_handlers import SingleRangedAttackHandler
--        engine.event_handler = SingleRangedAttackHandler(
--            engine,
--            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
--        )
--        return None
--
-+    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
-+        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
-+        from game.input_handlers import SingleRangedAttackHandler
-+        return SingleRangedAttackHandler(
-+            engine,
-+            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
-+        )
-+
-
- class FireballDamageConsumable(Consumable):
--    def get_action(self, consumer: Actor, engine: Engine):
--        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
--        from game.input_handlers import AreaRangedAttackHandler
--        engine.event_handler = AreaRangedAttackHandler(
--            engine,
--            radius=self.radius,
--            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
--        )
--        return None
--
-+    def get_targeting_handler(self, engine: Engine) -> BaseEventHandler | None:
-+        MessageLog.add_message("Select a target location.", colors.NEEDS_TARGET)
-+        from game.input_handlers import AreaRangedAttackHandler
-+        return AreaRangedAttackHandler(
-+            engine,
-+            radius=self.radius,
-+            callback=lambda pos: ItemAction(item=self.entity, target_pos=pos),
-+        )
-```
-
-Finally, update `InventoryActivateHandler.on_item_selected` to check for a targeting handler before falling back to `get_action()`:
-
-```python
-class InventoryActivateHandler(InventoryEventHandler):
-    TITLE = "Select an item to use"
-
-    def on_item_selected(self, item: Item) -> Action | BaseEventHandler | None:
-        handler = item.consumable.get_targeting_handler(self.engine)
-        if handler is not None:
-            return handler
-        return item.consumable.get_action(self.engine.player, self.engine)
-```
-
-`get_action()` itself is unchanged: it still returns `Action | None`. The wider return type on `on_item_selected` comes from the fact that it can now also return a `BaseEventHandler` from `get_targeting_handler`. `handle_events` already handles this with `if isinstance(action, BaseEventHandler): return action`.
+Part 9 already wired this correctly: `ConfusionConsumable` and `FireballDamageConsumable` return `TargetingAction` data classes from `get_action()`, and `handle_events()` dispatches on them. The only migration here is changing the mutation (`engine.game_state = ...`) to a return value, which the updated `handle_events()` above already reflects. No changes to `consumable.py` are needed.
 
 ---
 
@@ -468,81 +422,96 @@ from pathlib import Path
 
 import tcod
 
-from game.input_handlers import BaseEventHandler, MainMenu
+from game.game_states import BaseGameState, MainMenuState
 from game.setup_game import SAVE_PATH
 
 
 def run(
-    handler: BaseEventHandler,
+    state: BaseGameState,
     context: tcod.context.Context,
     console: tcod.console.Console,
     on_exit=None,
 ) -> None:
-    """Drive the handler state machine until SystemExit. Calls on_exit(handler) before re-raising."""
+    """Drive the game state machine until SystemExit. Calls on_exit(state) before re-raising."""
     try:
         while True:
             console.clear()
-            handler.on_render(console=console)
+            state.on_render(console=console)
             context.present(console)
 
             for event in tcod.event.wait():
-                context.convert_event(event)
-                handler = handler.handle_events(event)
+                event = context.convert_event(event)
+                state = state.handle_events(event)
 
     except SystemExit:
         if on_exit is not None:
-            on_exit(handler)
+            on_exit(state)
         raise
 
 
-def save_game(handler: BaseEventHandler) -> None:
-    from game.input_handlers import EventHandler, GameOverEventHandler
-    if isinstance(handler, EventHandler) and not isinstance(handler, GameOverEventHandler):
-        handler.engine.save_as(SAVE_PATH)
+def save_game(state: BaseGameState) -> None:
+    from game.game_states import GameState, GameOverState
+    if isinstance(state, GameState) and not isinstance(state, GameOverState):
+        state.engine.save_as(SAVE_PATH, state)
         print("Game saved.")
 
 
 def main() -> None:
-    screen_width = 80
+    screen_width  = 80
     screen_height = 50
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
     )
 
-    handler: BaseEventHandler = MainMenu()
+    state: BaseGameState = MainMenuState()
+
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
+    )
 
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         root_console = tcod.console.Console(screen_width, screen_height, order="F")
-        run(handler, context, root_console, on_exit=save_game)
+        run(state, context, root_console, on_exit=save_game)
 
 
 if __name__ == "__main__":
     main()
 ```
 
-`Engine.run()` from earlier chapters no longer fits: the main menu runs *before* any engine exists, so the loop has to belong somewhere outside `Engine`. We move it back to a free `run()` function in `main.py`, similar in shape to the `game_loop()` from Part 1 but driving a handler state machine instead of a single update.
+`Engine.run()` from earlier chapters no longer fits: the main menu runs *before* any engine exists, so the loop has to belong somewhere outside `Engine`. We move it back to a free `run()` function in `main.py`, similar in shape to the `game_loop()` from Part 1 but driving a game state machine instead of a single update.
 
-`save_game()` checks whether the current handler has an engine. If the player quits from the main menu (before starting a game), there is nothing to save. If they quit mid-game, `engine.save_as()` writes the file. If they quit from the game-over screen, no save is written because death already deleted it. The `on_exit` callback is invoked with the *current* handler (after any state-machine transitions), not the initial one.
+`save_game()` checks whether the current state has an engine. If the player quits from the main menu (before starting a game), there is nothing to save. If they quit mid-game, `state.engine.save_as(SAVE_PATH, state)` serializes the active state, which includes the engine through `state.engine`, so loading restores exactly the state the player was in when they quit. If they quit from the game-over screen, no save is written because death already deleted it. The `on_exit` callback is invoked with the *current* state (after any state-machine transitions), not the initial one.
 
-The `try/except SystemExit` inside `run()` catches the quit signal raised by any handler, runs `save_game`, then re-raises so Python exits normally.
+The `try/except SystemExit` inside `run()` catches the quit signal raised by any state, runs `save_game`, then re-raises so Python exits normally.
 
 ---
 
 ## Delete save on death
 
-If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverEventHandler`.
+If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverState`.
 
-First, add `Path` and `SAVE_PATH` to the imports in `game/input_handlers.py`:
+First, add `Path` and `SAVE_PATH` to the imports in `game/game_states.py`:
 
 ```diff
 +from pathlib import Path
@@ -553,16 +522,18 @@ First, add `Path` and `SAVE_PATH` to the imports in `game/input_handlers.py`:
 Then add the class:
 
 ```python
-class GameOverEventHandler(EventHandler):
+class GameOverState(GameState):
+
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
-    def handle_events(self, event: tcod.event.Event) -> BaseEventHandler:
+    def handle_events(self, event: tcod.event.Event) -> BaseGameState:
         match event:
             case tcod.event.Quit():
                 raise SystemExit()
             case tcod.event.KeyDown():
-                self.event_keydown(event)
+                if (result := self.event_keydown(event)) is not None:
+                    return result
         return self
 
     def event_keydown(self, event: tcod.event.KeyDown):
@@ -576,13 +547,13 @@ class GameOverEventHandler(EventHandler):
             save_path.unlink()
 ```
 
-Call `handler.on_enter()` from `EventHandler.handle_events()` when transitioning to `GameOverEventHandler`:
+Call `new_state.on_enter()` from `GameState.handle_events()` when transitioning to `GameOverState`:
 
 ```python
             if not self.engine.player.is_alive:
-                new_handler = GameOverEventHandler(self.engine)
-                new_handler.on_enter()
-                return new_handler
+                new_state = GameOverState(self.engine)
+                new_state.on_enter()
+                return new_state
 ```
 
 ---
@@ -591,7 +562,7 @@ Call `handler.on_enter()` from `EventHandler.handle_events()` when transitioning
 
 After this part, the major files look like this:
 
-**`game/engine.py`** (additions only):
+**`game/engine.py`**: additions (`save_as`, `load`) and one removal:
 
 ```python
 import lzma
@@ -601,11 +572,12 @@ from pathlib import Path
 from game.message_log import MessageLog
 
 class Engine:
-    def save_as(self, filename: str) -> None:
+
+    def save_as(self, filename: str, active_state: object = None) -> None:
         save_data = lzma.compress(
             pickle.dumps(
                 {
-                    "engine": self,
+                    "state": active_state,
                     "message_log": MessageLog.messages,
                 }
             )
@@ -613,17 +585,45 @@ class Engine:
         Path(filename).write_bytes(save_data)
 
     @staticmethod
-    def load(filename: str) -> Engine:
+    def load(filename: str):
         data = pickle.loads(lzma.decompress(Path(filename).read_bytes()))
         MessageLog.messages = data["message_log"]
-        return data["engine"]
+        return data["state"]
 ```
+
+Also remove `self.game_state`, `Engine.handle_events()`, and `Engine.run()`. State ownership and the main loop both move to `main.py`:
+
+```diff
+-from game.game_states import GameState, MainGameState
+ ...
+ class Engine:
+
+     def __init__(self, ...) -> None:
+-        self.game_state: GameState = MainGameState(self)
+         ...
+
+-    def handle_events(self, events: Iterable[Any]) -> None:
+-        for event in events:
+-            action = self.game_state.handle_events(event)
+-            ...
+-
+-    def run(self, context: Context, console: Console) -> None:
+-        while True:
+-            console.clear()
+-            self.game_state.on_render(console=console)
+-            context.present(console)
+-            ...
+```
+
+`handle_events` and `run` both referenced `self.game_state`; without it they would crash if called. The free `run()` in `main.py` replaces them entirely.
+
+This also breaks the potential circular import introduced when `game_states.py` imports from `setup_game.py`: once `engine.py` no longer imports from `game_states.py`, the chain `game_states → setup_game → engine` is not circular.
 
 **`game/setup_game.py`**: new file (full content above)
 
-**`game/input_handlers.py`**: additions: `BaseEventHandler`, `PopupMessage`, `MainMenu`, updated `EventHandler`
+**`game/game_states.py`**: additions: `BaseGameState`, `PopupMessageState`, `MainMenuState`, updated `GameState`
 
-**`main.py`**: starts with `MainMenu`, saves on `SystemExit`
+**`main.py`**: starts with `MainMenuState`, saves on `SystemExit`
 
 ---
 
@@ -640,7 +640,7 @@ Run `python main.py`:
 - [ ] Run `python main.py` again, `C` shows `"No saved game to load."` because death deleted it
 
 !!! tip "Add a return-to-menu option"
-    Consider binding `Escape` in `GameOverEventHandler` to return to `MainMenu` instead of quitting. This is a one-line change in `event_keydown`: return `MainMenu()` instead of raising `SystemExit`.
+    Consider binding `Escape` in `GameOverState` to return to `MainMenuState` instead of quitting. This is a one-line change in `event_keydown`: return `MainMenuState()` instead of raising `SystemExit`.
 
 ---
 
@@ -652,25 +652,25 @@ Save and load is complete. The verification milestone is met:
 
 Key additions:
 
-- **`pickle` + `lzma`**: serialize/deserialize the engine plus static message log state
+- **`pickle` + `lzma`**: serialize/deserialize the active state plus static message log state
 - **`game/setup_game.py`**: `new_game()` and `load_game()` functions
-- **`BaseEventHandler`**: handler base that works without an engine (main menu, popups)
-- **`PopupMessage`**: dismissable overlay with darkened background
-- **`MainMenu`**: New / Continue / Quit at startup
-- **Handlers return handlers**: clean state machine transitions
+- **`BaseGameState`**: state base that works without an engine (main menu, popups)
+- **`PopupMessageState`**: dismissable overlay with darkened background
+- **`MainMenuState`**: New / Continue / Quit at startup
+- **States return states**: clean state machine transitions
 - **Save on quit, delete on death**: the save file is always valid
 
 **Current architecture**:
 
-- `main.py`: owns the outer app loop and active `BaseEventHandler`
+- `main.py`: owns the outer app loop and active `BaseGameState`
 - `setup_game.py`: creates new games and loads saved ones
-- `BaseEventHandler`: common interface for menu, popup, and engine-backed handlers
-- `MainMenu`: starts before an `Engine` exists
-- `Engine.save_as()` / `Engine.load()`: serialize and restore the live object graph plus `MessageLog.messages`
+- `BaseGameState`: common interface for menu, popup, and engine-backed states
+- `MainMenuState`: starts before an `Engine` exists
+- `Engine.save_as(filename, state)` / `Engine.load()`: serialize and restore the active state (engine included transitively) plus `MessageLog.messages`
 
 **File structure**:
 
-```txt
+```text
 main.py                         ← modified
 game/
 ├── __init__.py
@@ -678,7 +678,7 @@ game/
 ├── engine.py                   ← modified
 ├── exceptions.py
 ├── hud.py
-├── input_handlers.py           ← modified
+├── game_states.py              ← modified
 ├── message_log.py
 ├── setup_game.py               ← new
 ├── constants/
@@ -710,7 +710,7 @@ game/
 
 1. **Return to main menu on death**:
 
-    Change `GameOverEventHandler.event_keydown` so `Escape` returns `MainMenu()` instead of quitting. The player can start a new run without restarting the program.
+    Change `GameOverState.event_keydown` so `Escape` returns `MainMenuState()` instead of quitting. The player can start a new run without restarting the program.
 
 2. **Multiple save slots**:
 
@@ -718,4 +718,4 @@ game/
 
 3. **Autosave**:
 
-    Call `engine.save_as(SAVE_PATH)` after every `handle_enemy_turns()`. The game is now crash-proof, a power outage only loses the current turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state).
+    Call `self.engine.save_as(SAVE_PATH, self)` after every `handle_enemy_turns()` in `GameState.handle_events()`. The game is now crash-proof, a power outage only loses the current turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state).

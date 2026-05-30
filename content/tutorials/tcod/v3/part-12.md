@@ -25,7 +25,7 @@ The fix is an **encounter table**: a mapping from dungeon floor to spawn probabi
 
 Before writing the tables, understand the algorithm. Given a list of `(item, weight)` pairs, pick one item at random where higher-weight items are more likely.
 
-```txt
+```text
 Item          Weight   Cumulative
 ─────────────────────────────────
 Health Potion   35         35
@@ -205,19 +205,23 @@ def generate_dungeon(
     map_width: int,
     map_height: int,
     player: Entity,
+    seed: int,
     floor_number: int,
 ) -> GameMap:
+    random.seed(seed)
+
     dungeon = GameMap(map_width, map_height, entities={player})
 
     rooms: list[RectangularRoom] = []
+    max_room_attempts = max_rooms * 2
 
     center_of_last_room = (0, 0)
 
-    for _ in range(max_rooms):
-        room_width = random.randint(room_min_size, room_max_size)
+    for _ in range(max_room_attempts):
+        room_width  = random.randint(room_min_size, room_max_size)
         room_height = random.randint(room_min_size, room_max_size)
 
-        x = random.randint(0, dungeon.width - room_width - 1)
+        x = random.randint(0, dungeon.width  - room_width  - 1)
         y = random.randint(0, dungeon.height - room_height - 1)
 
         new_room = RectangularRoom(x, y, room_width, room_height)
@@ -230,7 +234,17 @@ def generate_dungeon(
         if not rooms:
             player.place(*new_room.center, dungeon)
         else:
-            for x, y in tunnel_between(rooms[-1].center, new_room.center):
+            nearest_room = min(
+                rooms,
+                key=lambda room: (
+                    (room.center[0] - new_room.center[0]) ** 2
+                    + (room.center[1] - new_room.center[1]) ** 2
+                ),
+            )
+            for x, y in tunnel_between(
+                nearest_room.roughly_center,
+                new_room.roughly_center,
+            ):
                 dungeon.tiles[x, y] = tile_types.floor
 
         center_of_last_room = new_room.center
@@ -239,6 +253,9 @@ def generate_dungeon(
 
         rooms.append(new_room)
 
+        if len(rooms) >= max_rooms:
+            break
+
     dungeon.tiles[center_of_last_room] = tile_types.floor
     dungeon.downstairs_location = center_of_last_room
     factories.down_stairs.spawn(dungeon, *center_of_last_room)
@@ -246,7 +263,7 @@ def generate_dungeon(
     return dungeon
 ```
 
-The signature no longer takes `min/max_monsters_per_room` or `min/max_items_per_room`, those came from static values. Now `place_entities` reads floor-scaled values from the tables.
+The signature no longer takes `min/max_monsters_per_room` or `min/max_items_per_room`, those came from static values. It still takes `seed` from Part 3 for reproducible generation, and now also takes `floor_number` so `place_entities` can read floor-scaled values from the tables.
 
 Update `GameWorld.generate_floor()` to match the new signature:
 
@@ -262,6 +279,7 @@ def generate_floor(self) -> None:
         map_width=self.map_width,
         map_height=self.map_height,
         player=self.engine.player,
+        seed=self.seed + self.current_floor,
         floor_number=self.current_floor,
     )
 ```
@@ -315,7 +333,7 @@ Spawn rates now scale with dungeon depth. Key additions:
 
 **File structure**:
 
-```txt
+```text
 main.py
 game/
 ├── __init__.py
@@ -324,7 +342,7 @@ game/
 ├── exceptions.py
 ├── game_world.py               ← modified
 ├── hud.py
-├── input_handlers.py
+├── game_states.py
 ├── message_log.py
 ├── setup_game.py
 ├── constants/

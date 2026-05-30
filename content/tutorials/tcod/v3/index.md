@@ -82,9 +82,10 @@ Lines starting with `-` are removed. Lines starting with `+` are added.
 
 ## Appendices
 
-- [Appendix 1: Damage Formulas](apend-1.md)
-- [Appendix 2: Combat Effects](apend-2.md)
-- [Appendix 3: Consumable Scaling](apend-3.md)
+- [Appendix 1: Damage Formulas](append-1.md)
+- [Appendix 2: Combat Effects](append-2.md)
+- [Appendix 3: Consumable Scaling](append-3.md)
+- [Appendix 4: Advanced Dungeon Generation Ideas](append-4.md)
 
 ---
 

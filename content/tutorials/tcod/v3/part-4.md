@@ -17,7 +17,7 @@ By the end of this part, the player will only see the parts of the dungeon that 
 
 In a dungeon you cannot see around corners. FOV (Field of View) simulates this: the player only sees tiles that have an unobstructed line of sight from their position.
 
-```txt
+```text
 Legend:
   @ player
   # wall
@@ -46,7 +46,7 @@ This is often called **fog of war**: visible tiles are bright, remembered tiles 
 This gives us three states:
 
 | State | Appearance |
-|---|---|
+| ----- | ---------- |
 | Currently visible | Bright (light colors) |
 | Explored but out of FOV | Dimmed (dark colors) |
 | Never seen | Black (`UNSEEN`) |
@@ -75,10 +75,10 @@ graphic_dtype = np.dtype(
 
 tile_dtype = np.dtype(
     [
-        ("walkable", np.bool_),
+        ("walkable",    np.bool_),
         ("transparent", np.bool_),
-        ("out_of_fov", graphic_dtype),  # appearance when explored but outside FOV
-        ("in_fov", graphic_dtype),      # appearance when inside the player's FOV
+        ("out_of_fov",  graphic_dtype),  # appearance when explored but outside FOV
+        ("in_fov",      graphic_dtype),      # appearance when inside the player's FOV
     ]
 )
 
@@ -98,17 +98,17 @@ def new_tile(
 
 # Tile definitions
 floor = new_tile(
-    walkable=True,
-    transparent=True,
-    out_of_fov=(ord(" "), (255, 255, 255), (35, 35, 90)),
-    in_fov=(ord(" "), (255, 255, 255), (190, 170, 80)),
+    walkable    = True,
+    transparent = True,
+    out_of_fov  = (ord(" "), (255, 255, 255), (35, 35, 90)),
+    in_fov      = (ord(" "), (255, 255, 255), (190, 170, 80)),
 )
 
 wall = new_tile(
-    walkable=False,
-    transparent=False,
-    out_of_fov=(ord("#"), (80, 80, 120), (0, 0, 70)),
-    in_fov=(ord("#"), (220, 210, 170), (110, 95, 60)),
+    walkable    = False,
+    transparent = False,
+    out_of_fov  = (ord("#"), (80, 80, 120), (0, 0, 70)),
+    in_fov      = (ord("#"), (220, 210, 170), (110, 95, 60)),
 )
 ```
 
@@ -141,6 +141,7 @@ if TYPE_CHECKING:
 
 
 class GameMap:
+
     def __init__(
         self,
         width: int,
@@ -173,7 +174,7 @@ class GameMap:
 
 `np.select` evaluates a list of conditions in order and picks the matching array:
 
-```txt
+```text
 If visible[x, y]    → use tiles["in_fov"][x, y]
 Elif explored[x, y] → use tiles["out_of_fov"][x, y]
 Else                → use UNSEEN
@@ -214,6 +215,7 @@ from game.input_handlers import EventHandler
 
 
 class Engine:
+
     def __init__(self, game_map: GameMap, player: Entity) -> None:
         self.game_map = game_map
         self.player = player
@@ -268,7 +270,9 @@ With entities now living in `GameMap` and `Engine` having a simpler constructor,
 ```python
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import secrets
 
 import tcod
 
@@ -278,18 +282,24 @@ from game.map.map_generator import generate_dungeon
 
 
 def main() -> None:
-    screen_width = 80
+    # Part-3. Ex 1: Reproducible dungeons
+    seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
+    #seed = 12345 # Write here the game seed to reproduce a map
+    print(f"Game seed: {seed}")
+
+    screen_width  = 80
     screen_height = 50
 
-    map_width = 80
+    map_width  = 80
     map_height = 45
 
-    room_max_size = 10
-    room_min_size = 6
+    room_max_size = 12
+    room_min_size = 7
+
     max_rooms = 30
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
@@ -298,22 +308,38 @@ def main() -> None:
     player = Entity(x=0, y=0, char="@", color=(255, 255, 255))
 
     game_map = generate_dungeon(
-        max_rooms=max_rooms,
-        room_min_size=room_min_size,
-        room_max_size=room_max_size,
-        map_width=map_width,
-        map_height=map_height,
-        player=player,
+        max_rooms     = max_rooms,
+        room_min_size = room_min_size,
+        room_max_size = room_max_size,
+        map_width     = map_width,
+        map_height    = map_height,
+        player        = player,
+        seed          = seed,
     )
 
     engine = Engine(game_map=game_map, player=player)
 
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
+    )
+
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         console = tcod.console.Console(screen_width, screen_height, order="F")
         engine.run(context, console)
@@ -357,7 +383,7 @@ We also moved entities from `Engine` into `GameMap`, which is where they logical
 
 **File structure**:
 
-```txt
+```text
 main.py                     ← modified
 game/
 ├── __init__.py
@@ -378,7 +404,7 @@ game/
 
 1. **Variable torch radius**:
 
-    Add a `fov_radius` attribute to `Entity`. Use `self.player.fov_radius` instead of the hardcoded `8` in `update_fov()`. Try changing the player's radius mid-game via a debug key to see the effect.
+    Add a `fov_radius` parameter to `Engine.__init__()`, defaulting to `8`, and store it in `self.fov_radius`. Use `self.fov_radius` instead of the hardcoded `8` in `update_fov()`. Try passing a different value when creating `Engine` to see how the visible area changes.
 
 2. **Add a debug marker entity**:
 
@@ -398,5 +424,7 @@ game/
 4. **Fading memory**:
 
     Instead of remembering explored tiles forever, add a `memory` array to `GameMap` using integers. Every time a tile is visible, set its memory value to `10`. After each player action, decrement memory values greater than 0. Render tiles as explored while their memory value is greater than 0; when it reaches 0, they become unseen again.
+
+    If you make the duration configurable in `Engine`, name that setting `memory_duration` so it is not confused with the `game_map.memory` array.
 
     Walk through a corridor, wait or move away, and watch the remembered area fade back into darkness.

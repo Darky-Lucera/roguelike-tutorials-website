@@ -7,7 +7,7 @@ This appendix compares several damage formulas used in, or inspired by, video ga
 The most important design question is scale: will attacker power and target defense usually be small values, like units and tens, or large values, like hundreds or thousands? A formula that behaves well with `attack = 8` and `target.defense = 3` can become brittle when both numbers grow to three digits.
 
 !!! tip "Where to experiment"
-    The damage formula in the tutorial lives in `Fighter.melee_attack()` in `game/components/fighter.py`. `attack` in the formulas below corresponds to `self.attack`, and `target.defense` to `target.fighter.defense`. To try an alternative, replace the `damage` line in that method.
+    The damage formula in the tutorial lives in `Fighter.melee_attack()` in `game/entities/components/fighter.py`. `attack` in the formulas below corresponds to `self.attack`, and `target.defense` to `target.fighter.defense`. To try an alternative, replace the `damage` line in that method.
 
 ---
 
@@ -66,7 +66,7 @@ The constant `K` gives the curve an easy reference point: when `target.defense =
 
 In general:
 
-```txt
+```text
 target.defense = N * K  ->  damage = attack / (N + 1)
 ```
 
@@ -146,7 +146,7 @@ The defense scale follows the attacker. A high-attack creature requires proporti
 
 When `target.defense` equals `attack`, damage is cut in half:
 
-```txt
+```text
 damage = attack / 2 when target.defense = attack
 ```
 
@@ -263,7 +263,7 @@ These rules can be combined with any of the formulas discussed here:
 - **Maximum damage**: cap the result to prevent extreme attack values from one-shotting. Useful when attack can grow without a natural ceiling.
 - **Armor penetration**: subtract only a fraction of `target.defense`, or ignore it entirely on special attacks.
 - **Hit chance separation**: let defense reduce damage while a separate stat controls whether the attack lands at all (dodge, parry, block). Splits defensive utility across two distinct mechanics.
-- **Critical hits**: ignore part of `target.defense`, or use the raw `attack` value directly on a critical. Adds a high-damage outcome without changing the base formula.
+- **Critical hits**: apply a multiplier to the damage after the base formula. Adds a high-damage outcome without changing the defense side of the formula.
 - **Separate armor types**: use different defense values depending on damage source (physical, magical, elemental). Each source then has its own effective defense.
 
 ---

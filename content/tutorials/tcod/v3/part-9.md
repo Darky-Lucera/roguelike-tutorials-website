@@ -12,7 +12,7 @@ By the end of this part, the player will be able to use scrolls with targeted ef
 - Add a `ConfusedEnemy` AI that wanders randomly
 
 !!! note "Prerequisite: Part 8 Exercise 4"
-    This part assumes you completed Exercise 4 from Part 8: centralising all keybindings in `game/constants/keys.py`. That exercise moved every key constant into one file so they are not spread across `input_handlers.py`, `actions.py`, or anywhere else. If you skipped it, complete it before continuing; the code in this chapter references `keys.*` throughout.
+    This part assumes you completed Exercise 4 from Part 8: centralising all keybindings in `game/constants/keys.py`. That exercise moved every key constant into one file so they are not spread across `game_states.py`, `actions.py`, or anywhere else. If you skipped it, complete it before continuing; the code in this chapter references `keys.*` throughout.
 
 ---
 
@@ -20,27 +20,27 @@ By the end of this part, the player will be able to use scrolls with targeted ef
 
 So far, every keypress either moves the player or triggers an action. Spells that require targeting need a different mode: the player moves a cursor around the map and confirms a target, or presses Escape to cancel.
 
-This fits naturally into the handler-as-state-machine pattern from Part 8. When the player uses a targeting scroll, we push a new handler. That handler:
+This fits naturally into the game-state pattern from Part 8. When the player uses a targeting scroll, we push a new game state. That state:
 
 1. Intercepts all keyboard and mouse input
 2. Draws the cursor (and for AoE, the radius ring) on every frame
-3. On confirm, runs the action and returns to `MainGameEventHandler`
-4. On Escape, cancels and returns to `MainGameEventHandler`
+3. On confirm, runs the action and returns to `MainGameState`
+4. On Escape, cancels and returns to `MainGameState`
 
-```txt
-MainGameEventHandler
+```text
+MainGameState
   │  player presses i → use scroll
   ▼
-InventoryActivateHandler
+InventoryUseState
   │  scroll.consumable.get_action() returns TargetingAction
   ▼
-EventHandler.handle_events()
-  │  isinstance dispatch: installs targeting handler
+GameState.handle_events()
+  │  isinstance dispatch: installs targeting state
   ▼
-SingleRangedAttackHandler  (or AreaRangedAttackHandler)
+SingleRangedAttackState  (or AreaRangedAttackState)
   │  player confirms target
   ▼
-MainGameEventHandler  (back to normal play)
+MainGameState  (back to normal play)
 ```
 
 ---
@@ -65,49 +65,49 @@ def distance(self, x: int, y: int) -> float:
 
 ---
 
-## ActionModalHandler: a marker for auto-closing handlers
+## ActionModalState: a marker for auto-closing states
 
-Some handlers (inventory screens, targeting cursors, ...) should return the player
+Some states (inventory screens, targeting cursors, ...) should return the player
 to normal gameplay automatically after a successful action. In Part 8,
-`handle_events` identified these handlers by listing them explicitly:
+`handle_events` identified these states by listing them explicitly:
 
 ```python
-elif isinstance(self.engine.event_handler, (InventoryActivateHandler, InventoryDropHandler)):
-    self.engine.event_handler = MainGameEventHandler(self.engine)
+elif isinstance(self.engine.game_state, (InventoryUseState, InventoryDropState)):
+    self.engine.game_state = MainGameState(self.engine)
 ```
 
-Adding targeting handlers would mean extending that tuple every time. Instead,
+Adding targeting states would mean extending that tuple every time. Instead,
 we are going to introduce a shared base class that expresses the intent once:
 
 ```python
-class ActionModalHandler(EventHandler):
-    """Handler that returns to the main game after a successful action."""
+class ActionModalState(GameState):
+    """State that returns to the main game after a successful action."""
 ```
 
-Any handler that inherits from `ActionModalHandler` will be closed automatically on finish.
+Any state that inherits from `ActionModalState` will be closed automatically on finish.
 
-Update `InventoryEventHandler` from Part 8 to inherit from it:
+Update `InventoryState` from Part 8 to inherit from it:
 
 ```diff
--class InventoryEventHandler(EventHandler):
-+class InventoryEventHandler(ActionModalHandler):
+-class InventoryState(GameState):
++class InventoryState(ActionModalState):
 ```
 
-And update the isinstance check in `EventHandler.handle_events`:
+And update the isinstance check in `GameState.handle_events`:
 
 ```diff
--elif isinstance(self.engine.event_handler, (InventoryActivateHandler, InventoryDropHandler)):
-+elif isinstance(self.engine.event_handler, ActionModalHandler):
-     self.engine.event_handler = MainGameEventHandler(self.engine)
+-elif isinstance(self.engine.game_state, (InventoryUseState, InventoryDropState)):
++elif isinstance(self.engine.game_state, ActionModalState):
+     self.engine.game_state = MainGameState(self.engine)
 ```
 
-Adding a new modal handler in the future requires no changes to `handle_events`.
+Adding a new modal state in the future requires no changes to `handle_events`.
 
 ---
 
-## SelectIndexHandler: cursor base class
+## SelectIndexState: cursor base class
 
-This part builds two targeting handlers: `SingleRangedAttackHandler` (single-tile cursor) and `AreaRangedAttackHandler` (AoE radius ring). Both share cursor movement, keyboard shortcuts, and mouse-click logic. `SelectIndexHandler` extracts that common behavior so each concrete handler only needs to implement `on_index_selected`:
+This part builds two targeting states: `SingleRangedAttackState` (single-tile cursor) and `AreaRangedAttackState` (AoE radius ring). Both share cursor movement, keyboard shortcuts, and mouse-click logic. `SelectIndexState` extracts that common behavior so each concrete state only needs to implement `on_index_selected`:
 
 Before writing the class, add the cursor navigation constants to `game/constants/keys.py`:
 
@@ -121,22 +121,22 @@ Before writing the class, add the cursor navigation constants to `game/constants
 +CURSOR_FASTER   = tcod.event.Modifier.LCTRL  | tcod.event.Modifier.RCTRL   # ×10
 ```
 
-`KEY_EXIT` replaces `KEY_EXIT_MENU`: both were `ESCAPE`, but the new name fits any modal overlay (menus, cursors, dialogs), not just inventory screens. Update the `InventoryEventHandler` usage accordingly:
+`KEY_EXIT` replaces `KEY_EXIT_MENU`: both were `ESCAPE`, but the new name fits any modal overlay (menus, cursors, dialogs), not just inventory screens. Update the `InventoryState` usage accordingly:
 
 ```diff
 -if key == keys.KEY_EXIT_MENU:
 +if key == keys.KEY_EXIT:
 ```
 
-Now add to `game/input_handlers.py`. This class uses the centralised key bindings from Part 8 Exercise 4, so make sure the imports at the top include `keys`:
+Now add to `game/game_states.py`. This class uses the centralised key bindings from Part 8 Exercise 4, so make sure the imports at the top include `keys`:
 
 ```python
 from game.constants import colors, keys
 ```
 
 ```python
-class SelectIndexHandler(ActionModalHandler):
-    """Base for handlers that ask the player to select a map tile."""
+class SelectIndexState(ActionModalState):
+    """Base for states that ask the player to select a map tile."""
 
     def __init__(self, engine: Engine) -> None:
         super().__init__(engine)
@@ -172,7 +172,7 @@ class SelectIndexHandler(ActionModalHandler):
             return self.on_index_selected(*self.engine.mouse_location)
 
         if key == keys.KEY_EXIT:
-            self.engine.event_handler = MainGameEventHandler(self.engine)
+            self.engine.game_state = MainGameState(self.engine)
             return None
 
         return super().event_keydown(event)
@@ -195,10 +195,10 @@ Escape cancels targeting and returns to normal gameplay.
 
 ---
 
-## SingleRangedAttackHandler
+## SingleRangedAttackState
 
 ```python
-class SingleRangedAttackHandler(SelectIndexHandler):
+class SingleRangedAttackState(SelectIndexState):
     """Asks the player to select a single target tile."""
 
     def __init__(
@@ -213,24 +213,24 @@ class SingleRangedAttackHandler(SelectIndexHandler):
         return self.callback((x, y))
 ```
 
-The `callback` is a function that accepts `(x, y)` and returns an `Action`. The consumable provides the callback when it creates the handler.
+The `callback` is a function that accepts `(x, y)` and returns an `Action`. The consumable provides the callback when it creates the state.
 
 ---
 
-## AreaRangedAttackHandler
+## AreaRangedAttackState
 
-`AreaRangedAttackHandler` extends `SelectIndexHandler` and asks the player to pick an explosion center. It highlights the affected area on every frame so the player sees exactly which tiles will be hit.
+`AreaRangedAttackState` extends `SelectIndexState` and asks the player to pick an explosion center. It highlights the affected area on every frame so the player sees exactly which tiles will be hit.
 
-The handler does not hardcode a color. Different spells may want different highlight colors, so `color` is passed as a parameter alongside `radius`. The calling consumable decides which color to use. Add `FIREBALL_AOE` to `game/constants/colors.py`:
+The state does not hardcode a color. Different spells may want different highlight colors, so `color` is passed as a parameter alongside `radius`. The calling consumable decides which color to use. Add `FIREBALL_AOE` to `game/constants/colors.py`:
 
 ```python
 FIREBALL_AOE = (0xFF, 0x00, 0x00)
 ```
 
-Add the class to `game/input_handlers.py`:
+Add the class to `game/game_states.py`:
 
 ```python
-class AreaRangedAttackHandler(SelectIndexHandler):
+class AreaRangedAttackState(SelectIndexState):
     """Shows an Area of Effect (AoE) radius and asks the player to confirm."""
 
     def __init__(
@@ -456,7 +456,7 @@ def get_aoe_weights_in_radius(self, center_x: int, center_y: int, radius: float)
 
 Here we need the actual distance, not just a comparison, so `math.hypot(dx, dy)` is the right tool, as we saw in `Entity.distance`. Tiles within `radius` get `alpha = 1.0`. Tiles in the one-unit border zone get a linear fade down to `0.0`. Tiles beyond `radius + 1` are skipped.
 
-Update `on_render` to scale the highlight color by each tile's weight. Add these imports to `game/input_handlers.py`:
+Update `on_render` to scale the highlight color by each tile's weight. Add these imports to `game/game_states.py`:
 
 ```python
 import math
@@ -531,32 +531,32 @@ Extend `game/constants/colors.py`:
 
 ## TargetingAction: separating model from UI
 
-The most direct approach to targeting is to override `get_action()`, install the cursor handler as a side effect, and return nothing:
+The most direct approach to targeting is to override `get_action()`, install the cursor state as a side effect, and return nothing:
 
 ```python
 # naive approach: side effect, no return value
 def get_action(self, _consumer, engine):
-    from game.input_handlers import SingleRangedAttackHandler
-    engine.event_handler = SingleRangedAttackHandler(...)
+    from game.game_states import SingleRangedAttackState
+    engine.game_state = SingleRangedAttackState(...)
     # returns None implicitly; the method appears to do nothing
 ```
 
 Two problems with this:
 
-- `get_action()` is declared `-> Action | None` but uses `None` as a signal for "I already handled it." A caller reading the signature has no idea a handler was just installed.
-- `consumable.py` (model layer) imports from `input_handlers.py` (UI layer), which already imports from `actions.py`. That creates a dependency cycle at the module level.
+- `get_action()` is declared `-> Action | None` but uses `None` as a signal for "I already handled it." A caller reading the signature has no idea a state was just installed.
+- `consumable.py` (model layer) imports from `game_states.py` (UI layer), which already imports from `actions.py`. That creates a dependency cycle at the module level.
 
-The fix is a thin data class in `game/actions.py`. `get_action()` returns it; `EventHandler.handle_events()` reads its fields and creates the handler. The model layer never imports from the UI layer.
+The fix is a thin data class in `game/actions.py`. `get_action()` returns it; `GameState.handle_events()` reads its fields and creates the state. The model layer never imports from the UI layer.
 
 Add to `game/actions.py`, after `DropItem`:
 
 ```python
 class TargetingAction(Action):
-    """Data container: EventHandler dispatches to the appropriate targeting handler."""
+    """Data container: GameState dispatches to the appropriate targeting state."""
     prompt: str
 
     def perform(self, _engine: Engine, _entity: Entity) -> None:
-        pass  # satisfies ABC; EventHandler does the real work
+        pass  # satisfies ABC; GameState does the real work
 
 
 class SingleRangedTargetingAction(TargetingAction):
@@ -579,16 +579,16 @@ class AreaRangedTargetingAction(TargetingAction):
         self.callback = lambda pos: ItemAction(item=item, target_pos=pos)
 ```
 
-`perform()` is a no-op that satisfies the abstract base class. The real work happens in `handle_events()` after `perform()` returns: it checks `isinstance(action, TargetingAction)`, reads `prompt` and `callback`, and installs the correct handler. `actions.py` never imports `input_handlers`.
+`perform()` is a no-op that satisfies the abstract base class. The real work happens in `handle_events()` after `perform()` returns: it checks `isinstance(action, TargetingAction)`, reads `prompt` and `callback`, and installs the correct state. `actions.py` never imports `game_states`.
 
-`callback` is a lambda built at construction time. When the player confirms a target, the targeting handler calls `callback((x, y))` and the result becomes the next action. The same pattern works for chained targeting: a callback that returns another `TargetingAction` would chain into a second cursor, handled automatically by the next loop iteration.
+`callback` is a lambda built at construction time. When the player confirms a target, the targeting state calls `callback((x, y))` and the result becomes the next action. The same pattern works for chained targeting: a callback that returns another `TargetingAction` would chain into a second cursor, handled automatically by the next loop iteration.
 
 Note that `callback` uses `ItemAction(item=item, target_pos=pos)`. The `target_pos` parameter does not exist in `ItemAction` yet; you will add it shortly in the `ConfusionConsumable` section.
 
 `prompt: str` is a class-level annotation without a value. It tells the type checker that every `TargetingAction` subclass provides a `.prompt` attribute, without forcing a default. Python does not enforce this at runtime; the subclass `__init__` is what actually sets the value.
 
 !!! info "Pattern: Strategy-shaped callback"
-    `TargetingAction` carries a `callback` that the targeting handler calls once the player picks a target. From the handler's point of view, this is the *Strategy* idea: the handler manages cursor input, but the variable behavior (what action to produce from `(x, y)`) is injected as a callable.
+    `TargetingAction` carries a `callback` that the targeting state calls once the player picks a target. From the state's point of view, this is the *Strategy* idea: the state manages cursor input, but the variable behavior (what action to produce from `(x, y)`) is injected as a callable.
 
     The consumable chooses which targeting action to return; the targeting action supplies the callback, and the item's `activate()` method still owns the actual effect.
 
@@ -600,6 +600,7 @@ Note that `callback` uses `ItemAction(item=item, target_pos=pos)`. The `target_p
 
 ```python
 class LightningDamageConsumable(Consumable):
+
     def __init__(self, damage: float, maximum_range: int) -> None:
         self.damage = damage
         self.maximum_range = maximum_range
@@ -631,7 +632,7 @@ class LightningDamageConsumable(Consumable):
 
 ### ConfusionConsumable (cursor targeting)
 
-Update the imports at the top of `consumable.py`. The targeting classes now come from `actions.py`, so the local `import game.input_handlers` disappears:
+Update the imports at the top of `consumable.py`. The targeting classes now come from `actions.py`, so the local `import game.game_states` disappears:
 
 ```diff
 -from game.actions import ItemAction
@@ -645,6 +646,7 @@ Update the imports at the top of `consumable.py`. The targeting classes now come
 
 ```python
 class ConfusionConsumable(Consumable):
+
     def __init__(self, number_of_turns: int) -> None:
         self.number_of_turns = number_of_turns
 
@@ -678,7 +680,7 @@ class ConfusionConsumable(Consumable):
         self.consume()
 ```
 
-`get_action()` now returns a value. `_engine` becomes genuinely unused and is underscored. `EventHandler.handle_events()` reads the returned `SingleRangedTargetingAction`, installs the handler, and shows the prompt; the consumable does none of that work.
+`get_action()` now returns a value. `_engine` becomes genuinely unused and is underscored. `GameState.handle_events()` reads the returned `SingleRangedTargetingAction`, installs the state, and shows the prompt; the consumable does none of that work.
 
 Add colors to `game/constants/colors.py`:
 
@@ -691,6 +693,7 @@ STATUS_EFFECT_APPLIED = (0x3F, 0xFF, 0x3F)
 
 ```diff
  class ItemAction(Action):
+
 -    def __init__(self, item: Item) -> None:
 +    def __init__(self, item: Item, target_pos: tuple[int, int] | None = None) -> None:
          super().__init__()
@@ -704,6 +707,7 @@ STATUS_EFFECT_APPLIED = (0x3F, 0xFF, 0x3F)
 
 ```python
 class FireballDamageConsumable(Consumable):
+
     def __init__(self, damage: float, radius: int) -> None:
         self.damage = damage
         self.radius = radius
@@ -746,7 +750,7 @@ class FireballDamageConsumable(Consumable):
         self.consume()
 ```
 
-`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackHandler`. On confirm, `activate()` uses the same weight grid that drives the visual preview (the same `get_aoe_weights_in_radius` call). Actors at the center receive full `damage`; actors in the outer ring receive a fraction proportional to their weight (between 0.0 and 1.0). It raises `Impossible` only if the tile is not visible or no actor was hit.
+`FireballDamageConsumable.get_action()` returns an `AreaRangedTargetingAction`; `handle_events()` installs the `AreaRangedAttackState`. On confirm, `activate()` uses the same weight grid that drives the visual preview (the same `get_aoe_weights_in_radius` call). Actors at the center receive full `damage`; actors in the outer ring receive a fraction proportional to their weight (between 0.0 and 1.0). It raises `Impossible` only if the tile is not visible or no actor was hit.
 
 !!! note "Damage falloff at the edges"
     Using `get_aoe_weights_in_radius` instead of `get_aoe_tiles_in_radius` ties the damage model directly to the visual one: the gradient the player sees on screen is the same gradient that determines how hard each actor is hit. Actors fully inside the radius take `damage × 1.0`; actors in the antialiased outer ring take proportionally less. This makes the radius ring a meaningful indicator rather than a decorative effect.
@@ -765,6 +769,7 @@ from game.message_log import MessageLog
 
 ```python
 class ConfusedEnemy(BaseAI):
+
     def __init__(
         self,
         entity: Actor,
@@ -875,13 +880,13 @@ Because `place_entities` already reads `factories.item_chances` via `zip`, the m
 
 ---
 
-## Update EventHandler.handle_events
+## Update GameState.handle_events
 
 Two changes are needed to `handle_events()` in this part.
 
 ### MouseButtonDown dispatch
 
-The targeting handlers respond to mouse clicks. Add the `MouseButtonDown` case to the `match` block and a default stub method to `EventHandler`:
+The targeting states respond to mouse clicks. Add the `MouseButtonDown` case to the `match` block and a default stub method to `GameState`:
 
 ```diff
          case tcod.event.MouseMotion():
@@ -901,7 +906,7 @@ def event_mousebuttondown(self, _event: tcod.event.MouseButtonDown) -> Action | 
 
 ### TargetingAction dispatch
 
-The second change happens after `action.perform()` succeeds. If the result is a `TargetingAction`, install the correct handler and return early, without advancing enemy turns or updating FOV:
+The second change happens after `action.perform()` succeeds. If the result is a `TargetingAction`, install the correct state and return early, without advancing enemy turns or updating FOV:
 
 ```diff
          if action is not None:
@@ -916,13 +921,13 @@ The second change happens after `action.perform()` succeeds. If the result is a 
 +                MessageLog.add_message(action.prompt, colors.NEEDS_TARGET)
 +
 +                if isinstance(action, SingleRangedTargetingAction):
-+                    self.engine.event_handler = SingleRangedAttackHandler(
++                    self.engine.game_state = SingleRangedAttackState(
 +                        self.engine,
 +                        callback=action.callback,
 +                    )
 +
 +                elif isinstance(action, AreaRangedTargetingAction):
-+                    self.engine.event_handler = AreaRangedAttackHandler(
++                    self.engine.game_state = AreaRangedAttackState(
 +                        self.engine,
 +                        radius=action.radius,
 +                        color=action.color,
@@ -935,7 +940,7 @@ The second change happens after `action.perform()` succeeds. If the result is a 
                  self.engine.handle_enemy_turns()
 ```
 
-Import the new classes at the top of `input_handlers.py`:
+Import the new classes at the top of `game_states.py`:
 
 ```diff
  from game.actions import (
@@ -953,7 +958,7 @@ Import the new classes at the top of `input_handlers.py`:
 The `return` is placed after the `try/except`, not before. If a `TargetingAction.perform()` override ever raises `Impossible` (for example "you cannot target while stunned"), the existing `except` already catches it. Placing the targeting check before the try would bypass that protection.
 
 !!! tip "Why `perform()` is a no-op"
-    The alternative is to do the import and handler creation inside `perform()`. It runs correctly, but pylint still flags `consumable.py → input_handlers.py → actions.py → consumable.py` as a cycle, even with a local import. With the current design, `actions.py` has zero imports from `input_handlers.py`; the dependency is strictly one-way.
+    The alternative is to do the import and state creation inside `perform()`. It runs correctly, but pylint still flags `consumable.py → game_states.py → actions.py → consumable.py` as a cycle, even with a local import. With the current design, `actions.py` has zero imports from `game_states.py`; the dependency is strictly one-way.
 
 ---
 
@@ -979,19 +984,19 @@ Run `python main.py`:
 
 The targeting system is now in place. Key additions:
 
-- **`SelectIndexHandler`**: cursor movement + confirm/cancel
-- **`SingleRangedAttackHandler`** and **`AreaRangedAttackHandler`**: targeting modes
+- **`SelectIndexState`**: cursor movement + confirm/cancel
+- **`SingleRangedAttackState`** and **`AreaRangedAttackState`**: targeting states
 - **`TargetingAction`** / **`SingleRangedTargetingAction`** / **`AreaRangedTargetingAction`**: data classes returned by `get_action()`; carry `prompt`, `callback`, and (for AoE) `radius` and `color`
 - **`ConfusedEnemy`**: temporary AI swap with countdown
 - Three scroll types covering auto-target, single-target, and AoE
 
 **Current architecture**:
 
-- Targeting handlers are temporary input states layered on top of normal gameplay
-- Targeting consumables return a `TargetingAction`; `handle_events()` installs the handler and shows the prompt, with no involvement from the consumable
+- Targeting states are temporary input states layered on top of normal gameplay
+- Targeting consumables return a `TargetingAction`; `handle_events()` installs the state and shows the prompt, with no involvement from the consumable
 - `ItemAction` carries both the selected item and optional target position
 - AI can be swapped at runtime, as with `ConfusedEnemy`
-- Dependency direction is strictly one-way: `input_handlers` → `actions` ← `consumable`
+- Dependency direction is strictly one-way: `game_states` → `actions` ← `consumable`
 
 **Class Diagram**:
 
@@ -999,7 +1004,7 @@ The targeting system is now in place. Key additions:
 
 **File structure**:
 
-```txt
+```text
 main.py
 game/
 ├── __init__.py
@@ -1007,7 +1012,7 @@ game/
 ├── engine.py
 ├── exceptions.py
 ├── hud.py
-├── input_handlers.py           ← modified
+├── game_states.py              ← modified
 ├── message_log.py
 ├── render_utils.py             ← new
 ├── constants/
@@ -1039,15 +1044,72 @@ game/
 
 1. **Scroll of mapping**:
 
-    Add a consumable that sets `game_map.explored` to `True` for every tile, revealing the whole floor. No targeting needed, use the base `get_action()` directly.
+    Add a `MappingConsumable` that reveals the dungeon layout. Rather than setting `explored[:] = True` for every tile (which would include uninitialised map edges), track which tiles were actually carved during generation using a `mapped_tiles` boolean array.
+
+    Add `mapped_tiles` to `GameMap.__init__`:
+
+    ```python
+    self.mapped_tiles = np.full((width, height), fill_value=False, order="F")
+    ```
+
+    In `map_generator.py`, add an `outer` property to `RectangularRoom` that returns the room's bounding box including its surrounding walls:
+
+    ```python
+    @property
+    def outer(self) -> tuple[slice, slice]:
+        return slice(self.x1, self.x2 + 1), slice(self.y1, self.y2 + 1)
+    ```
+
+    Then populate `mapped_tiles` as rooms and tunnels are carved:
+
+    ```python
+    dungeon.tiles[new_room.inner]        = tile_types.floor
+    dungeon.mapped_tiles[new_room.outer] = True
+    ```
+
+    And inside the tunnel loop:
+
+    ```python
+    dungeon.tiles[x, y] = tile_types.floor
+    dungeon.mapped_tiles[x-1:x+2, y-1:y+2] = True
+    ```
+
+    In `MappingConsumable.activate()`, reveal with `|=` and also update `memory` so the reveal persists under the fading-memory system from Part 4:
+
+    ```python
+    engine.game_map.explored |= engine.game_map.mapped_tiles
+    engine.game_map.memory[engine.game_map.mapped_tiles] = max(1, engine.memory_duration)
+    MessageLog.add_message(
+        "The scroll reveals the layout of this floor!",
+        colors.STATUS_EFFECT_APPLIED,
+    )
+    self.consume()
+    ```
+
+    No targeting is needed; the base `get_action()` works directly.
 
 2. **Drain scroll**:
 
-    Add a `DrainConsumable` that returns a `SingleRangedTargetingAction` from `get_action()` to target one visible enemy in range. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
+    Add a `DrainConsumable(damage: float, maximum_range: int)` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a target to drain."`. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
+
+    In `activate()`, combine target validation into a single guard — this also prevents targeting corpses (actors with `ai is None`):
+
+    ```python
+    if not target or target is consumer or target.ai is None:
+        raise Impossible("You must select an enemy to target.")
+    ```
+
+    Enforce range explicitly after the visibility check: `consumer.distance(target.x, target.y) > self.maximum_range`. This mirrors how `LightningDamageConsumable` uses its own `maximum_range`.
 
 3. **Teleport scroll**:
 
-    Add a `TeleportConsumable` that returns a `SingleRangedTargetingAction` from `get_action()` to let the player pick any explored, walkable tile and teleport there. The destination must be in bounds, explored, and walkable.
+    Add a `TeleportConsumable` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a destination."`. The destination must be in bounds, explored, and walkable. Also check that no blocking entity (another actor) occupies the tile:
+
+    ```python
+    blocking_entity = game_map.get_blocking_entity_at(x, y)
+    if blocking_entity is not None and blocking_entity is not consumer:
+        raise Impossible("You cannot teleport onto another actor.")
+    ```
 
 !!! tip "Auto-collect and teleport"
     `TeleportConsumable` calls `consumer.place()` directly, which bypasses the `on_contact` check in `MovementAction`. A player who teleports onto a chest will not pick it up automatically unless you add the same call after `consumer.place()`:

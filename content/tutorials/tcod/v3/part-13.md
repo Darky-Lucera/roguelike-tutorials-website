@@ -23,7 +23,7 @@ Equipment is a two-sided relationship:
 
 When combat damage is calculated, `Fighter.attack` and `Fighter.defense` include bonuses from the `Equipment` component.
 
-```txt
+```text
 Actor (player)
   ├── Fighter  (base_attack=5, base_defense=2)
   └── Equipment
@@ -72,6 +72,7 @@ if TYPE_CHECKING:
 
 
 class Equippable(ItemComponent):
+
     def __init__(
         self,
         equipment_type: EquipmentType,
@@ -84,21 +85,25 @@ class Equippable(ItemComponent):
 
 
 class Dagger(Equippable):
+
     def __init__(self) -> None:
         super().__init__(equipment_type=EquipmentType.WEAPON, attack_bonus=2)
 
 
 class Sword(Equippable):
+
     def __init__(self) -> None:
         super().__init__(equipment_type=EquipmentType.WEAPON, attack_bonus=4)
 
 
 class LeatherArmor(Equippable):
+
     def __init__(self) -> None:
         super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=1)
 
 
 class ChainMail(Equippable):
+
     def __init__(self) -> None:
         super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=3)
 ```
@@ -125,6 +130,7 @@ if TYPE_CHECKING:
 
 
 class Equipment(ActorComponent):
+
     def __init__(
         self,
         weapon: Item | None = None,
@@ -190,6 +196,7 @@ Update `game/entities/components/fighter.py`:
 
 ```python
 class Fighter(ActorComponent):
+
     def __init__(self, hp: int, defense: float, attack: float) -> None:
         self.max_hp             = hp
         self._hp: float         = float(hp)
@@ -221,6 +228,7 @@ Update the `Item` class:
 
 ```python
 class Item(Entity):
+
     def __init__(
         self,
         *,
@@ -244,6 +252,7 @@ Update `Actor`:
 from game.entities.components.equipment import Equipment
 
 class Actor(Entity):
+
     def __init__(
         self,
         *,
@@ -261,6 +270,7 @@ class Actor(Entity):
 
 ```python
 class EquipAction(Action):
+
     def __init__(self, item: Item) -> None:
         super().__init__()
         self.item = item
@@ -273,6 +283,7 @@ Also update `DropItem` so dropping equipped gear unequips it first:
 
 ```python
 class DropItem(ItemAction):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         if entity.equipment.item_is_equipped(self.item):
             entity.equipment.toggle_equip(self.item)
@@ -283,12 +294,12 @@ class DropItem(ItemAction):
 
 ---
 
-## Update InventoryActivateHandler
+## Update InventoryUseState
 
 When the selected item is equippable, return an `EquipAction` instead of an `ItemAction`:
 
 ```python
-class InventoryActivateHandler(InventoryEventHandler):
+class InventoryUseState(InventoryState):
     TITLE = "Select an item to use"
 
     def on_item_selected(self, item) -> Action | None:
@@ -302,7 +313,7 @@ class InventoryActivateHandler(InventoryEventHandler):
 
 ## Show equipped status in the inventory overlay
 
-Update `InventoryEventHandler.on_render` to mark equipped items with `(E)`:
+Update `InventoryState.on_render` to mark equipped items with `(E)`:
 
 ```python
         if number_of_items_in_inventory > 0:
@@ -502,7 +513,7 @@ Equipment is complete. The game is now feature-complete. Key additions:
 
 **File structure**:
 
-```txt
+```text
 main.py
 game/
 ├── __init__.py
@@ -511,7 +522,7 @@ game/
 ├── exceptions.py
 ├── game_world.py
 ├── hud.py
-├── input_handlers.py           ← modified
+├── game_states.py              ← modified
 ├── message_log.py
 ├── setup_game.py               ← modified
 ├── constants/
@@ -570,12 +581,12 @@ You have built a complete roguelike. Here are directions to take it further:
 **Polish**
 - Graphical tiles: replace the tileset with a 16×16 pixel art set; tcod supports it with no code changes beyond the tileset loader
 - Sound: `pygame.mixer` can play `.wav` files alongside tcod's rendering
-- Fullscreen: `tcod.context.new(..., renderer=tcod.RENDERER_SDL2, flags=tcod.libtcodpy.FULLSCREEN)`
+- Fullscreen: extend the existing `sdl_window_flags` value passed to `tcod.context.new`, for example by adding `tcod.context.SDL_WINDOW_FULLSCREEN`
 
 **Publishing**
 - The tutorial files are plain Markdown. `mkdocs build` generates a self-contained `site/` folder you can zip and share
 - For the official python-tcod docs: convert admonitions (`!!! type "Title"\n    body` → `:::{type}\nTitle\nbody\n:::`) with a single regex pass, then open a PR to the `python-tcod` repository's `docs/` folder
 
-The architecture you built (Entity, components, actions, event handlers as a state machine, pickle serialization) scales to a much larger game. The reference implementation at [python-tcod-tutorial-revised](https://github.com/TStand90/tcod_tutorial_v2) follows the same structure and is a good comparison point.
+The architecture you built (Entity, components, actions, game states as a state machine, pickle serialization) scales to a much larger game. The reference implementation at [python-tcod-tutorial-revised](https://github.com/TStand90/tcod_tutorial_v2) follows the same structure and is a good comparison point.
 
 Good luck with the dungeon.

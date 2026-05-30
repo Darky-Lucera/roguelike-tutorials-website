@@ -159,24 +159,24 @@ from game.constants import colors, sprites
 from game.entity import Entity
 
 player = Entity(
-    char=sprites.PLAYER,
-    color=colors.PLAYER,
-    name="Player",
-    blocks_movement=True,
+    char  = sprites.PLAYER,
+    color = colors.PLAYER,
+    name  = "Player",
+    blocks_movement = True,
 )
 
 orc = Entity(
-    char=sprites.ORC,
-    color=colors.ORC,
-    name="Orc",
-    blocks_movement=True,
+    char  = sprites.ORC,
+    color = colors.ORC,
+    name  = "Orc",
+    blocks_movement = True,
 )
 
 troll = Entity(
-    char=sprites.TROLL,
-    color=colors.TROLL,
-    name="Troll",
-    blocks_movement=True,
+    char  = sprites.TROLL,
+    color = colors.TROLL,
+    name  = "Troll",
+    blocks_movement = True,
 )
 ```
 
@@ -229,6 +229,7 @@ class Entity:
         clone.x = x
         clone.y = y
         game_map.entities.add(clone)
+
         return clone
 
     def set_position(self, x: int, y: int) -> None:
@@ -285,17 +286,20 @@ if TYPE_CHECKING:
 
 
 class Action(ABC):
+
     @abstractmethod
     def perform(self, engine: Engine, entity: Entity) -> None:
         ...
 
 
 class EscapeAction(Action):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         raise SystemExit()
 
 
 class WaitAction(Action):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         pass  # Do nothing; time still passes.
 
@@ -309,6 +313,7 @@ class ActionWithDirection(Action, ABC):
 
 
 class MovementAction(ActionWithDirection):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         dest_x = entity.x + self.dx
         dest_y = entity.y + self.dy
@@ -326,6 +331,7 @@ class MovementAction(ActionWithDirection):
 
 
 class MeleeAction(ActionWithDirection):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         dest_x = entity.x + self.dx
         dest_y = entity.y + self.dy
@@ -359,7 +365,7 @@ class BumpAction(ActionWithDirection):
 
     `ActionWithDirection` is also abstract: it stores `dx`/`dy` but deliberately leaves `perform` to its own subclasses. Without the `ABC` marker, a linter like Pylint would warn:
 
-    ```txt
+    ```text
     W0223: Method 'perform' is abstract in class 'Action' but is not overridden in child class 'ActionWithDirection'
     ```
 
@@ -421,6 +427,7 @@ WAIT_KEYS = {
 
 
 class EventHandler:
+
     def dispatch(self, event: tcod.event.Event) -> Action | None:
         match event:
             case tcod.event.Quit():
@@ -474,6 +481,7 @@ if TYPE_CHECKING:
 
 
 class BaseAI:
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         raise NotImplementedError()
 
@@ -514,6 +522,7 @@ Entities that have AI (enemies) need an `ai` attribute. Add it to `Entity`:
 
 ```diff
  class Entity:
+
      def __init__(
          self,
          x: int = 0,
@@ -627,21 +636,35 @@ Update `generate_dungeon` to call `place_entities` and accept the new parameter:
      map_height: int,
 +    max_monsters_per_room: int,
      player: Entity,
+     seed: int,
  ) -> GameMap:
      dungeon = GameMap(map_width, map_height, entities=[player])
      rooms: list[RectangularRoom] = []
+     max_room_attempts = max_rooms * 2
 
-     for _ in range(max_rooms):
+     for _ in range(max_room_attempts):
          ...
          if not rooms:
              player.set_position(*new_room.center)
          else:
-             for x, y in tunnel_between(rooms[-1].center, new_room.center):
+             nearest_room = min(
+                 rooms,
+                 key=lambda room: (
+                     (room.center[0] - new_room.center[0]) ** 2
+                     + (room.center[1] - new_room.center[1]) ** 2
+                 ),
+             )
+             for x, y in tunnel_between(
+                 nearest_room.roughly_center,
+                 new_room.roughly_center,
+             ):
                  dungeon.tiles[x, y] = tile_types.floor
 +
 +            place_entities(new_room, dungeon, max_monsters_per_room)
 
          rooms.append(new_room)
+         if len(rooms) >= max_rooms:
+             break
 
      return dungeon
 ```
@@ -706,7 +729,9 @@ The player is a special case: `spawn()` requires a `GameMap` to add the entity t
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
+import secrets
 
 import tcod
 
@@ -716,19 +741,25 @@ from game.map.map_generator import generate_dungeon
 
 
 def main() -> None:
-    screen_width = 80
+    # Part-3. Ex 1: Reproducible dungeons
+    seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
+    #seed = 12345 # Write here the game seed to reproduce a map
+    print(f"Game seed: {seed}")
+
+    screen_width  = 80
     screen_height = 50
 
-    map_width = 80
+    map_width  = 80
     map_height = 45
 
-    room_max_size = 10
-    room_min_size = 6
+    room_max_size = 12
+    room_min_size = 7
+
     max_rooms = 30
     max_monsters_per_room = 2
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
@@ -737,23 +768,39 @@ def main() -> None:
     player = copy.deepcopy(entity_factories.player)
 
     game_map = generate_dungeon(
-        max_rooms=max_rooms,
-        room_min_size=room_min_size,
-        room_max_size=room_max_size,
-        map_width=map_width,
-        map_height=map_height,
-        max_monsters_per_room=max_monsters_per_room,
-        player=player,
+        max_rooms             = max_rooms,
+        room_min_size         = room_min_size,
+        room_max_size         = room_max_size,
+        map_width             = map_width,
+        map_height            = map_height,
+        max_monsters_per_room = max_monsters_per_room,
+        player                = player,
+        seed                  = seed,
     )
 
     engine = Engine(game_map=game_map, player=player)
 
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
+    )
+
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         console = tcod.console.Console(screen_width, screen_height, order="F")
         engine.run(context, console)
@@ -804,7 +851,7 @@ Enemies are now in the dungeon and the turn system is running. Key patterns intr
 
 **File structure**:
 
-```txt
+```text
 main.py                     ← modified
 game/
 ├── __init__.py

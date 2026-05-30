@@ -107,9 +107,9 @@ graphic_dtype = np.dtype(
 # Describes one tile: its gameplay properties + its appearance.
 tile_dtype = np.dtype(
     [
-        ("walkable", np.bool_),    # True if entities can walk here
-        ("transparent", np.bool_), # True if this tile doesn't block FOV
-        ("out_of_fov", graphic_dtype),  # appearance when outside the player's FOV
+        ("walkable",    np.bool_),      # True if entities can walk here
+        ("transparent", np.bool_),      # True if this tile doesn't block FOV
+        ("out_of_fov",  graphic_dtype), # appearance when outside the player's FOV
     ]
 )
 
@@ -126,15 +126,15 @@ def new_tile(
 
 # Tile definitions
 floor = new_tile(
-    walkable=True,
-    transparent=True,
-    out_of_fov=(ord(" "), (255, 255, 255), (50, 50, 150)),
+    walkable    = True,
+    transparent = True,
+    out_of_fov  = (ord(" "), (255, 255, 255), (50, 50, 150)),
 )
 
 wall = new_tile(
-    walkable=False,
-    transparent=False,
-    out_of_fov=(ord(" "), (255, 255, 255), (0, 0, 100)),
+    walkable    = False,
+    transparent = False,
+    out_of_fov  = (ord(" "), (255, 255, 255), (0, 0, 100)),
 )
 ```
 
@@ -162,15 +162,19 @@ from game import tile_types
 
 
 class GameMap:
+
     def __init__(self, width: int, height: int) -> None:
-        self.width = width
+        self.width  = width
         self.height = height
         # Fill the entire map with floor tiles for now.
         # Part 3 will change this to walls, which we dig out.
         self.tiles = np.full((width, height), fill_value=tile_types.floor, order="F")
 
+        half_width  = width  // 2
+        half_height = height // 2
+
         # A small wall for testing: we will remove it in Part 3.
-        self.tiles[30:33, 22] = tile_types.wall
+        self.tiles[half_width-10:half_width+10+1, half_height] = tile_types.wall
 
     def in_bounds(self, x: int, y: int) -> bool:
         """True if (x, y) is inside the map."""
@@ -211,6 +215,7 @@ from game.input_handlers import EventHandler
 
 
 class Engine:
+
     def __init__(
         self,
         entities: set[Entity],
@@ -297,7 +302,7 @@ def main() -> None:
     map_height = 45
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
@@ -313,18 +318,33 @@ def main() -> None:
     game_map = GameMap(map_width, map_height)
 
     engine = Engine(
-        entities=entities,
-        event_handler=event_handler,
-        game_map=game_map,
-        player=player,
+        entities      = entities,
+        event_handler = event_handler,
+        game_map      = game_map,
+        player        = player,
+    )
+
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
     )
 
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         console = tcod.console.Console(screen_width, screen_height, order="F")
         engine.run(context, console)
@@ -359,17 +379,20 @@ if TYPE_CHECKING:
 
 
 class Action:
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         """Perform this action. Must be overridden by subclasses."""
         raise NotImplementedError()
 
 
 class EscapeAction(Action):
+
     def perform(self, engine: Engine, entity: Entity) -> None:
         raise SystemExit()
 
 
 class MovementAction(Action):
+
     def __init__(self, dx: int, dy: int) -> None:
         self.dx = dx
         self.dy = dy
@@ -469,7 +492,7 @@ The `perform()` pattern on `Action` classes means the engine stays small and new
 
 **File structure**:
 
-```txt
+```text
 main.py                 ← modified
 game/
 ├── __init__.py
@@ -485,13 +508,14 @@ game/
 
 ## Exercises
 
-1. **Add a third entity**:
+1. **Add names to entities**:
 
-    Create another `Entity` (a "ghost", char `"G"`, color `(220, 0, 255)`) at any position inside the map and add it to `entities`. Verify all three render with their distinct colors.
+    Add a `name: str` parameter to `Entity.__init__` and store it as `self.name`. Update the player and NPC creation in `main.py` to pass names such as `"Player"` and `"NPC"`. This will not change what appears on screen yet, but later systems will use entity names in messages like `"Player attacks Orc!"`.
 
 2. **Promote `WaitAction` to the `perform()` pattern**:
 
-    Add a `WaitAction(Action)` class to `game/actions.py` with a `perform()` that just `pass`es. If you skipped Part 1's exercise, also wire `.` (and `KP_5`) to it in `game/input_handlers.py`. Notice that `Engine.handle_events` does not need any changes; that is the point of the polymorphic pattern.
+    Add a `WaitAction(Action)` class to `game/actions.py` with a `perform()` that just `pass`es.
+    If you skipped Part 1's exercise, also wire `.` (and `KP_5`) to it in `game/input_handlers.py`. Notice that `Engine.handle_events` does not need any changes; that is the point of the polymorphic pattern.
 
 3. **Add a new tile type**:
 

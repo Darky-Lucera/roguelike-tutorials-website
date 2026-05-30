@@ -76,7 +76,7 @@ class "Entity" as game.entities.entity.Entity {
 class "EscapeAction" as game.actions.EscapeAction {
 }
 
-class "EventHandler" as game.input_handlers.EventHandler {
+class "GameState" as game.game_states.GameState {
 }
 
 class "Fighter" as game.entities.components.fighter.Fighter {
@@ -85,7 +85,7 @@ class "Fighter" as game.entities.components.fighter.Fighter {
 class "GameMap" as game.map.game_map.GameMap {
 }
 
-class "GameOverEventHandler" as game.input_handlers.GameOverEventHandler {
+class "GameOverState" as game.game_states.GameOverState {
 }
 
 class "HostileEnemy" as game.entities.components.ai.HostileEnemy {
@@ -95,7 +95,7 @@ class "MeleeAction" as game.actions.MeleeAction {
 }
 
 
-class "MainGameEventHandler" as game.input_handlers.MainGameEventHandler #e0e0d0 {
+class "MainGameState" as game.game_states.MainGameState #e0e0d0 {
 }
 
 class "Message" as game.message_log.Message #e0e0d0 {
@@ -134,15 +134,15 @@ game.entities.components.ai.BaseAI <|-- game.entities.components.ai.HostileEnemy
 game.entities.components.base_component.BaseComponent <|-- game.entities.components.fighter.Fighter
 game.entities.entity.Entity <|-- game.entities.entity.Actor
 
-game.input_handlers.EventHandler <|-- game.input_handlers.GameOverEventHandler
-game.input_handlers.EventHandler <|-- game.input_handlers.MainGameEventHandler
+game.game_states.GameState <|-- game.game_states.GameOverState
+game.game_states.GameState <|-- game.game_states.MainGameState
 
 ' Ownership / references / associations.
 game.entities.components.base_component.BaseComponent --> game.entities.entity.Entity : entity
 game.map.game_map.GameMap " * " *-- game.entities.entity.Entity : entities
-game.engine.Engine *-- game.input_handlers.EventHandler : event_handler
-game.engine.Engine *-- game.input_handlers.GameOverEventHandler : event_handler
-game.input_handlers.EventHandler --> game.engine.Engine : engine
+game.engine.Engine *-- game.game_states.GameState : game_state
+game.engine.Engine *-- game.game_states.GameOverState : game_state
+game.game_states.GameState --> game.engine.Engine : engine
 game.engine.Engine *-- game.entities.entity.Actor : player
 game.entities.entity.Entity --> game.entities.render_order.RenderOrder : render_order
 game.engine.Engine *-- game.map.game_map.GameMap : game_map
@@ -156,7 +156,7 @@ game.message_log.MessageLog *-- "*" game.message_log.Message : contains
 
 ' Engine should sit above the main runtime objects.
 game.engine.Engine -[hidden]down- game.map.game_map.GameMap
-game.engine.Engine -[hidden]down- game.input_handlers.EventHandler
+game.engine.Engine -[hidden]down- game.game_states.GameState
 game.engine.Engine -[hidden]down- game.actions.Action
 game.engine.Engine -[hidden]down- game.message_log.MessageLog
 
@@ -180,8 +180,8 @@ game.actions.ActionWithDirection -[hidden]down- game.actions.BumpAction
 game.actions.ActionWithDirection -[hidden]down- game.actions.MeleeAction
 game.actions.ActionWithDirection -[hidden]down- game.actions.MovementAction
 
-game.input_handlers.EventHandler -[hidden]down- game.input_handlers.GameOverEventHandler
-game.input_handlers.EventHandler -[hidden]down- game.input_handlers.MainGameEventHandler
+game.game_states.GameState -[hidden]down- game.game_states.GameOverState
+game.game_states.GameState -[hidden]down- game.game_states.MainGameState
 
 game.entities.components.base_component.BaseComponent -[hidden]down- game.entities.components.fighter.Fighter
 game.entities.components.base_component.BaseComponent -[hidden]down- game.entities.components.ai.BaseAI

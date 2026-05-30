@@ -17,7 +17,7 @@ By the end of this part, you will have the first playable version of your roguel
 
 Every game, from Pong to Elden Ring, runs a loop. The loop repeats until the player quits, doing the same three things each iteration:
 
-```txt
+```text
 ┌──────────┐     ┌──────────┐     ┌──────────┐
 │  INPUT   │────▶│  UPDATE  │────▶│  RENDER  │
 └──────────┘     └──────────┘     └──────────┘
@@ -33,7 +33,7 @@ In a real-time game, this loop runs 30 or 60 times per second regardless of whet
 
 Our loop will look like this:
 
-```txt
+```text
 Render ──▶ Wait for input ──▶ Process action ──▶ (back to Render)
 ```
 
@@ -53,7 +53,7 @@ Before writing code, understand what tcod gives us:
 
 The workflow every frame:
 
-```txt
+```text
 console.clear() ──▶ draw to console ──▶ context.present(console) ──▶ wait for events
 ```
 
@@ -72,22 +72,37 @@ import tcod
 
 
 def main() -> None:
-    screen_width = 80
+    screen_width  = 80
     screen_height = 50
 
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
+    )
+
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
     )
 
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         console = tcod.console.Console(screen_width, screen_height, order="F")
 
@@ -115,30 +130,55 @@ Let's go through each part.
 
 ```python
 tileset = tcod.tileset.load_tilesheet(
-    Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+    Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
     32,           # columns in the sheet
     8,            # rows in the sheet
     tcod.tileset.CHARMAP_TCOD,
 )
 ```
 
-`Path(__file__).parent` is the folder where `main.py` lives, so `Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png"` resolves the image path relative to `main.py` itself, not the terminal's current directory. For example, if `main.py` lives in `/home/user/my-game/`, the path evaluates to `/home/user/my-game/res/dejavu10x10_gs_tc.png`, regardless of which folder you launched Python from. This means `python main.py` works the same way from anywhere.
+`Path(__file__).parent` is the folder where `main.py` lives, so `Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png"` resolves the image path relative to `main.py` itself, not the terminal's current directory. For example, if `main.py` lives in `/home/user/my-game/`, the path evaluates to `/home/user/my-game/res/dejavu12x12_gs_tc.png`, regardless of which folder you launched Python from. This means `python main.py` works the same way from anywhere.
 
 The sheet has 32 columns and 8 rows = 256 tiles, one for each character in the TCOD character map.
+
+### SDL metadata and scaling hints
+
+```python
+title   = "Roguelike Tutorial"
+version = "0.1.0"
+app_id  = "com.tutorial.roguelike"
+
+tcod.lib.SDL_SetAppMetadata(
+    title.encode("utf-8"),
+    version.encode("utf-8"),
+    app_id.encode("utf-8")
+)
+tcod.lib.SDL_SetHint(
+    b"SDL_RENDER_SCALE_QUALITY",
+    b"0" # Nearest pixel sampling
+)
+```
+
+`tcod.lib` exposes low-level SDL functions. `SDL_SetAppMetadata` gives SDL the application name, version, and identifier as UTF-8 bytes. This lets the operating system and window manager identify the application more consistently.
+
+`SDL_SetHint` with `SDL_RENDER_SCALE_QUALITY` set to `0` asks SDL to use nearest pixel sampling. That keeps the bitmap font sharp when the window is resized instead of smoothing the tiles.
 
 ### The context (window)
 
 ```python
 with tcod.context.new(
-    columns=screen_width,
-    rows=screen_height,
-    tileset=tileset,
-    title="Roguelike Tutorial",
-    vsync=True,
+    columns          = screen_width,
+    rows             = screen_height,
+    tileset          = tileset,
+    title            = title,
+    vsync            = True,
+    sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
 ) as context:
 ```
 
-`tcod.context.new` returns a context manager. The window lives only inside the `with` block; when the block exits, the window closes. `vsync=True` synchronizes rendering to the monitor's refresh rate to avoid screen tearing.
+`tcod.context.new` returns a context manager. The window lives only inside the `with` block; when the block exits, the window closes. `title` uses the variable we defined earlier, so the SDL metadata and the window title stay in sync. `vsync=True` synchronizes rendering to the monitor's refresh rate to avoid screen tearing.
+
+`sdl_window_flags` lets us pass SDL window options through tcod. `SDL_WINDOW_ALLOW_HIGHDPI` makes the window behave better on high-DPI displays, and `SDL_WINDOW_RESIZABLE` lets the player resize the window. The `|` operator combines both flags into one value.
 
 ### The console
 
@@ -172,7 +212,7 @@ A static `@` is not very interesting. Let's track the player's position and hand
 
 ```diff
  def main() -> None:
-     screen_width = 80
+     screen_width  = 80
      screen_height = 50
 +
 +    player_x = screen_width // 2
@@ -194,11 +234,11 @@ Update the drawing call to use the new variables:
 
 We are about to add our first module beyond `main.py`. The convention in this tutorial is that **everything except the entry point lives inside a `game/` folder**, which Python will see as a *package*. Create the folder with an empty `__init__.py` inside:
 
-```txt
+```text
 roguelike-tutorial/
   main.py
   res/
-    dejavu10x10_gs_tc.png
+    dejavu12x12_gs_tc.png
   game/
     __init__.py     ← empty file, marks `game/` as a Python package
 ```
@@ -225,6 +265,7 @@ class EscapeAction(Action):
 
 
 class MovementAction(Action):
+
     def __init__(self, dx: int, dy: int) -> None:
         self.dx = dx
         self.dy = dy
@@ -246,6 +287,7 @@ from game.actions import Action, EscapeAction, MovementAction
 
 
 class EventHandler:
+
     def dispatch(self, event: tcod.event.Event) -> Action | None:
         match event:
             case tcod.event.Quit():
@@ -336,14 +378,14 @@ def game_loop(
 
 
 def main() -> None:
-    screen_width = 80
+    screen_width  = 80
     screen_height = 50
 
     player_x = screen_width // 2
     player_y = screen_height // 2
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu10x10_gs_tc.png",
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
@@ -351,12 +393,27 @@ def main() -> None:
 
     event_handler = EventHandler()
 
+    title   = "Roguelike Tutorial"
+    version = "0.1.0"
+    app_id  = "com.tutorial.roguelike"
+
+    tcod.lib.SDL_SetAppMetadata(
+        title.encode("utf-8"),
+        version.encode("utf-8"),
+        app_id.encode("utf-8")
+    )
+    tcod.lib.SDL_SetHint(
+        b"SDL_RENDER_SCALE_QUALITY",
+        b"0" # Nearest pixel sampling
+    )
+
     with tcod.context.new(
-        columns=screen_width,
-        rows=screen_height,
-        tileset=tileset,
-        title="Roguelike Tutorial",
-        vsync=True,
+        columns          = screen_width,
+        rows             = screen_height,
+        tileset          = tileset,
+        title            = title,
+        vsync            = True,
+        sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
         console = tcod.console.Console(screen_width, screen_height, order="F")
         game_loop(context, console, event_handler, player_x, player_y)
@@ -423,7 +480,7 @@ We also adopted the project layout we will use for the rest of the tutorial: `ma
 
 **File structure**:
 
-```txt
+```text
 main.py                 ← modified
 game/
 ├── __init__.py         ← new

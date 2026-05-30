@@ -5,7 +5,7 @@ The base combat system from the tutorial resolves every hit in one step: `damage
 This appendix explains the most common effects, what they represent, how they are calculated, and what tends to go wrong with them. None of them are required. A good roguelike can be built with the base formula plus one or two additions. Add effects one at a time and test each before moving on.
 
 !!! info "Before reading"
-    These effects extend `Fighter.melee_attack()` in `game/components/fighter.py`. [Appendix 1](apend-1.md) already mentions critical hits and hit chance separation (dodge, parry, block) briefly in its "Other Adjustments" section. This appendix develops those ideas in full.
+    These effects extend `Fighter.melee_attack()` in `game/entities/components/fighter.py`. [Appendix 1](append-1.md) already mentions critical hits and hit chance separation (dodge, parry, block) briefly in its "Other Adjustments" section. This appendix develops those ideas in full.
 
 There is a lot of material in this appendix. You can read it in three passes:
 
@@ -26,6 +26,7 @@ The most common approach is a probability check on the attacker's side, followed
 ```python
 if random() < attacker.critical_chance:
     damage = base_damage * attacker.critical_multiplier
+
 else:
     damage = base_damage
 ```

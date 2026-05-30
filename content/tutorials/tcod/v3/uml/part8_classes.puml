@@ -53,7 +53,7 @@ class "Engine" as game.engine.Engine {
 class "GameMap" as game.map.game_map.GameMap {
 }
 
-class "EventHandler" as game.input_handlers.EventHandler {
+class "GameState" as game.game_states.GameState {
 }
 
 class "Action" as game.actions.Action {
@@ -86,19 +86,19 @@ class "RectangularRoom" as game.map.map_generator.RectangularRoom {
 class "<color:#b57674>Impossible</color>" as game.exceptions.Impossible #e0e0d0 {
 }
 
-class "MainGameEventHandler" as game.input_handlers.MainGameEventHandler {
+class "MainGameState" as game.game_states.MainGameState {
 }
 
-class "GameOverEventHandler" as game.input_handlers.GameOverEventHandler {
+class "GameOverState" as game.game_states.GameOverState {
 }
 
-class "InventoryEventHandler" as game.input_handlers.InventoryEventHandler #e0e0d0 {
+class "InventoryState" as game.game_states.InventoryState #e0e0d0 {
 }
 
-class "InventoryActivateHandler" as game.input_handlers.InventoryActivateHandler #e0e0d0 {
+class "InventoryUseState" as game.game_states.InventoryUseState #e0e0d0 {
 }
 
-class "InventoryDropHandler" as game.input_handlers.InventoryDropHandler #e0e0d0 {
+class "InventoryDropState" as game.game_states.InventoryDropState #e0e0d0 {
 }
 
 class "ActionWithDirection" as game.actions.ActionWithDirection {
@@ -188,17 +188,17 @@ game.entities.components.base_component.ItemComponent <|-- game.entities.compone
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.HealingConsumable
 game.entities.components.consumable.Consumable <|-- game.entities.components.consumable.TreasureConsumable
 
-game.input_handlers.EventHandler <|-- game.input_handlers.MainGameEventHandler
-game.input_handlers.EventHandler <|-- game.input_handlers.GameOverEventHandler
-game.input_handlers.EventHandler <|-- game.input_handlers.InventoryEventHandler
-game.input_handlers.InventoryEventHandler <|-- game.input_handlers.InventoryActivateHandler
-game.input_handlers.InventoryEventHandler <|-- game.input_handlers.InventoryDropHandler
+game.game_states.GameState <|-- game.game_states.MainGameState
+game.game_states.GameState <|-- game.game_states.GameOverState
+game.game_states.GameState <|-- game.game_states.InventoryState
+game.game_states.InventoryState <|-- game.game_states.InventoryUseState
+game.game_states.InventoryState <|-- game.game_states.InventoryDropState
 
 ' Ownership / references / associations.
 game.engine.Engine *-- game.map.game_map.GameMap : game_map
 game.engine.Engine *-- game.entities.entity.Actor : player
-game.engine.Engine *-- game.input_handlers.EventHandler : event_handler
-game.input_handlers.EventHandler -up-> game.engine.Engine : engine
+game.engine.Engine *-- game.game_states.GameState : game_state
+game.game_states.GameState -up-> game.engine.Engine : engine
 
 game.map.game_map.GameMap "  *  " *-- game.entities.entity.Entity : entities
 game.entities.entity.Entity -up-> game.map.game_map.GameMap : owner
@@ -218,14 +218,14 @@ game.message_log.MessageLog *-- "*" game.message_log.Message : contains
 
 ' Engine should be the top anchor. Keep the main roots under it.
 game.engine.Engine -[hidden]down- game.map.game_map.GameMap
-game.engine.Engine -[hidden]down- game.input_handlers.EventHandler
+game.engine.Engine -[hidden]down- game.game_states.GameState
 game.engine.Engine -[hidden]down- game.actions.Action
 game.engine.Engine -[hidden]down- game.message_log.MessageLog
 game.engine.Engine -[hidden]down- game.exceptions.Impossible
 
 ' Main second row, left to right.
-game.map.game_map.GameMap -[hidden]right- game.input_handlers.EventHandler
-game.input_handlers.EventHandler -[hidden]right- game.actions.Action
+game.map.game_map.GameMap -[hidden]right- game.game_states.GameState
+game.game_states.GameState -[hidden]right- game.actions.Action
 game.actions.Action -[hidden]right- game.message_log.MessageLog
 
 ' Map and entity/component columns.
@@ -251,7 +251,7 @@ game.actions.ActionWithDirection -[hidden]down- game.actions.BumpAction
 game.actions.ActionWithDirection -[hidden]down- game.actions.MeleeAction
 game.actions.ActionWithDirection -[hidden]down- game.actions.MovementAction
 
-game.input_handlers.InventoryDropHandler -[hidden]down- game.actions.Action
+game.game_states.InventoryDropState -[hidden]down- game.actions.Action
 
 game.entities.components.base_component.BaseComponent -[hidden]down- game.entities.components.base_component.ItemComponent
 game.entities.components.base_component.BaseComponent -[hidden]down- game.entities.components.base_component.ActorComponent
@@ -267,12 +267,12 @@ game.entities.components.base_component.ItemComponent -[hidden]down- game.entiti
 game.entities.components.consumable.Consumable -[hidden]down- game.entities.components.consumable.HealingConsumable
 game.entities.components.consumable.Consumable -[hidden]down- game.entities.components.consumable.TreasureConsumable
 
-game.input_handlers.EventHandler -[hidden]down- game.input_handlers.GameOverEventHandler
-game.input_handlers.EventHandler -[hidden]down- game.input_handlers.MainGameEventHandler
-game.input_handlers.EventHandler -[hidden]down- game.input_handlers.InventoryEventHandler
+game.game_states.GameState -[hidden]down- game.game_states.GameOverState
+game.game_states.GameState -[hidden]down- game.game_states.MainGameState
+game.game_states.GameState -[hidden]down- game.game_states.InventoryState
 
-game.input_handlers.InventoryEventHandler -[hidden]down- game.input_handlers.InventoryActivateHandler
-game.input_handlers.InventoryEventHandler -[hidden]down- game.input_handlers.InventoryDropHandler
+game.game_states.InventoryState -[hidden]down- game.game_states.InventoryUseState
+game.game_states.InventoryState -[hidden]down- game.game_states.InventoryDropState
 
 ' MessageLog should be above the messages
 game.message_log.MessageLog -[hidden]down- game.message_log.Message

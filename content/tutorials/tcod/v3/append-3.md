@@ -24,6 +24,7 @@ A minimal skeleton looks like this:
 
 ```python
 class LightningDamageConsumable(Consumable):
+
     def __init__(self, level: int = 1) -> None:
         self.level = level
 
@@ -172,22 +173,22 @@ The Chest (`TreasureConsumable`) is auto-collected and has no active effect, so 
 
 ---
 
-## Teleport Scroll: two-phase targeting (handler chaining)
+## Teleport Scroll: two-phase targeting (state chaining)
 
 Instead of always teleporting the player, a higher-level teleport scroll could add a two-phase targeting flow. In the first phase the player picks an actor (themselves or any visible enemy). In the second phase they pick the destination tile. The selected actor is then moved there.
 
-This demonstrates handler chaining: one `SelectIndexHandler` can hand off to another before the action fires. The pattern generalises to any multi-step targeting flow.
+This demonstrates state chaining: one `SelectIndexState` can hand off to another before the action fires. The pattern generalises to any multi-step targeting flow.
 
-!!! tip "Handler chaining as a general pattern"
-    Any time a consumable needs more than one piece of input (pick a target, then pick a tile; confirm a spell, then confirm the area), the same chain pattern applies. Each handler gathers one input and, instead of returning an action immediately, pushes a new handler onto the engine with the partial result. The final handler in the chain produces the action. Keeping each handler responsible for exactly one decision makes the logic easy to follow and straightforward to test in isolation.
+!!! tip "State chaining as a general pattern"
+    Any time a consumable needs more than one piece of input (pick a target, then pick a tile; confirm a spell, then confirm the area), the same chain pattern applies. Each state gathers one input and, instead of returning an action immediately, returns a new state with the partial result. The final state in the chain produces the action. Keeping each state responsible for exactly one decision makes the logic easy to follow and straightforward to test in isolation.
 
 Implementation hints:
 
-- Create a `SelectActorHandler(SelectIndexHandler)` that validates the chosen tile has an actor. On confirm, instead of returning an action, it pushes a new `SelectDestinationHandler` onto the engine, passing the chosen actor along.
-- `SelectDestinationHandler(SelectIndexHandler)` receives the actor as a constructor parameter. On confirm it returns a `TeleportAction(actor, x, y)`.
+- Create a `SelectActorState(SelectIndexState)` that validates the chosen tile has an actor. On confirm, instead of returning an action, it returns a new `SelectDestinationState` with the chosen actor.
+- `SelectDestinationState(SelectIndexState)` receives the actor as a constructor parameter. On confirm it returns a `TeleportAction(actor, x, y)`.
 
 ---
 
 ## Summary
 
-Scaling consumables with a `level` parameter keeps your item classes small while letting the factory express dungeon difficulty through data. The two patterns shown here, multi-dimensional reveal (what is shown x for how long) and chain damage with geometric decay, are reusable templates for any consumable that needs graduated strength. Handler chaining in the Teleport example generalises to any multi-step targeting flow across the entire spell system.
+Scaling consumables with a `level` parameter keeps your item classes small while letting the factory express dungeon difficulty through data. The two patterns shown here, multi-dimensional reveal (what is shown x for how long) and chain damage with geometric decay, are reusable templates for any consumable that needs graduated strength. State chaining in the Teleport example generalises to any multi-step targeting flow across the entire spell system.

@@ -86,7 +86,7 @@ uv init --no-readme .
 
 This creates:
 
-```txt
+```text
 roguelike-tutorial/
   .python-version     ← pins the Python version
   pyproject.toml      ← project metadata and dependencies
@@ -119,7 +119,7 @@ dependencies = [
 !!! info "Prefer the classic pip + requirements.txt flow?"
     Both flows produce the same environment. If you'd rather use pip, create a `requirements.txt` with:
 
-    ```txt
+    ```text
     tcod>=21.2,<22
     numpy>=2.4,<3
     ```
@@ -190,13 +190,13 @@ You should see `Hello World!` printed to the terminal. If you get an `ImportErro
 
 ## The font file
 
-tcod needs a font file to draw characters. We use **dejavu10x10_gs_tc.png**, a 32×8 grid of 256 tiles, laid out according to the TCOD character map:
+tcod needs a font file to draw characters. We use **dejavu12x12_gs_tc.png**, a 32×8 grid of 256 tiles, laid out according to the TCOD character map:
 
-![dejavu10x10_gs_tc.png, font sheet used by tcod](images/dejavu10x10_gs_tc.png)
+![dejavu12x12_gs_tc.png, font sheet used by tcod](images/dejavu12x12_gs_tc.png)
 
-[Download dejavu10x10_gs_tc.png](images/dejavu10x10_gs_tc.png){ download }
+[Download dejavu12x12_gs_tc.png](images/dejavu12x12_gs_tc.png){ download }
 
-Create a `res/` folder next to `main.py`, and save the file there as `dejavu10x10_gs_tc.png`. We will load it from that path in Part 1.
+Create a `res/` folder next to `main.py`, and save the file there as `dejavu12x12_gs_tc.png`. We will load it from that path in Part 1.
 
 ---
 
@@ -204,11 +204,11 @@ Create a `res/` folder next to `main.py`, and save the file there as `dejavu10x1
 
 As the tutorial progresses, we will add files one at a time. Here is what the final project will look like, so you have a map:
 
-```txt
+```text
 roguelike-tutorial/
   main.py                ← entry point: creates the window and starts the game
   res/
-    dejavu10x10_gs_tc.png
+    dejavu12x12_gs_tc.png
   game/
     __init__.py          ← marks `game/` as a Python package
     engine.py            ← the central game object (handles events, render loop)

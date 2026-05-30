@@ -10,7 +10,7 @@ By the end of this part, your game will have a health bar, a message log, and a 
 - Add a health bar that updates in real time
 - Introduce a message log that replaces `print()` calls
 - Show entity names under the mouse cursor
-- Refactor event handlers so each one owns its rendering logic
+- Refactor game states so each one owns its rendering logic
 
 ---
 
@@ -24,7 +24,7 @@ A roguelike UI has one design constraint: every piece of information the player 
 
 For now, this tutorial dedicates 44 rows to the map and 6 rows to a UI panel at the bottom. Row 44 belongs to the panel: it shows entity names under the mouse cursor, while the remaining rows hold the health bar and a short message history. Later, you can decide where to place the panel and which size makes the most sense for each part of your UI.
 
-```txt
+```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │                                                                              │
 │                           MAP AREA  (80 × 44)                                │
@@ -92,6 +92,7 @@ from game.constants import colors
 
 
 class Message:
+
     def __init__(self, text: str, fg: tuple[int, int, int]) -> None:
         self.plain_text = text
         self.fg = fg
@@ -241,7 +242,7 @@ def render_names_at_mouse_location(
 
 ## Update engine.py
 
-Five changes: new imports, updated `__init__`, updated `handle_events`, updated `render()`, and updated `run()`. All come from switching to the new `EventHandler` API (next section) and adding the UI.
+Five changes: new imports, updated `__init__`, updated `handle_events`, updated `render()`, and updated `run()`. All come from switching to the new `GameState` API (next section) and adding the UI.
 
 Add the imports at the top of `game/engine.py`:
 
@@ -249,30 +250,30 @@ Add the imports at the top of `game/engine.py`:
 +from game.message_log import MessageLog
 +from game import hud
 -from game.input_handlers import EventHandler, GameOverEventHandler
-+from game.input_handlers import (
-+    EventHandler,
-+    GameOverEventHandler,
-+    MainGameEventHandler
++from game.game_states import (
++    GameState,
++    GameOverState,
++    MainGameState
 +)
 ```
 
-Update `__init__` to use the new handler class and track mouse position:
+Update `__init__` to use the new state class and track mouse position:
 
 ```diff
      self.game_map = game_map
 +    self.mouse_location: tuple[int, int] = (0, 0)
      self.player = player
 -    self.event_handler = EventHandler()
-+    self.event_handler: EventHandler = MainGameEventHandler(self)
++    self.game_state: GameState = MainGameState(self)
 ```
 
-Update `handle_events` to call the new `handle_events()` method (replacing the old `dispatch()`), guard enemy turns so they only run while the player is alive, and pass `self` to `GameOverEventHandler`:
+Update `handle_events` to call the new `handle_events()` method (replacing the old `dispatch()`), guard enemy turns so they only run while the player is alive, and pass `self` to `GameOverState`:
 
 ```diff
     def handle_events(self, events: Iterable[Any]) -> None:
         for event in events:
 -            action = self.event_handler.dispatch(event)
-+            action = self.event_handler.handle_events(event)
++            action = self.game_state.handle_events(event)
             if action is None:
                 continue
 
@@ -287,7 +288,7 @@ Update `handle_events` to call the new `handle_events()` method (replacing the o
 +                self.handle_enemy_turns()
 +
 +            if not self.player.is_alive:
-+                self.event_handler = GameOverEventHandler(self)
++                self.game_state = GameOverState(self)
 +
 +            self.update_fov()  # recompute after every action
 ```
@@ -324,7 +325,7 @@ Replace the existing `render()` method. It no longer receives `context` or contr
         )
 ```
 
-Update `run()` to delegate rendering to the active event handler and to capture the result of `context.convert_event`:
+Update `run()` to delegate rendering to the active game state and to capture the result of `context.convert_event`:
 
 ```diff
     def run(self, context: Context, console: Console) -> None:
@@ -332,7 +333,7 @@ Update `run()` to delegate rendering to the active event handler and to capture 
 -            self.render(console=console, context=context)
 -            self.handle_events(tcod.event.wait())
 +            console.clear()
-+            self.event_handler.on_render(console=console)
++            self.game_state.on_render(console=console)
 +            context.present(console)
 +            for event in tcod.event.wait():
 +                event = context.convert_event(event)
@@ -346,24 +347,26 @@ Update `run()` to delegate rendering to the active event handler and to capture 
 
 ---
 
-## Refactor input_handlers.py
+## Refactor game_states.py
 
-Event handlers need a bigger change. Currently they return `Action` objects. In Part 10 we will need handlers that can return *other handlers* (for menus and targeting screens). We prepare for this now.
+Rename `game/input_handlers.py` to `game/game_states.py`. The classes in this file have always implemented the *State* pattern, but the name hid that fact. Each subclass is a distinct state the game can be in: normal play, game over, and in later parts inventory management and spell targeting. The file name and class names now reflect that.
 
-Each handler:
+Game states need a bigger change too. Currently they return `Action` objects. In Part 10 we will need states that can return *other states* (for menus and targeting screens). We prepare for this now.
+
+Each state:
 
 - Takes an `engine` in its constructor
 - Has a `handle_events(event)` method
-- Has an `on_render(console)` method that draws anything the handler needs
+- Has an `on_render(console)` method that draws anything the state needs
 
 !!! info "Pattern: State"
-    `EventHandler` and its subclasses implement the *State* pattern: each subclass represents a distinct game state (normal play, game over) and encapsulates both input handling and rendering for that state. `Engine` is the *context*: it holds the active handler and delegates `handle_events` and `on_render` to it.
+    `GameState` and its subclasses implement the *State* pattern: each subclass represents a distinct game state (normal play, game over) and encapsulates both input handling and rendering for that state. `Engine` is the *context*: it holds the active state and delegates `handle_events` and `on_render` to it.
 
-    At this point, `Engine` still performs the game-over transition. In later parts, modal handlers also initiate transitions themselves (`self.engine.event_handler = ...`), which keeps transition logic close to the handler that triggers it. Inventory and targeting states build on this same structure.
+    At this point, `Engine` still performs the game-over transition. In later parts, modal states also initiate transitions themselves (`self.engine.game_state = ...`), which keeps transition logic close to the state that triggers it. Inventory and targeting states build on this same structure.
 
     → [Game Programming Patterns: State](https://gameprogrammingpatterns.com/state.html)
 
-Replace `game/input_handlers.py`:
+Replace `game/input_handlers.py` with `game/game_states.py`:
 
 ```python
 from __future__ import annotations
@@ -419,7 +422,8 @@ WAIT_KEYS = {
 }
 
 
-class EventHandler:
+class GameState:
+
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
@@ -443,7 +447,8 @@ class EventHandler:
         self.engine.render(console)
 
 
-class MainGameEventHandler(EventHandler):
+class MainGameState(GameState):
+
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         key = event.sym
 
@@ -460,7 +465,7 @@ class MainGameEventHandler(EventHandler):
         return None
 
 
-class GameOverEventHandler(EventHandler):
+class GameOverState(GameState):
     TITLE    = "GAME OVER"
     FG_COLOR = colors.GAME_OVER_FG
     BG_COLOR = colors.GAME_OVER_BG
@@ -507,7 +512,7 @@ class GameOverEventHandler(EventHandler):
         return None
 ```
 
-`GameOverEventHandler` declares three class variables (`TITLE`, `FG_COLOR`, and `BG_COLOR`) so subclasses can override them independently. The pattern will appear again in Part 8 for the inventory overlays.
+`GameOverState` declares three class variables (`TITLE`, `FG_COLOR`, and `BG_COLOR`) so subclasses can override them independently. The pattern will appear again in Part 8 for the inventory overlays.
 
 `on_render()` defines `hint` first so both dimensions can reference its length. `width` is the wider of the title and the hint, plus four characters for the two border columns and one space of padding on each side. `height` is 3: one row for the top border (which also carries the title), one for the hint, one for the bottom border.
 
@@ -658,7 +663,7 @@ The UI panel is now live. Key additions:
 - **`game/constants/colors.py`**: centralized color constants for the whole project
 - **`MessageLog`**: static class that stores and renders recent events with stacking and color
 - **`hud`**: stateless HUD helpers for the bar and mouse names
-- **`on_render()`**: each event handler controls its own frame rendering
+- **`on_render()`**: each game state controls its own frame rendering
 - **`mouse_location`**: engine tracks the cursor for hover tooltips
 
 **Current architecture**:
@@ -667,7 +672,7 @@ The UI panel is now live. Key additions:
 - `GameMap.render()`: still draws only terrain and entities
 - `MessageLog`: static class; any module can call `MessageLog.add_message()`
 - `hud.py`: stateless HUD drawing helpers; each function takes only what it needs
-- `EventHandler.on_render()`: lets each handler control what gets drawn for its state
+- `GameState.on_render()`: lets each state control what gets drawn for its state
 
 **Class Diagram**:
 
@@ -675,14 +680,14 @@ The UI panel is now live. Key additions:
 
 **File structure**:
 
-```txt
+```text
 main.py                         ← modified
 game/
 ├── __init__.py
 ├── actions.py
 ├── engine.py                   ← modified
 ├── hud.py                      ← new
-├── input_handlers.py           ← modified
+├── game_states.py              ← renamed from input_handlers.py
 ├── message_log.py              ← new
 ├── constants/
 │   ├── __init__.py
@@ -711,7 +716,22 @@ game/
 
 1. **Colored HP bar**:
 
-    Change `HP_BAR_FILLED` to green when HP > 70%, yellow/orange when > 30%, and red when ≤ 30%. You'll need to compute the percentage and pick the color before calling `draw_rect`.
+    Make both the filled and empty portions of the bar change color based on the HP percentage. Define three pairs of constants in `colors.py`:
+
+    ```python
+    HP_BAR_HEALTHY_FILLED  = (0x20, 0xA0, 0x40)
+    HP_BAR_HEALTHY_EMPTY   = (0x10, 0x30, 0x18)
+    HP_BAR_INJURED_FILLED  = (0xD8, 0xA8, 0x20)
+    HP_BAR_INJURED_EMPTY   = (0x3A, 0x2A, 0x08)
+    HP_BAR_CRITICAL_FILLED = (0xC8, 0x30, 0x30)
+    HP_BAR_CRITICAL_EMPTY  = (0x3A, 0x10, 0x10)
+    ```
+
+    In `draw_bar`, compute the HP ratio and select the pair before calling `draw_rect`:
+
+    - HP > 70% → healthy colors
+    - HP > 30% → injured colors
+    - HP ≤ 30% → critical colors
 
 2. **Scroll the message panel**:
 
@@ -719,4 +739,4 @@ game/
 
 3. **Entity details**:
 
-    When hovering over an entity, show full combat stats if it is an `Actor`: `"Player (HP: 30/30, ATK: 5, DEF: 2)"`. Plain entities (items, corpses) still show just their name. Modify `hud.render_names_at_mouse_location` to iterate with an explicit loop, check `isinstance(entity, Actor)`, and format the stats line accordingly.
+    When hovering over an entity, show full combat stats if it is an `Actor`: `"Player (HP: 30.0/30.0, ATK: 5.0, DEF: 2.0)"` (one decimal place). Plain entities (items, corpses) still show just their name. Modify `hud.render_names_at_mouse_location` to iterate with an explicit loop, check `isinstance(entity, Actor)`, and format the stats line accordingly.
