@@ -147,7 +147,7 @@ Update `Fighter.die()` in `game/entities/components/fighter.py`:
 Add to `game/constants/colors.py`:
 
 ```python
-LEVEL_UP = (0xFF, 0xFF, 0x00)
+LEVEL_UP = Color(0xFF, 0xFF, 0x00)
 ```
 
 Add to `game/constants/sprites.py`:
@@ -159,7 +159,7 @@ DOWN_STAIRS = ">"
 Add to `game/constants/colors.py`:
 
 ```python
-DOWN_STAIRS = (255, 255, 100)
+DOWN_STAIRS = Color(255, 255, 100)
 ```
 
 ---
@@ -410,7 +410,7 @@ class TakeStairsAction(Action):
 Add to `game/constants/colors.py`:
 
 ```python
-DESCEND = (0x9F, 0x3F, 0xFF)
+DESCEND = Color(0x9F, 0x3F, 0xFF)
 ```
 
 Add the `>` keybinding in `MainGameState`:

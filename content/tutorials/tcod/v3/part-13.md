@@ -348,10 +348,10 @@ Extend `game/constants/colors.py` in a new equipment colors section:
 ```diff
  # Equipment colors
 +
-+DAGGER = (0, 191, 255)
-+SWORD = (0, 191, 255)
-+LEATHER_ARMOR = (139, 69, 19)
-+CHAIN_MAIL = (139, 69, 19)
++DAGGER        = Color(  0, 191, 255)
++SWORD         = Color(  0, 191, 255)
++LEATHER_ARMOR = Color(139,  69,  19)
++CHAIN_MAIL    = Color(139,  69,  19)
 ```
 
 ---

@@ -56,29 +56,53 @@ Create `game/constants/colors.py`:
 ```python
 from __future__ import annotations
 
+from typing import NamedTuple
+
+
+class Color(NamedTuple):
+    r: int
+    g: int
+    b: int
+
+    def scale(self, factor: float) -> Color:
+        f = max(0.0, min(1.0, factor))
+        aux_r = round(self.r * f)
+        aux_g = round(self.g * f)
+        aux_b = round(self.b * f)
+
+        return Color(aux_r, aux_g, aux_b)
+
+    @property
+    def grey(self) -> Color:
+        grey = round(0.299  * self.r + 0.587  * self.g + 0.114  * self.b)
+        return Color(grey, grey, grey)
+
+
 # Generic colors
-DEFAULT_FG = (255, 255, 255)
+DEFAULT_FG         = Color(255, 255, 255)
 
 # Entity colors
-PLAYER = (255, 255, 255)
-ORC    = (63, 127, 63)
-TROLL  = (0, 127, 0)
+PLAYER             = Color(255, 255, 255)
+ORC                = Color( 63, 127,  63)
+TROLL              = Color(  0, 127,   0)
 
 # Map colors: unseen
-UNSEEN_FG = (255, 255, 255)
-UNSEEN_BG = (0, 0, 0)
+UNSEEN_FG          = Color(255, 255, 255)
+UNSEEN_BG          = Color(  0,   0,   0)
 
 # Map colors: floor
-FLOOR_FG         = (255, 255, 255)
-FLOOR_OUT_OF_FOV = (35, 35, 90)
-FLOOR_IN_FOV     = (190, 170, 80)
+FLOOR_FG           = Color(255, 255, 255)
+FLOOR_OUT_OF_FOV   = Color( 35,  35,  90)
+FLOOR_IN_FOV       = Color(190, 170,  80)
 
 # Map colors: wall
-WALL_FG_OUT_OF_FOV = (80, 80, 120)
-WALL_BG_OUT_OF_FOV = (0, 0, 70)
-WALL_FG_IN_FOV     = (220, 210, 170)
-WALL_BG_IN_FOV     = (110, 95, 60)
+WALL_FG_OUT_OF_FOV = Color( 80,  80, 120)
+WALL_BG_OUT_OF_FOV = Color(  0,   0,  70)
+WALL_FG_IN_FOV     = Color(220, 210, 170)
+WALL_BG_IN_FOV     = Color(110,  95,  60)
 ```
+
+`Color` is a `NamedTuple` with three integer fields (`r`, `g`, `b`). Because `NamedTuple` subclasses `tuple`, `tcod` accepts any `Color` value wherever it expects a plain `(r, g, b)` tuple. Two built-in methods come along for free: `color.scale(factor)` returns a dimmed copy (used later for the fireball highlight), and `color.grey` returns a greyscale copy. Any module can use `Color(r, g, b)` as a constructor and import the type with `from game.constants.colors import Color`.
 
 We will extend both files as the game grows: more sprites in Parts 8 (items), 9 (scrolls), 11 (stairs), 13 (equipment); more colors in Parts 6 (corpse), 7 (UI and combat messages), 8-13 (each new feature).
 
@@ -91,6 +115,7 @@ from __future__ import annotations
 import numpy as np
 
 from game.constants import colors, sprites
+from game.constants.colors import Color
 
 graphic_dtype = np.dtype(
     [
@@ -120,8 +145,8 @@ def new_tile(
     *,
     walkable: bool,
     transparent: bool,
-    out_of_fov: tuple[int, tuple[int, int, int], tuple[int, int, int]],
-    in_fov: tuple[int, tuple[int, int, int], tuple[int, int, int]],
+    out_of_fov: tuple[int, Color, Color],
+    in_fov: tuple[int, Color, Color],
 ) -> np.ndarray:
     return np.array((walkable, transparent, out_of_fov, in_fov), dtype=tile_dtype)
 
@@ -197,6 +222,7 @@ import copy
 from typing import TYPE_CHECKING
 
 from game.constants import colors, sprites
+from game.constants.colors import Color
 
 if TYPE_CHECKING:
     from game.map.game_map import GameMap
@@ -210,7 +236,7 @@ class Entity:
         x: int = 0,
         y: int = 0,
         char: str = sprites.UNKNOWN,
-        color: tuple[int, int, int] = colors.DEFAULT_FG,
+        color: Color = colors.DEFAULT_FG,
         name: str = "<unnamed>",
         blocks_movement: bool = False,
         stays_visible: bool = False,
@@ -528,7 +554,7 @@ Entities that have AI (enemies) need an `ai` attribute. Add it to `Entity`:
          x: int = 0,
          y: int = 0,
          char: str = sprites.UNKNOWN,
-         color: tuple[int, int, int] = colors.DEFAULT_FG,
+         color: Color = colors.DEFAULT_FG,
          name: str = "<unnamed>",
          blocks_movement: bool = False,
          stays_visible: bool = False,

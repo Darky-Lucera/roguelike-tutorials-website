@@ -296,7 +296,7 @@ def new_game_state() -> MainGameState:
 Add to `game/constants/colors.py`:
 
 ```python
-MENU_TITLE = (255, 255, 63)
+MENU_TITLE = Color(255, 255, 63)
 MENU_TEXT = WHITE
 ```
 

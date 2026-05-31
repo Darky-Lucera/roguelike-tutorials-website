@@ -132,6 +132,7 @@ Now add to `game/game_states.py`. This class uses the centralised key bindings f
 
 ```python
 from game.constants import colors, keys
+from game.constants.colors import Color
 ```
 
 ```python
@@ -224,7 +225,7 @@ The `callback` is a function that accepts `(x, y)` and returns an `Action`. The 
 The state does not hardcode a color. Different spells may want different highlight colors, so `color` is passed as a parameter alongside `radius`. The calling consumable decides which color to use. Add `FIREBALL_AOE` to `game/constants/colors.py`:
 
 ```python
-FIREBALL_AOE = (0xFF, 0x00, 0x00)
+FIREBALL_AOE = Color(0xFF, 0x00, 0x00)
 ```
 
 Add the class to `game/game_states.py`:
@@ -237,7 +238,7 @@ class AreaRangedAttackState(SelectIndexState):
         self,
         engine: Engine,
         radius: int,
-        color: tuple[int, int, int],
+        color: Color,
         callback,
     ) -> None:
         super().__init__(engine)
@@ -456,11 +457,10 @@ def get_aoe_weights_in_radius(self, center_x: int, center_y: int, radius: float)
 
 Here we need the actual distance, not just a comparison, so `math.hypot(dx, dy)` is the right tool, as we saw in `Entity.distance`. Tiles within `radius` get `alpha = 1.0`. Tiles in the one-unit border zone get a linear fade down to `0.0`. Tiles beyond `radius + 1` are skipped.
 
-Update `on_render` to scale the highlight color by each tile's weight. Add these imports to `game/game_states.py`:
+Update `on_render` to scale the highlight color by each tile's weight. Add this import to `game/game_states.py`:
 
 ```python
 import math
-from game.render_utils import scale_color
 ```
 
 Then the final `on_render`:
@@ -482,22 +482,10 @@ def on_render(self, console: tcod.console.Console) -> None:
         for grid_x in range(min_x, max_x):
             alpha = weights[grid_x, grid_y]
             if alpha > 0:
-                console.bg[grid_x, grid_y] = scale_color(self.color, alpha)
+                console.bg[grid_x, grid_y] = self.color.scale(alpha)
 ```
 
-The bounds `min_x/max_x/min_y/max_y` are precomputed to avoid iterating the entire map on every render frame. `scale_color` is a small helper in `game/render_utils.py`:
-
-```python
-def scale_color(color: tuple[int, int, int], factor: float) -> tuple[int, int, int]:
-    factor = max(0.0, min(1.0, factor))
-    return (
-        round(color[0] * factor),
-        round(color[1] * factor),
-        round(color[2] * factor),
-    )
-```
-
-It multiplies each RGB channel by `factor` and rounds to the nearest integer. At `factor = 1.0` the color is unchanged; at `factor = 0.5` it is half as bright.
+The bounds `min_x/max_x/min_y/max_y` are precomputed to avoid iterating the entire map on every render frame. `Color.scale(factor)` multiplies each RGB channel by `factor` and rounds to the nearest integer — it is the method we added to `Color` back in Part 5. At `factor = 1.0` the color is unchanged; at `factor = 0.5` it is half as bright.
 
 ![Fireball smooth](images/firewall_3.png)
 
@@ -520,11 +508,11 @@ Extend `game/constants/sprites.py`:
 Extend `game/constants/colors.py`:
 
 ```diff
- HEALTH_POTION = (127, 0, 255)
+ HEALTH_POTION = Color(127, 0, 255)
 +
-+CONFUSION_SCROLL = (207,  63, 255)
-+FIREBALL_SCROLL  = (255,   0,   0)
-+LIGHTNING_SCROLL = (255, 255,   0)
++CONFUSION_SCROLL = Color(207,  63, 255)
++FIREBALL_SCROLL  = Color(255,   0,   0)
++LIGHTNING_SCROLL = Color(255, 255,   0)
 ```
 
 ---
@@ -548,7 +536,11 @@ Two problems with this:
 
 The fix is a thin data class in `game/actions.py`. `get_action()` returns it; `GameState.handle_events()` reads its fields and creates the state. The model layer never imports from the UI layer.
 
-Add to `game/actions.py`, after `DropItem`:
+Add to `game/actions.py`, after `DropItem`. Also add this import at the top of the file:
+
+```python
+from game.constants.colors import Color
+```
 
 ```python
 class TargetingAction(Action):
@@ -570,7 +562,7 @@ class SingleRangedTargetingAction(TargetingAction):
 class AreaRangedTargetingAction(TargetingAction):
 
     def __init__(self, item: Item, radius: int,
-                 color: tuple[int, int, int],
+                 color: Color,
                  prompt: str = "Select a target location.") -> None:
         self.item     = item
         self.radius   = radius
@@ -685,8 +677,8 @@ class ConfusionConsumable(Consumable):
 Add colors to `game/constants/colors.py`:
 
 ```python
-NEEDS_TARGET          = (0x3F, 0xFF, 0xFF)
-STATUS_EFFECT_APPLIED = (0x3F, 0xFF, 0x3F)
+NEEDS_TARGET          = Color(0x3F, 0xFF, 0xFF)
+STATUS_EFFECT_APPLIED = Color(0x3F, 0xFF, 0x3F)
 ```
 
 `ItemAction` needs a `target_pos` parameter. Add it to `__init__` in `game/actions.py`:
@@ -1014,7 +1006,6 @@ game/
 ├── hud.py
 ├── game_states.py              ← modified
 ├── message_log.py
-├── render_utils.py             ← new
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py               ← modified

@@ -87,20 +87,20 @@ In `game/constants/sprites.py`, add both item sprites. `CHEST` belongs in the en
 In `game/constants/colors.py`, add `CHEST` in the entity colors section (between `TROLL` and `CORPSE`) and `HEALTH_POTION` in a new item colors section right below:
 
 ```diff
- TROLL  = (  0, 127,   0)
-+CHEST  = (255, 240,   0)
- CORPSE = (191,   0,   0)
+ TROLL            = Color(  0, 127,   0)
++CHEST            = Color(255, 240,   0)
+ CORPSE           = Color(191,   0,   0)
 +
 +# Item colors
-+HEALTH_POTION = (127, 0, 255)
++HEALTH_POTION    = Color(127, 0, 255)
 ```
 
 Then add `HEALTH_RECOVERED` and `GOLD` alongside the other message colors:
 
 ```diff
- ENEMY_DEATH      = (0xFF, 0xA0, 0x30)
-+HEALTH_RECOVERED = (0x00, 0xFF, 0x00)
-+GOLD             = (0xFF, 0xD7, 0x00)
+ ENEMY_DEATH      = Color(0xFF, 0xA0, 0x30)
++HEALTH_RECOVERED = Color(0x00, 0xFF, 0x00)
++GOLD             = Color(0xFF, 0xD7, 0x00)
 ```
 
 `HEALTH_RECOVERED` is bright green for HP-restore messages. `GOLD` is used by `TreasureConsumable.activate()` and later by the gold counter in the HUD.
@@ -311,7 +311,7 @@ Update `Actor.__init__`:
          x: int    = 0,
          y: int    = 0,
          char: str = sprites.UNKNOWN,
-         color: tuple[int, int, int] = colors.DEFAULT_FG,
+         color: Color = colors.DEFAULT_FG,
          name: str = "<unnamed>",
          ai: BaseAI | None = None,
          fighter: Fighter,
@@ -357,7 +357,7 @@ Update `Actor.__init__`:
 +        x: int = 0,
 +        y: int = 0,
 +        char: str = sprites.UNKNOWN,
-+        color: tuple[int, int, int] = colors.DEFAULT_FG,
++        color: Color = colors.DEFAULT_FG,
 +        name: str = "<unnamed>",
 +        consumable: Consumable,
 +    ) -> None:
@@ -923,9 +923,9 @@ Then simplify `handle_events()` to a one-line dispatch:
 Also add `INVALID` to `game/constants/colors.py`, since the rewritten `handle_events` uses it for rejection messages:
 
 ```diff
- WELCOME_TEXT = (0x20, 0xA0, 0xFF)
+ WELCOME_TEXT = Color(0x20, 0xA0, 0xFF)
  ...
-+INVALID      = (0xFF, 0xFF, 0x00)
++INVALID      = Color(0xFF, 0xFF, 0x00)
 ```
 
 `INVALID` is yellow: it is used for every rejection the player should read, from a full inventory to an already-healed condition.
@@ -1037,13 +1037,13 @@ Three new state classes go at the bottom of `game/game_states.py`.
 Add the inventory overlay colors to `game/constants/colors.py`:
 
 ```diff
- INVALID = (0xFF, 0xFF, 0x00)
+ INVALID = Color(0xFF, 0xFF, 0x00)
 +
 +# Inventory overlay colors
-+INVENTORY_USE_FG  = (132, 198, 140)
-+INVENTORY_USE_BG  = ( 16,  99,  27)
-+INVENTORY_DROP_FG = (192, 128, 255)
-+INVENTORY_DROP_BG = (128,   0, 255)
++INVENTORY_USE_FG  = Color(132, 198, 140)
++INVENTORY_USE_BG  = Color( 16,  99,  27)
++INVENTORY_DROP_FG = Color(192, 128, 255)
++INVENTORY_DROP_BG = Color(128,   0, 255)
 ```
 
 The inventory overlay uses two distinct color schemes: green tones for item use (activation) and purple tones for item dropping. At a glance, the player always knows which overlay is open.
@@ -1372,7 +1372,7 @@ game/
     In `colors.py`, add a parchment color:
 
     ```python
-    BACKPACK_SCROLL = (255, 224, 160)
+    BACKPACK_SCROLL = Color(255, 224, 160)
     ```
 
     After increasing the capacity, log a message in this color and call `self.consume()` so the scroll is removed from the inventory:

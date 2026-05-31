@@ -76,31 +76,31 @@ In `game/constants/sprites.py`, make sure `CHEST` exists in the entity section, 
 In `game/constants/colors.py`, make sure `CHEST` exists in the entity colors section, then add `HEALTH_POTION` below the entity colors:
 
 ```diff
- TROLL  = (  0, 127,   0)
-+CHEST  = (255, 240,   0)
- CORPSE = (191,   0,   0)
+ TROLL             = Color(  0, 127,   0)
++CHEST             = Color(255, 240,   0)
+ CORPSE            = Color(191,   0,   0)
 +
 +# Item colors
-+HEALTH_POTION = (127, 0, 255)
++HEALTH_POTION     = Color(127, 0, 255)
 ```
 
 Then add the message and overlay colors near the other UI colors:
 
 ```diff
- ENEMY_DEATH      = (0xFF, 0xA0, 0x30)
-+HEALTH_RECOVERED = (0x00, 0xFF, 0x00)
+ ENEMY_DEATH       = Color(0xFF, 0xA0, 0x30)
++HEALTH_RECOVERED  = Color(0x00, 0xFF, 0x00)
 ```
 
 ```diff
- WELCOME_TEXT = (0x20, 0xA0, 0xFF)
+ WELCOME_TEXT      = Color(0x20, 0xA0, 0xFF)
  ...
-+INVALID      = (0xFF, 0xFF, 0x00)
++INVALID           = Color(0xFF, 0xFF, 0x00)
 +
 +# Inventory overlay colors
-+INVENTORY_USE_FG  = (132, 198, 140)
-+INVENTORY_USE_BG  = ( 16,  99,  27)
-+INVENTORY_DROP_FG = (192, 128, 255)
-+INVENTORY_DROP_BG = (128,   0, 255)
++INVENTORY_USE_FG  = Color(132, 198, 140)
++INVENTORY_USE_BG  = Color( 16,  99,  27)
++INVENTORY_DROP_FG = Color(192, 128, 255)
++INVENTORY_DROP_BG = Color(128,   0, 255)
 ```
 
 `HEALTH_RECOVERED` is bright green for HP-restore messages. `INVALID` is yellow for action-rejection messages. The four inventory constants define the foreground (border and text) and background colors for the two overlays: green for "use item", purple for "drop item".
@@ -311,7 +311,7 @@ Update `Actor.__init__`:
          x: int    = 0,
          y: int    = 0,
          char: str = sprites.UNKNOWN,
-         color: tuple[int, int, int] = colors.DEFAULT_FG,
+         color: Color = colors.DEFAULT_FG,
          name: str = "<unnamed>",
          ai: BaseAI | None = None,
          fighter: Fighter,
@@ -357,7 +357,7 @@ Update `Actor.__init__`:
 +        x: int = 0,
 +        y: int = 0,
 +        char: str = sprites.UNKNOWN,
-+        color: tuple[int, int, int] = colors.DEFAULT_FG,
++        color: Color = colors.DEFAULT_FG,
 +        name: str = "<unnamed>",
 +        consumable: Consumable,
 +    ) -> None:
@@ -1083,8 +1083,8 @@ The chest introduced in Part 5 has been blocking movement without doing anything
 In `game/constants/colors.py`:
 
 ```diff
- INVALID = (0xFF, 0xFF, 0x00)
-+GOLD    = (0xFF, 0xD7, 0x00)
+ INVALID = Color(0xFF, 0xFF, 0x00)
++GOLD    = Color(0xFF, 0xD7, 0x00)
 ```
 
 ### `TreasureConsumable`
@@ -1349,7 +1349,7 @@ game/
     In `colors.py`, add a parchment color:
 
     ```python
-    BACKPACK_SCROLL = (255, 224, 160)
+    BACKPACK_SCROLL = Color(255, 224, 160)
     ```
 
     After increasing the capacity, log a message in this color and call `self.consume()` so the scroll is removed from the inventory:

@@ -135,9 +135,9 @@ Dead enemies will turn into a `%` glyph in dark red. Following our convention fr
 Extend `game/constants/sprites.py` in the entity sprites section:
 
 ```diff
- PLAYER = "@"
- ORC    = "o"
- TROLL  = "T"
+ PLAYER  = "@"
+ ORC     = "o"
+ TROLL   = "T"
 +
 +CORPSE  = "%"
 ```
@@ -145,11 +145,11 @@ Extend `game/constants/sprites.py` in the entity sprites section:
 Extend `game/constants/colors.py` in the entity colors section:
 
 ```diff
- PLAYER = (255, 255, 255)
- ORC    = ( 63, 127,  63)
- TROLL  = (  0, 127,   0)
+ PLAYER             = Color(255, 255, 255)
+ ORC                = Color( 63, 127,  63)
+ TROLL              = Color(  0, 127,   0)
 +
-+CORPSE = (191,   0,   0)
++CORPSE             = Color(191,   0,   0)
 ```
 
 If you completed the chest exercise in Part 5 and already added `CHEST` sprite/color lines, keep them. We are only adding the corpse values here.
@@ -201,7 +201,7 @@ Update `game/entities/entity.py`:
          x: int = 0,
          y: int = 0,
          char: str = sprites.UNKNOWN,
-         color: tuple[int, int, int] = colors.DEFAULT_FG,
+         color: Color = colors.DEFAULT_FG,
          name: str = "<unnamed>",
          blocks_movement: bool = False,
          stays_visible: bool = False,
@@ -301,7 +301,7 @@ Now add `Actor` below `Entity` in `game/entities/entity.py`:
 +        x: int = 0,
 +        y: int = 0,
 +        char: str = sprites.UNKNOWN,
-+        color: tuple[int, int, int] = colors.DEFAULT_FG,
++        color: Color = colors.DEFAULT_FG,
 +        name: str = "<unnamed>",
 +        ai: BaseAI | None = None,
 +        fighter: Fighter,

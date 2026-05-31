@@ -46,23 +46,23 @@ Extend `game/constants/colors.py`:
 
 ```python
 # Generic colors
-WHITE = (0xFF, 0xFF, 0xFF)
-BLACK = (0x0, 0x0, 0x0)
+WHITE         = Color(0xFF, 0xFF, 0xFF)
+BLACK         = Color(0x00, 0x00, 0x00)
 
 # Combat message colors
-PLAYER_ATTACK = (0xE0, 0xE0, 0xE0)
-ENEMY_ATTACK  = (0xFF, 0xC0, 0xC0)
-PLAYER_DEATH  = (0xFF, 0x30, 0x30)
-ENEMY_DEATH   = (0xFF, 0xA0, 0x30)
+PLAYER_ATTACK = Color(0xE0, 0xE0, 0xE0)
+ENEMY_ATTACK  = Color(0xFF, 0xC0, 0xC0)
+PLAYER_DEATH  = Color(0xFF, 0x30, 0x30)
+ENEMY_DEATH   = Color(0xFF, 0xA0, 0x30)
 
 # UI colors
-HUD_BG        = (0x0F, 0x0F, 0x3F)
-WELCOME_TEXT  = (0x20, 0xA0, 0xFF)
+HUD_BG        = Color(0x0F, 0x0F, 0x3F)
+WELCOME_TEXT  = Color(0x20, 0xA0, 0xFF)
 BAR_TEXT      = WHITE
-HP_BAR_FILLED = (0x0, 0x60, 0x0)
-HP_BAR_EMPTY  = (0x40, 0x10, 0x10)
-GAME_OVER_FG  = (255,  80,  80)
-GAME_OVER_BG  = ( 64,   0,   0)
+HP_BAR_FILLED = Color(0x00, 0x60, 0x00)
+HP_BAR_EMPTY  = Color(0x40, 0x10, 0x10)
+GAME_OVER_FG  = Color(255,  80,  80)
+GAME_OVER_BG  = Color( 64,   0,   0)
 ```
 
 We split the new constants into three sections (`Generic colors`, `Combat message colors`, `UI colors`) to make scanning the file easier as it grows. Notice we name the death colors `PLAYER_DEATH` and `ENEMY_DEATH`, not `_die`: full words read better at every call site.
@@ -89,11 +89,12 @@ import textwrap
 import tcod
 
 from game.constants import colors
+from game.constants.colors import Color
 
 
 class Message:
 
-    def __init__(self, text: str, fg: tuple[int, int, int]) -> None:
+    def __init__(self, text: str, fg: Color) -> None:
         self.plain_text = text
         self.fg = fg
         self.count = 1
@@ -113,7 +114,7 @@ class MessageLog:
     def add_message(
         cls,
         text: str,
-        fg: tuple[int, int, int] = colors.WHITE,
+        fg: Color = colors.WHITE,
         *,
         stack: bool = True,
     ) -> None:
@@ -134,7 +135,7 @@ class MessageLog:
         width: int,
         height: int,
     ) -> None:
-        wrapped_lines: list[tuple[str, tuple[int, int, int]]] = []
+        wrapped_lines: list[tuple[str, Color]] = []
         for message in MessageLog.messages:
             for line in textwrap.wrap(message.full_text, width):
                 wrapped_lines.append((line, message.fg))
@@ -719,12 +720,12 @@ game/
     Make both the filled and empty portions of the bar change color based on the HP percentage. Define three pairs of constants in `colors.py`:
 
     ```python
-    HP_BAR_HEALTHY_FILLED  = (0x20, 0xA0, 0x40)
-    HP_BAR_HEALTHY_EMPTY   = (0x10, 0x30, 0x18)
-    HP_BAR_INJURED_FILLED  = (0xD8, 0xA8, 0x20)
-    HP_BAR_INJURED_EMPTY   = (0x3A, 0x2A, 0x08)
-    HP_BAR_CRITICAL_FILLED = (0xC8, 0x30, 0x30)
-    HP_BAR_CRITICAL_EMPTY  = (0x3A, 0x10, 0x10)
+    HP_BAR_HEALTHY_FILLED  = Color(0x20, 0xA0, 0x40)
+    HP_BAR_HEALTHY_EMPTY   = Color(0x10, 0x30, 0x18)
+    HP_BAR_INJURED_FILLED  = Color(0xD8, 0xA8, 0x20)
+    HP_BAR_INJURED_EMPTY   = Color(0x3A, 0x2A, 0x08)
+    HP_BAR_CRITICAL_FILLED = Color(0xC8, 0x30, 0x30)
+    HP_BAR_CRITICAL_EMPTY  = Color(0x3A, 0x10, 0x10)
     ```
 
     In `draw_bar`, compute the HP ratio and select the pair before calling `draw_rect`:
