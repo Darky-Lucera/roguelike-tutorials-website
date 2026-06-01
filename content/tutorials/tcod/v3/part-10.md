@@ -62,7 +62,7 @@ from game.message_log import MessageLog
 class Engine:
     ...
 
-    def save_as(self, filename: str, active_state: object = None) -> None:
+    def save_as(self, filename: str | Path, active_state: object = None) -> None:
         save_data = lzma.compress(
             pickle.dumps(
                 {
@@ -72,16 +72,18 @@ class Engine:
             )
         )
 
-        Path(filename).write_bytes(save_data)
+        path = Path(filename)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(save_data)
 ```
 
-`pickle.dumps(...)` serializes `active_state` (which transitively includes the engine and everything it references) plus the static message log. `lzma.compress` shrinks it. `Path.write_bytes` writes the compressed bytes to disk.
+`pickle.dumps(...)` serializes `active_state` (which transitively includes the engine and everything it references) plus the static message log. `lzma.compress` shrinks it. `path.parent.mkdir(parents=True, exist_ok=True)` creates the `savegames/` directory if it does not exist yet. `path.write_bytes` writes the compressed bytes to disk.
 
 Loading is the inverse:
 
 ```python
     @staticmethod
-    def load(filename: str):
+    def load(filename: str | Path):
         save_data = Path(filename).read_bytes()
         data = pickle.loads(lzma.decompress(save_data))
         MessageLog.messages = data["message_log"]
@@ -115,7 +117,9 @@ from game.entities import factories
 from game.map.map_generator import generate_dungeon
 from game.message_log import MessageLog
 
-SAVE_PATH             = "savegame.sav"
+RES_DIR   = Path(__file__).parent.parent / "res"
+SAVE_DIR  = Path(__file__).parent.parent / "savegames"
+SAVE_PATH = SAVE_DIR / "savegame.sav"
 
 MAP_WIDTH             = 80
 MAP_HEIGHT            = 44
@@ -164,13 +168,15 @@ def new_game() -> Engine:
     return engine
 
 
-def load_game(filename: str):
+def load_game(filename: str | Path):
     """Load a save file and return the saved game state."""
     if not Path(filename).exists():
         raise FileNotFoundError(f"No save file found at {filename!r}")
 
     return Engine.load(filename)
 ```
+
+`RES_DIR` is the shared path for resource files such as the tileset and the menu background. `SAVE_DIR` and `SAVE_PATH` keep saves out of the project root and give every module one canonical save location.
 
 ---
 
@@ -238,24 +244,58 @@ class PopupMessageState(BaseGameState):
         self.parent.on_render(console)
         console.fg[:] = console.fg // 8
         console.bg[:] = console.bg // 8
-        console.print(
-            console.width // 2,
-            console.height // 2,
-            self.text,
-            fg = colors.WHITE,
-            bg = colors.BLACK,
-            alignment = tcod.constants.CENTER,
+
+        lines  = self.text.split("\n")
+        width  = max(len(line) for line in lines) + 4
+        height = len(lines) + 4
+        x      = (console.width  - width)  // 2
+        y      = (console.height - height) // 2
+
+        console.draw_rect(
+            x        = x,
+            y        = y,
+            width    = width,
+            height   = height,
+            ch       = ord(" "),
+            fg       = colors.WHITE,
+            bg       = colors.BLACK,
+            bg_blend = tcod.constants.BKGND_SET,
         )
+
+        console.draw_frame(
+            x      = x,
+            y      = y,
+            width  = width,
+            height = height,
+            clear  = False,
+            fg     = colors.WHITE,
+            bg     = colors.BLACK,
+        )
+
+        for i, line in enumerate(lines):
+            console.print(
+                console.width // 2,
+                y + 2 + i,
+                line,
+                fg        = colors.WHITE,
+                alignment = tcod.constants.CENTER,
+            )
 
     def event_keydown(self, _event: tcod.event.KeyDown) -> Action | BaseGameState | None:
         return self.parent
 ```
 
-`PopupMessageState` darkens the existing frame by dividing all color channels by 8, then overlays centered text. Any keypress dismisses it and returns to the parent state.
+`PopupMessageState` darkens the existing frame by dividing all color channels by 8, then draws a small framed box sized to the message text. Any keypress dismisses it and returns to the parent state.
 
 ---
 
 ## MainMenuState
+
+Save this image as `res/menu_background.png`. It is shown here so the asset used by the menu is visible in the tutorial:
+
+![Main menu background](images/menu_background.png)
+
+[Download menu_background.png](images/menu_background.png){ download }
 
 The main menu needs two new key constants. Add them to `game/constants/keys.py`:
 
@@ -266,9 +306,40 @@ KEY_CONTINUE     = tcod.event.KeySym.C
 
 `KEY_QUIT_GAME` (already defined as `ESCAPE`) covers the quit option. With these three constants in place, the menu handler is fully decoupled from raw `KeySym` values.
 
+The menu also needs the image loader and the shared resource directory. Add these near the top of `game/game_states.py`:
+
+```diff
+ import tcod
++from tcod.image import Image
+
+ from game.constants import colors, keys
+ from game.constants.colors import Color
+ from game.exceptions import Impossible
+ from game.message_log import MessageLog
++from game.setup_game import RES_DIR
+```
+
+Add this helper near `MESSAGE_LOG_SCROLL_AMOUNT`:
+
+```python
+_SPECIAL_KEY_NAMES = {
+    tcod.event.KeySym.ESCAPE: "Esc",
+}
+
+def _key_label(sym: tcod.event.KeySym) -> str:
+    v    = int(sym)
+    name = _SPECIAL_KEY_NAMES.get(sym) or (chr(v).upper() if 32 <= v <= 126 else sym.name)
+    return f"[ {name} ]"
+```
+
 `MainMenuState` is the first state the game enters. Unlike every other state, it holds no engine reference: the engine does not exist until the player makes a choice.
 
-`on_render` draws the title and the three menu options centered on screen. `event_keydown` handles three transitions:
+`on_render` draws the background image with `draw_semigraphics`, then overlays a framed menu panel with the title and three options.
+
+!!! info "`draw_semigraphics` and half-block rendering"
+    A tcod console is a grid of character cells. `draw_semigraphics` maps each 2×1 block of pixels in the source image onto one console cell using the Unicode half-block characters `▀` (upper half filled) and `▄` (lower half filled), setting foreground and background colors independently. The result is an image at twice the vertical resolution of a normal text rendering, at the cost of palette accuracy. The image is loaded once in `__init__` so the file is not re-read on every frame.
+
+`event_keydown` handles three transitions:
 
 - `keys.KEY_NEW_GAME` (`N`): calls `new_game()`, wraps the fresh engine in a `MainGameState`, and returns it.
 - `keys.KEY_CONTINUE` (`C`): calls `load_game()`. If no save file exists it falls back to a `PopupMessageState`; if the file is corrupt it shows the exception message.
@@ -280,37 +351,66 @@ Add to `game/game_states.py` after `PopupMessageState`:
 class MainMenuState(BaseGameState):
     """Renders the main menu and handles New / Continue / Quit."""
 
+    def __init__(self) -> None:
+        self._bg = Image.from_file(RES_DIR / "menu_background.png")
+
     def on_render(self, console: tcod.console.Console) -> None:
-        console.print(
-            console.width  // 2,
-            console.height // 2 - 4,
-            "ROGUELIKE TUTORIAL",
-            fg = colors.MENU_TITLE,
-            alignment = tcod.constants.CENTER,
+        console.draw_semigraphics(self._bg, 0, 0)
+
+        title_text = "ROGUELIKE TUTORIAL"
+        width      = max(len(title_text) + 4, console.width // 2)
+        height     = 7  # border + blank + 3 options + blank + border
+        x          = (console.width  - width)  // 2
+        y          = console.height // 2 - 4
+
+        console.draw_rect(
+            x        = x,
+            y        = y,
+            width    = width,
+            height   = height,
+            ch       = ord(" "),
+            fg       = colors.MENU_TITLE,
+            bg       = colors.BLACK,
+            bg_blend = tcod.libtcodpy.BKGND_ALPHA(0.8),
         )
-        for i, text in enumerate(
-            [
-                "[N] Play a new game",
-                "[C] Continue last game",
-                "[Esc] Quit"
-            ]
-        ):
-            console.print(
-                console.width  // 2,
-                console.height // 2 - 2 + i,
-                text.ljust(30),
-                fg = colors.MENU_TEXT,
-                bg = colors.BLACK,
-                alignment = tcod.constants.CENTER,
-                bg_blend  = tcod.libtcodpy.BKGND_ALPHA(64),
-            )
+
+        console.draw_frame(
+            x      = x,
+            y      = y,
+            width  = width,
+            height = height,
+            clear  = False,
+            fg     = colors.MENU_TITLE,
+            bg     = colors.BLACK,
+        )
+
+        title = f" {title_text} "
+        console.print(x + (width - len(title)) // 2, y, title, fg=colors.MENU_TITLE, bg=colors.BLACK)
+
+        menu_options = [
+            (keys.KEY_NEW_GAME,  "Play a new game"),
+            (keys.KEY_CONTINUE,  "Continue last game"),
+            (keys.KEY_QUIT_GAME, "Quit"),
+        ]
+        key_labels = [_key_label(sym) for sym, _ in menu_options]
+        key_width  = max(len(lbl) for lbl in key_labels)
+        opt_width  = 30
+        opt_x      = console.width // 2 - opt_width // 2
+
+        for i, (label, (_, desc)) in enumerate(zip(key_labels, menu_options)):
+            row  = y + 2 + i
+            key  = label.ljust(key_width + 1)
+            desc = desc.ljust(opt_width - len(key))
+            console.print(opt_x,            row, key,  fg=colors.MENU_TITLE, bg = colors.BLACK, bg_blend=tcod.libtcodpy.BKGND_SET)
+            console.print(opt_x + len(key), row, desc, fg=colors.MENU_TEXT,  bg_blend=tcod.libtcodpy.BKGND_NONE)
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
-        from game.setup_game import SAVE_PATH, load_game
+        from game.setup_game import SAVE_PATH, load_game, new_game
 
         match event.sym:
             case keys.KEY_NEW_GAME:
-                return new_game_state()
+                engine = new_game()
+                return MainGameState(engine)
 
             case keys.KEY_QUIT_GAME:
                 raise SystemExit()
@@ -326,16 +426,9 @@ class MainMenuState(BaseGameState):
                     return PopupMessageState(self, f"Failed to load save:\n{ex}")
 
         return None
-
-
-def new_game_state() -> MainGameState:
-    from game.setup_game import new_game
-
-    engine = new_game()
-    return MainGameState(engine)
 ```
 
-`setup_game` is imported locally inside each method rather than at the top of the file. A module-level import would create the circular chain `game_states → setup_game → engine → game_states`.
+`new_game`, `load_game`, and `SAVE_PATH` are imported locally inside `event_keydown` because they are only needed when the player presses a menu key. `RES_DIR` is imported at the top because rendering the menu needs it every frame. This import is safe once the refactor below removes the old `engine.py -> game_states.py` dependency.
 
 The `except Exception` that catches load failures is intentionally broad at the menu boundary: a corrupt or incompatible save file should show a user-facing popup, not crash the program.
 
@@ -359,14 +452,10 @@ The current `GameState.handle_events()` returns `Action | None` and mutates `eng
 
 `engine.game_state` was only needed so states could mutate the active state from inside the engine. With state transitions now expressed as return values, that attribute is no longer needed.
 
-In `game/engine.py`, remove the three imports that are no longer needed, drop `self.game_state` from `__init__`, and delete `handle_events` and `run` entirely (the main loop moves to `main.py`):
+In `game/engine.py`, remove the event-loop and game-state imports (now unused), drop `self.game_state` from `__init__`, and delete `handle_events` and `run` entirely (the main loop moves to `main.py`). The `lzma`, `pickle`, `Path`, and `MessageLog` imports were already added in the `Engine.save_as()` section above.
 
 ```diff
 -from collections.abc import Iterable
-+import lzma
-+import pickle
-+from pathlib import Path
-
  import tcod.constants
 -import tcod.event
  import tcod.map
@@ -442,8 +531,8 @@ class GameState(BaseGameState):
             try:
                 action.perform(self.engine, self.engine.player)
 
-            except Impossible as exc:
-                MessageLog.add_message(str(exc), colors.INVALID)
+            except Impossible as ex:
+                MessageLog.add_message(str(ex), colors.INVALID)
                 return self
 
             if isinstance(action, TargetingAction):
@@ -518,6 +607,19 @@ There are three places in `game_states.py` that assign to `self.engine.game_stat
 +    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
          key = event.sym
 @@
+         if key == keys.KEY_QUIT_GAME:
+-            return EscapeAction()
++            from game.setup_game import SAVE_PATH
++
++            try:
++                self.engine.save_as(SAVE_PATH, self)
++                print(f"Game saved at {SAVE_PATH}.")
++
++            except Exception as ex:  # pylint: disable=broad-exception-caught
++                print(f"Warning: could not save ({ex}).")
++
++            return MainMenuState()
+@@
          if key == keys.KEY_INVENTORY:
 -            self.engine.game_state = InventoryUseState(self.engine)
 +            return InventoryUseState(self.engine)
@@ -526,6 +628,8 @@ There are three places in `game_states.py` that assign to `self.engine.game_stat
 -            self.engine.game_state = InventoryDropState(self.engine)
 +            return InventoryDropState(self.engine)
 ```
+
+Pressing `KEY_QUIT_GAME` (Escape) during gameplay now saves the current state and returns to the main menu. From the menu the player can press `N` for a new game or `C` to resume. The `EscapeAction` path (which would have raised `SystemExit`) is gone from `MainGameState`; that shortcut now lives only in `GameOverState` and the menu.
 
 **`InventoryState.event_keydown`**:
 
@@ -551,12 +655,10 @@ Part 9 already wired this correctly: `ConfusionConsumable` and `FireballDamageCo
 ```python
 from __future__ import annotations
 
-from pathlib import Path
-
 import tcod
 
 from game.game_states import BaseGameState, MainMenuState
-from game.setup_game import SAVE_PATH
+from game.setup_game import RES_DIR, SAVE_PATH
 
 
 def run(
@@ -584,9 +686,14 @@ def run(
 
 def save_game(state: BaseGameState) -> None:
     from game.game_states import GameOverState, GameState
+
     if isinstance(state, GameState) and not isinstance(state, GameOverState):
-        state.engine.save_as(SAVE_PATH, state)
-        print("Game saved.")
+        try:
+            state.engine.save_as(SAVE_PATH, state)
+            print(f"Game saved at {SAVE_PATH}.")
+
+        except Exception as ex:  # pylint: disable=broad-exception-caught
+            print(f"Warning: game state could not be saved ({ex}).")
 
 
 def main() -> None:
@@ -596,7 +703,7 @@ def main() -> None:
     state: BaseGameState = MainMenuState()
 
     tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
+        RES_DIR / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
@@ -636,7 +743,13 @@ if __name__ == "__main__":
 
 `main.py` no longer generates a seed or adds the welcome message. Both belong in `new_game()`: the seed decides the map layout, and the welcome message is part of the initial game state, not app setup.
 
-`save_game()` checks whether the current state has an engine. If the player quits from the main menu (before starting a game), there is nothing to save. If they quit mid-game, `state.engine.save_as(SAVE_PATH, state)` serializes the active state, which includes the engine through `state.engine`, so loading restores exactly the state the player was in when they quit. If they quit from the game-over screen, no save is written because death already deleted it. The `on_exit` callback is invoked with the *current* state (after any state-machine transitions), not the initial one.
+`RES_DIR`, `SAVE_DIR`, and `SAVE_PATH` are built once in `setup_game.py` from `Path(__file__).parent.parent`. Because they are absolute `Path` values, every module that imports them uses the same files regardless of the working directory: `main.py` and `MainMenuState` agree on resource locations, while `save_game`, `on_enter`, and `load_game` agree on the save file without any path-joining at call sites.
+
+`save_game()` is the fallback for unexpected exits (closing the window with the X button or a crash). The normal in-game quit path (Escape) already saves explicitly before transitioning to `MainMenuState`, so `save_game` mainly catches the case where the player is mid-game and closes the window without pressing Escape. If they are at the main menu or game-over screen there is nothing to save.
+
+The `try/except` guards against one edge case: if the player closes the window while a targeting cursor is active (`SingleRangedAttackState`, `AreaRangedAttackState`), the state holds a `callback` lambda. `pickle` cannot serialize lambdas or closures, only named top-level functions and ordinary data. The save is skipped with a warning rather than crashing. This is a general rule worth remembering: `pickle` works well with plain classes and top-level functions; lambdas, open file handles, and GUI contexts will fail.
+
+The `on_exit` callback receives the *current* state (after any state-machine transitions during `handle_events`), not the initial one.
 
 The `try/except SystemExit` inside `run()` catches the quit signal raised by any state, runs `save_game`, then re-raises so Python exits normally.
 
@@ -646,34 +759,20 @@ The `try/except SystemExit` inside `run()` catches the quit signal raised by any
 
 If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverState`.
 
-Add `Path` to the imports in `game/game_states.py`:
-
-```diff
-+from pathlib import Path
-```
-
 Do **not** add a module-level import of `setup_game` here: `game_states.py` already participates in the import graph through `engine.py`, and a top-level `from game.setup_game import ...` would create a circular chain. Use a local import inside `on_enter()` instead.
 
-Replace the stub `on_enter()` added in Step 2 with the real implementation. Also update `GameOverState.event_keydown` to use the wider return type:
+`SAVE_PATH` is now a `Path` object defined in `setup_game.py`, so no wrapping is needed and `game_states.py` does not need to import `Path`. Replace the stub `on_enter()` added in Step 2 with the real implementation:
 
 ```diff
  class GameOverState(GameState):
-
--    def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
-+    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
-         if event.sym == keys.KEY_QUIT_GAME:
-             return EscapeAction()
-
-         return None
 
 -    def on_enter(self) -> None:
 -        pass
 +    def on_enter(self) -> None:
 +        from game.setup_game import SAVE_PATH
 +
-+        save_path = Path(SAVE_PATH)
-+        if save_path.exists():
-+            save_path.unlink()
++        if SAVE_PATH.exists():
++            SAVE_PATH.unlink()
 ```
 
 `GameOverState` keeps its own `event_keydown` so Escape still quits from the game-over screen. The save file is deleted when the state is entered, before the player has a chance to quit.
@@ -705,7 +804,7 @@ from game.message_log import MessageLog
 
 class Engine:
 
-    def save_as(self, filename: str, active_state: object = None) -> None:
+    def save_as(self, filename: str | Path, active_state: object = None) -> None:
         save_data = lzma.compress(
             pickle.dumps(
                 {
@@ -715,10 +814,12 @@ class Engine:
             )
         )
 
-        Path(filename).write_bytes(save_data)
+        path = Path(filename)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(save_data)
 
     @staticmethod
-    def load(filename: str):
+    def load(filename: str | Path):
         save_data = Path(filename).read_bytes()
         data = pickle.loads(lzma.decompress(save_data))
         MessageLog.messages = data["message_log"]
@@ -732,7 +833,7 @@ The removals (`self.game_state`, `handle_events`, `run`) are covered in the Refa
 
 This also breaks the potential circular import introduced when `game_states.py` imports from `setup_game.py`: once `engine.py` no longer imports from `game_states.py`, the chain `game_states → setup_game → engine` is not circular.
 
-**`game/setup_game.py`**: new file (full content above)
+**`game/setup_game.py`**: new file (full content above), defines `RES_DIR`, `SAVE_DIR`, and `SAVE_PATH`
 
 **`game/game_states.py`**: additions: `BaseGameState`, `PopupMessageState`, `MainMenuState`, updated `GameState`
 
@@ -744,10 +845,10 @@ This also breaks the potential circular import introduced when `game_states.py` 
 
 Run `python main.py`:
 
-- [ ] The main menu appears with three options
+- [ ] The main menu appears with the background image and three framed options
 - [ ] `N` starts a new game
 - [ ] Play for a few turns (pick up items, fight enemies)
-- [ ] Press `Esc` or close the window, `"Game saved."` prints in the terminal
+- [ ] Press `Esc` or close the window, the terminal prints where the game was saved
 - [ ] Run `python main.py` again, `C` loads the game with the same map, entities, and message log
 - [ ] Die in combat, the game-over screen appears
 - [ ] Press `Esc` to quit, no new save is written
@@ -767,12 +868,12 @@ Save and load is complete. The verification milestone is met:
 Key additions:
 
 - **`pickle` + `lzma`**: serialize/deserialize the active state plus static message log state
-- **`game/setup_game.py`**: `new_game()` and `load_game()` functions
+- **`game/setup_game.py`**: shared `RES_DIR` / `SAVE_PATH` paths plus `new_game()` and `load_game()` functions
 - **`BaseGameState`**: state base that works without an engine (main menu, popups)
-- **`PopupMessageState`**: dismissable overlay with darkened background
-- **`MainMenuState`**: New / Continue / Quit at startup
+- **`PopupMessageState`**: dismissable framed overlay with darkened background
+- **`MainMenuState`**: background image plus framed New / Continue / Quit menu at startup
 - **States return states**: clean state machine transitions
-- **Save on quit, delete on death**: the save file is always valid
+- **Save on quit, delete on death**: the normal quit and death paths keep the save file consistent; dead runs are never preserved
 
 **Current architecture**:
 
@@ -786,6 +887,9 @@ Key additions:
 
 ```text
 main.py                         ← modified
+res/
+├── dejavu12x12_gs_tc.png
+└── menu_background.png          ← new
 game/
 ├── __init__.py
 ├── actions.py
@@ -833,4 +937,4 @@ game/
 
 3. **Autosave**:
 
-    Call `self.engine.save_as(SAVE_PATH, self)` after every `handle_enemy_turns()` in `GameState.handle_events()`. The game is now crash-proof, a power outage only loses the current turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state).
+    Call `self.engine.save_as(SAVE_PATH, self)` after every `handle_enemy_turns()` in `GameState.handle_events()`. A power outage or crash then loses at most one turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state). Note that `Path.write_bytes()` is not atomic: a kill signal mid-write can leave a partial file. For true crash-safety, write to a temporary file first and then call `tmp.replace(SAVE_PATH)`, which is atomic on most filesystems.
