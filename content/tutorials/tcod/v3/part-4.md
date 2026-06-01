@@ -252,6 +252,9 @@ Key points:
 - It is called after every action in `handle_events` so moving updates the view
 - `explored |= visible`: the bitwise OR accumulates explored tiles over time: once seen, always remembered
 
+!!! note "What does `[:]` mean?"
+    `visible[:] = ...` updates the contents of the existing array in-place. Without `[:]`, the assignment would replace the array with a new one, and any other code holding a reference to the original would still see the old data.
+
 !!! info "The Engine constructor shrank"
     Compared to Part 2, `Engine.__init__` no longer receives `entities` (they live in `GameMap` now) or `event_handler` (we always create the `EventHandler` inside the engine, since for now there is only one). What stays in the signature is what the caller has to provide from outside: the freshly generated `game_map` and the `player`. Internal collaborators move inside.
 

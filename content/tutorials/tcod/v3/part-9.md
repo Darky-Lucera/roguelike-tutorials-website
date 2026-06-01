@@ -485,7 +485,7 @@ def on_render(self, console: tcod.console.Console) -> None:
                 console.bg[grid_x, grid_y] = self.color.scale(alpha)
 ```
 
-The bounds `min_x/max_x/min_y/max_y` are precomputed to avoid iterating the entire map on every render frame. `Color.scale(factor)` multiplies each RGB channel by `factor` and rounds to the nearest integer — it is the method we added to `Color` back in Part 5. At `factor = 1.0` the color is unchanged; at `factor = 0.5` it is half as bright.
+The bounds `min_x/max_x/min_y/max_y` are precomputed to avoid iterating the entire map on every render frame. `Color.scale(factor)` multiplies each RGB channel by `factor` and rounds to the nearest integer; it is the method we added to `Color` back in Part 5. At `factor = 1.0` the color is unchanged; at `factor = 0.5` it is half as bright.
 
 ![Fireball smooth](images/firewall_3.png)
 
@@ -1083,7 +1083,7 @@ game/
 
     Add a `DrainConsumable(damage: float, maximum_range: int)` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a target to drain."`. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
 
-    In `activate()`, combine target validation into a single guard — this also prevents targeting corpses (actors with `ai is None`):
+    In `activate()`, combine target validation into a single guard (this also prevents targeting corpses with `ai is None`):
 
     ```python
     if not target or target is consumer or target.ai is None:

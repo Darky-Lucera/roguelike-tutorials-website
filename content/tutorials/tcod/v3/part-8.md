@@ -1320,8 +1320,8 @@ game/
 
     Extract two static helpers on `InventoryState`:
 
-    - `stack_items(items: list[Item]) -> list[list[Item]]` — groups items by name using `dict.setdefault`. Each stack is a `list[Item]`; its first element is used for display and selection. After completing Exercise 3, also sort the stacks here: `stacks.sort(key=lambda s: s[0].key or 0)`.
-    - `stack_name(stack: list[Item]) -> str` — returns `"Health Potion (x3)"` when `len(stack) > 1`, or just `"Health Potion"` otherwise.
+    - `stack_items(items: list[Item]) -> list[list[Item]]`: groups items by name using `dict.setdefault`. Each stack is a `list[Item]`; its first element is used for display and selection. After completing Exercise 3, also sort the stacks here: `stacks.sort(key=lambda s: s[0].key or 0)`.
+    - `stack_name(stack: list[Item]) -> str`: returns `"Health Potion (x3)"` when `len(stack) > 1`, or just `"Health Potion"` otherwise.
 
     Update `on_render()` to call `stack_items()` and iterate over stacks. Compute the panel width using `stack_name()` so the frame always fits the longest entry. The alphabetical letter-to-index system is replaced by Exercise 3's key-based selection.
 

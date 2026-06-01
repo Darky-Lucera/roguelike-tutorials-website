@@ -10,7 +10,7 @@ By the end of this part, your roguelike will have a main menu and a save system,
 - Add a main menu with New Game / Continue options
 - Refactor game states to return states (not just actions)
 - Delete the save file on player death
-- Verify: save, quit, reload, game state is exactly as left
+- Verify: save, quit, reload; map, entities, inventory, and message history are restored
 
 ---
 
@@ -28,7 +28,7 @@ Engine
   │           └── orc (Actor)
   │                 └── ai (HostileEnemy)  ← back-reference to the orc
 Static state
-  â””â”€â”€ MessageLog.messages
+  └── MessageLog.messages
 ```
 
 The challenge: `Fighter.entity` points back to the `Actor` that owns it, `HostileEnemy.entity` points to the orc, and in Part 9 `ConfusedEnemy.previous_ai` holds another AI. This is a circular reference graph. The message log is a separate static list, so we save it next to the engine.
@@ -39,6 +39,9 @@ The challenge: `Fighter.entity` points back to the `Actor` that owns it, `Hostil
 
 !!! danger "pickle is not safe with untrusted data"
     Never load a pickle file from an unknown source, pickle can execute arbitrary code during deserialization. For a single-player game saving its own state, this is fine.
+
+!!! warning "Save files are not stable between code changes"
+    `pickle` stores class names and attribute names. If you rename a class, move a module, or add a required attribute between parts, old save files will fail with `AttributeError` or `ModuleNotFoundError`. Delete your save file whenever you change the code.
 
 We add `lzma` compression on top to shrink the file. A typical save is a few kilobytes compressed, negligible, but it is good practice.
 
@@ -68,6 +71,7 @@ class Engine:
                 }
             )
         )
+
         Path(filename).write_bytes(save_data)
 ```
 
@@ -81,6 +85,7 @@ Loading is the inverse:
         save_data = Path(filename).read_bytes()
         data = pickle.loads(lzma.decompress(save_data))
         MessageLog.messages = data["message_log"]
+
         return data["state"]
 ```
 
@@ -101,16 +106,16 @@ from __future__ import annotations
 
 import copy
 import os
-from pathlib import Path
 import secrets
+from pathlib import Path
 
 from game.constants import colors
-from game.entities import factories
 from game.engine import Engine
-from game.message_log import MessageLog
+from game.entities import factories
 from game.map.map_generator import generate_dungeon
+from game.message_log import MessageLog
 
-SAVE_PATH = "savegame.sav"
+SAVE_PATH             = "savegame.sav"
 
 MAP_WIDTH             = 80
 MAP_HEIGHT            = 44
@@ -127,6 +132,7 @@ def new_game() -> Engine:
     """Return a fresh engine for a brand-new game."""
     MessageLog.clear()
 
+    # Part-3. Ex 1: Reproducible dungeons
     seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
     #seed = 12345 # Write here the game seed to reproduce a map
     print(f"Game seed: {seed}")
@@ -134,18 +140,19 @@ def new_game() -> Engine:
     player = copy.deepcopy(factories.player)
 
     game_map = generate_dungeon(
-        max_rooms=MAX_ROOMS,
-        room_min_size=ROOM_MIN_SIZE,
-        room_max_size=ROOM_MAX_SIZE,
-        map_width=MAP_WIDTH,
-        map_height=MAP_HEIGHT,
-        min_monsters_per_room=MIN_MONSTERS_PER_ROOM,
-        max_monsters_per_room=MAX_MONSTERS_PER_ROOM,
-        min_items_per_room=MIN_ITEMS_PER_ROOM,
-        max_items_per_room=MAX_ITEMS_PER_ROOM,
-        player=player,
-        seed=seed,
+        max_rooms             = MAX_ROOMS,
+        room_min_size         = ROOM_MIN_SIZE,
+        room_max_size         = ROOM_MAX_SIZE,
+        map_width             = MAP_WIDTH,
+        map_height            = MAP_HEIGHT,
+        min_monsters_per_room = MIN_MONSTERS_PER_ROOM,
+        max_monsters_per_room = MAX_MONSTERS_PER_ROOM,
+        min_items_per_room    = MIN_ITEMS_PER_ROOM,
+        max_items_per_room    = MAX_ITEMS_PER_ROOM,
+        player                = player,
+        seed                  = seed,
     )
+
     engine = Engine(game_map=game_map, player=player)
     engine.update_fov()
 
@@ -153,6 +160,7 @@ def new_game() -> Engine:
         "Hello and welcome, adventurer, to yet another dungeon!",
         colors.WELCOME_TEXT,
     )
+
     return engine
 
 
@@ -160,6 +168,7 @@ def load_game(filename: str):
     """Load a save file and return the saved game state."""
     if not Path(filename).exists():
         raise FileNotFoundError(f"No save file found at {filename!r}")
+
     return Engine.load(filename)
 ```
 
@@ -180,29 +189,38 @@ BaseGameState
   │           ├── InventoryUseState
   │           └── InventoryDropState
   ├── MainMenuState  (no engine yet)
-  └── PopupMessageState (shows a message over a frozen background)
+  └── PopupMessageState (renders a message overlay over the parent state)
 ```
 
-Add to `game/game_states.py`:
+Add to `game/game_states.py`, immediately before `GameState`:
 
 ```python
 class BaseGameState:
 
-    def handle_events(self, event: tcod.event.Event):
+    def handle_events(self, event: tcod.event.Event) -> BaseGameState:
         state = self.dispatch(event)
         if isinstance(state, BaseGameState):
             return state
+
         return self
 
-    def dispatch(self, event: tcod.event.Event):
+    def dispatch(self, event: tcod.event.Event) -> Action | BaseGameState | None:
         match event:
             case tcod.event.Quit():
                 raise SystemExit()
+
             case tcod.event.KeyDown():
                 return self.event_keydown(event)
+
+            case tcod.event.MouseButtonDown():
+                return self.event_mousebuttondown(event)
+
         return None
 
-    def event_keydown(self, event: tcod.event.KeyDown):
+    def event_keydown(self, _event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+        return None
+
+    def event_mousebuttondown(self, _event: tcod.event.MouseButtonDown) -> Action | None:
         return None
 
     def on_render(self, console: tcod.console.Console) -> None:
@@ -210,103 +228,190 @@ class BaseGameState:
 
 
 class PopupMessageState(BaseGameState):
-    """Display a message over a screenshot of the current state."""
+    """Display a message rendered over the parent state with a darkened overlay."""
 
     def __init__(self, parent_state: BaseGameState, text: str) -> None:
         self.parent = parent_state
-        self.text = text
+        self.text   = text
 
     def on_render(self, console: tcod.console.Console) -> None:
         self.parent.on_render(console)
-        console.fg //= 8
-        console.bg //= 8
+        console.fg[:] = console.fg // 8
+        console.bg[:] = console.bg // 8
         console.print(
             console.width // 2,
             console.height // 2,
             self.text,
-            fg=colors.WHITE,
-            bg=colors.BLACK,
-            alignment=tcod.constants.CENTER,
+            fg = colors.WHITE,
+            bg = colors.BLACK,
+            alignment = tcod.constants.CENTER,
         )
 
-    def event_keydown(self, event: tcod.event.KeyDown):
+    def event_keydown(self, _event: tcod.event.KeyDown) -> Action | BaseGameState | None:
         return self.parent
 ```
 
-`PopupMessageState` darkens the existing frame by right-shifting all color channels by 3 (dividing by 8), then overlays centered text. Any keypress dismisses it and returns to the parent state.
+`PopupMessageState` darkens the existing frame by dividing all color channels by 8, then overlays centered text. Any keypress dismisses it and returns to the parent state.
 
 ---
 
 ## MainMenuState
 
+The main menu needs two new key constants. Add them to `game/constants/keys.py`:
+
 ```python
-from game.setup_game import SAVE_PATH, load_game, new_game
+KEY_NEW_GAME     = tcod.event.KeySym.N
+KEY_CONTINUE     = tcod.event.KeySym.C
+```
 
+`KEY_QUIT_GAME` (already defined as `ESCAPE`) covers the quit option. With these three constants in place, the menu handler is fully decoupled from raw `KeySym` values.
 
+`MainMenuState` is the first state the game enters. Unlike every other state, it holds no engine reference: the engine does not exist until the player makes a choice.
+
+`on_render` draws the title and the three menu options centered on screen. `event_keydown` handles three transitions:
+
+- `keys.KEY_NEW_GAME` (`N`): calls `new_game()`, wraps the fresh engine in a `MainGameState`, and returns it.
+- `keys.KEY_CONTINUE` (`C`): calls `load_game()`. If no save file exists it falls back to a `PopupMessageState`; if the file is corrupt it shows the exception message.
+- `keys.KEY_QUIT_GAME` (`Esc`): raises `SystemExit`.
+
+Add to `game/game_states.py` after `PopupMessageState`:
+
+```python
 class MainMenuState(BaseGameState):
     """Renders the main menu and handles New / Continue / Quit."""
 
     def on_render(self, console: tcod.console.Console) -> None:
         console.print(
-            console.width // 2,
+            console.width  // 2,
             console.height // 2 - 4,
             "ROGUELIKE TUTORIAL",
-            fg=colors.MENU_TITLE,
-            alignment=tcod.constants.CENTER,
+            fg = colors.MENU_TITLE,
+            alignment = tcod.constants.CENTER,
         )
         for i, text in enumerate(
-            ["[N] Play a new game", "[C] Continue last game", "[Q] Quit"]
+            [
+                "[N] Play a new game",
+                "[C] Continue last game",
+                "[Esc] Quit"
+            ]
         ):
             console.print(
-                console.width // 2,
+                console.width  // 2,
                 console.height // 2 - 2 + i,
                 text.ljust(30),
-                fg=colors.MENU_TEXT,
-                bg=colors.BLACK,
-                alignment=tcod.constants.CENTER,
-                bg_blend=tcod.constants.BKGND_ALPHA(64),
+                fg = colors.MENU_TEXT,
+                bg = colors.BLACK,
+                alignment = tcod.constants.CENTER,
+                bg_blend  = tcod.libtcodpy.BKGND_ALPHA(64),
             )
 
-    def event_keydown(self, event: tcod.event.KeyDown):
+    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+        from game.setup_game import SAVE_PATH, load_game
+
         match event.sym:
-            case tcod.event.KeySym.Q | tcod.event.KeySym.ESCAPE:
+            case keys.KEY_NEW_GAME:
+                return new_game_state()
+
+            case keys.KEY_QUIT_GAME:
                 raise SystemExit()
 
-            case tcod.event.KeySym.C:
+            case keys.KEY_CONTINUE:
                 try:
                     return load_game(SAVE_PATH)
 
                 except FileNotFoundError:
                     return PopupMessageState(self, "No saved game to load.")
 
-                except Exception as exc:
-                    return PopupMessageState(self, f"Failed to load save:\n{exc}")
-
-            case tcod.event.KeySym.N:
-                return new_game_state()
+                except Exception as ex:  # pylint: disable=broad-exception-caught
+                    return PopupMessageState(self, f"Failed to load save:\n{ex}")
 
         return None
 
 
 def new_game_state() -> MainGameState:
+    from game.setup_game import new_game
+
     engine = new_game()
     return MainGameState(engine)
 ```
 
+`setup_game` is imported locally inside each method rather than at the top of the file. A module-level import would create the circular chain `game_states → setup_game → engine → game_states`.
+
+The `except Exception` that catches load failures is intentionally broad at the menu boundary: a corrupt or incompatible save file should show a user-facing popup, not crash the program.
+
 Add to `game/constants/colors.py`:
 
 ```python
-MENU_TITLE = Color(255, 255, 63)
-MENU_TEXT = WHITE
+MENU_TITLE             = Color(255, 255, 63)
+MENU_TEXT              = WHITE
 ```
 
 ---
 
 ## Refactor: states return states
 
-The current `GameState.handle_events()` returns `Action | None`. The new `BaseGameState.handle_events()` returns a state. We need to unify these.
+!!! warning "Complete all steps and 'Delete save on death' before running type checks"
+    After adding `BaseGameState`, mypy will report that `GameState` subclasses are not assignable to `BaseGameState` until Step 2 is done. Step 2 also introduces a call to `GameOverState.on_enter()`, which is not defined until the "Delete save on death" section below. Complete Steps 1, 2, 3 **and** "Delete save on death" before checking types.
 
-Update `GameState` to extend `BaseGameState` and return the correct type:
+The current `GameState.handle_events()` returns `Action | None` and mutates `engine.game_state` as a side effect. The new design returns the next state directly. The caller (`run()` in `main.py`) replaces its local `state` variable with the return value; no shared mutable attribute needed.
+
+### Step 1: remove `game_state` from `Engine`
+
+`engine.game_state` was only needed so states could mutate the active state from inside the engine. With state transitions now expressed as return values, that attribute is no longer needed.
+
+In `game/engine.py`, remove the three imports that are no longer needed, drop `self.game_state` from `__init__`, and delete `handle_events` and `run` entirely (the main loop moves to `main.py`):
+
+```diff
+-from collections.abc import Iterable
++import lzma
++import pickle
++from pathlib import Path
+
+ import tcod.constants
+-import tcod.event
+ import tcod.map
+ from tcod.console import Console
+-from tcod.context import Context
+
+ from game import hud
+ from game.entities.entity import Actor
+-from game.game_states import GameState, MainGameState
+ from game.map.game_map import GameMap
+ from game.message_log import MessageLog
+
+ class Engine:
+
+     def __init__(self,
+                  game_map: GameMap,
+                  player: Actor,
+                  # Part-4. Ex 1: Variable torch radius
+                  fov_radius: int = 8,
+                  # Part-4. Ex 4: Fading memory
+                  fading_memory: bool = False,
+                  memory_duration: int = 10) -> None:
+         ...
+-        self.game_state: GameState = MainGameState(self)
+         self.update_fov()
+
+-    def handle_events(self, events: Iterable[tcod.event.Event]) -> None:
+-        for event in events:
+-            self.game_state.handle_events(event)
+-
+-    def run(self, context: Context, console: Console) -> None:
+-        while True:
+-            console.clear()
+-            self.game_state.on_render(console=console)
+-            context.present(console)
+-            for event in tcod.event.wait():
+-                event = context.convert_event(event)
+-                self.handle_events([event])
+```
+
+Removing `from game.game_states import GameState, MainGameState` breaks the circular chain `engine → game_states → setup_game → engine`.
+
+### Step 2: replace `GameState` with the new version
+
+**Delete the entire existing `GameState` class** and replace it with:
 
 ```python
 class GameState(BaseGameState):
@@ -319,13 +424,16 @@ class GameState(BaseGameState):
         match event:
             case tcod.event.Quit():
                 action = EscapeAction()
+
             case tcod.event.MouseMotion():
                 self.engine.mouse_location = event.integer_position
                 return self
+
             case tcod.event.MouseButtonDown():
-                action = self.event_mousebuttondown(event)
+                action = self.event_mousebuttondown(event)  # pylint: disable=assignment-from-none
+
             case tcod.event.KeyDown():
-                action = self.event_keydown(event)
+                action = self.event_keydown(event)  # pylint: disable=assignment-from-none
 
         if isinstance(action, BaseGameState):
             return action
@@ -333,6 +441,7 @@ class GameState(BaseGameState):
         if action is not None:
             try:
                 action.perform(self.engine, self.engine.player)
+
             except Impossible as exc:
                 MessageLog.add_message(str(exc), colors.INVALID)
                 return self
@@ -341,7 +450,8 @@ class GameState(BaseGameState):
                 MessageLog.add_message(action.prompt, colors.NEEDS_TARGET)
                 if isinstance(action, SingleRangedTargetingAction):
                     return SingleRangedAttackState(self.engine, callback=action.callback)
-                elif isinstance(action, AreaRangedTargetingAction):
+
+                if isinstance(action, AreaRangedTargetingAction):
                     return AreaRangedAttackState(
                         self.engine,
                         radius=action.radius,
@@ -364,50 +474,73 @@ class GameState(BaseGameState):
 
         return self
 
-    def event_mousebuttondown(self, event: tcod.event.MouseButtonDown) -> Action | None:
+    def event_keydown(self, _event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+        return None
+
+    def event_mousebuttondown(self, _event: tcod.event.MouseButtonDown) -> Action | None:
         return None
 
     def on_render(self, console: tcod.console.Console) -> None:
         self.engine.render(console)
 ```
 
-The key change: `handle_events` now **returns a state**. The caller replaces its current state with the returned one. This makes state transitions explicit and self-contained.
+`handle_events` calls `new_state.on_enter()` when the player dies. That method will be filled in the "Delete save on death" section; for now, add a stub to `GameOverState` so the code compiles:
 
-Update states so they return states instead of mutating `engine.game_state`:
-
-```python
-class InventoryState(ActionModalState):
-    ...
-
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
-        ...
-        if event.sym == tcod.event.KeySym.ESCAPE:
-            return MainGameState(self.engine)
-        ...
-
-
-class MainGameState(GameState):
-
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
-        ...
-        if key == tcod.event.KeySym.I:
-            return InventoryUseState(self.engine)
-        if key == tcod.event.KeySym.D:
-            return InventoryDropState(self.engine)
-        ...
-
-
-class SelectIndexState(ActionModalState):
-    ...
-
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
-        ...
-        if key == tcod.event.KeySym.ESCAPE:
-            return MainGameState(self.engine)
-        ...
+```diff
+ class GameOverState(GameState):
++    def on_enter(self) -> None:
++        pass
 ```
 
-`BaseGameState.handle_events()` already returns state objects directly, so `InventoryUseState` and `InventoryDropState` can now transition without touching `engine.game_state`.
+`handle_events` now checks `isinstance(action, BaseGameState)` before treating it as an `Action`. If a subclass's `event_keydown` returns a state (e.g. `InventoryUseState`), the method returns it immediately without executing any game logic. The base `event_keydown` declaration uses `Action | BaseGameState | None` so subclasses can return either without a type mismatch.
+
+### Step 3: replace `engine.game_state` mutations with return values
+
+There are three places in `game_states.py` that assign to `self.engine.game_state`. Replace each one with a return value.
+
+**`SelectIndexState.event_keydown`**:
+
+```diff
+-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
++    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+         key = event.sym
+@@
+         if key == keys.KEY_EXIT:
+-            self.engine.game_state = MainGameState(self.engine)
+-            return None
++            return MainGameState(self.engine)
+```
+
+**`MainGameState.event_keydown`**:
+
+```diff
+-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
++    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+         key = event.sym
+@@
+         if key == keys.KEY_INVENTORY:
+-            self.engine.game_state = InventoryUseState(self.engine)
++            return InventoryUseState(self.engine)
+
+         if key == keys.KEY_DROP:
+-            self.engine.game_state = InventoryDropState(self.engine)
++            return InventoryDropState(self.engine)
+```
+
+**`InventoryState.event_keydown`**:
+
+```diff
+-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
++    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+         key = event.sym
+@@
+         if key == keys.KEY_EXIT:
+-            self.engine.game_state = MainGameState(self.engine)
+-            return None
++            return MainGameState(self.engine)
+```
+
+After these three changes, `self.engine.game_state` no longer appears anywhere in `game_states.py`.
 
 Part 9 already wired this correctly: `ConfusionConsumable` and `FireballDamageConsumable` return `TargetingAction` data classes from `get_action()`, and `handle_events()` dispatches on them. The only migration here is changing the mutation (`engine.game_state = ...`) to a return value, which the updated `handle_events()` above already reflects. No changes to `consumable.py` are needed.
 
@@ -430,13 +563,13 @@ def run(
     state: BaseGameState,
     context: tcod.context.Context,
     console: tcod.console.Console,
-    on_exit=None,
+    on_exit = None,
 ) -> None:
     """Drive the game state machine until SystemExit. Calls on_exit(state) before re-raising."""
     try:
         while True:
             console.clear()
-            state.on_render(console=console)
+            state.on_render(console = console)
             context.present(console)
 
             for event in tcod.event.wait():
@@ -450,7 +583,7 @@ def run(
 
 
 def save_game(state: BaseGameState) -> None:
-    from game.game_states import GameState, GameOverState
+    from game.game_states import GameOverState, GameState
     if isinstance(state, GameState) and not isinstance(state, GameOverState):
         state.engine.save_as(SAVE_PATH, state)
         print("Game saved.")
@@ -460,14 +593,14 @@ def main() -> None:
     screen_width  = 80
     screen_height = 50
 
+    state: BaseGameState = MainMenuState()
+
     tileset = tcod.tileset.load_tilesheet(
         Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
     )
-
-    state: BaseGameState = MainMenuState()
 
     title   = "Roguelike Tutorial"
     version = "0.1.0"
@@ -501,6 +634,8 @@ if __name__ == "__main__":
 
 `Engine.run()` from earlier chapters no longer fits: the main menu runs *before* any engine exists, so the loop has to belong somewhere outside `Engine`. We move it back to a free `run()` function in `main.py`, similar in shape to the `game_loop()` from Part 1 but driving a game state machine instead of a single update.
 
+`main.py` no longer generates a seed or adds the welcome message. Both belong in `new_game()`: the seed decides the map layout, and the welcome message is part of the initial game state, not app setup.
+
 `save_game()` checks whether the current state has an engine. If the player quits from the main menu (before starting a game), there is nothing to save. If they quit mid-game, `state.engine.save_as(SAVE_PATH, state)` serializes the active state, which includes the engine through `state.engine`, so loading restores exactly the state the player was in when they quit. If they quit from the game-over screen, no save is written because death already deleted it. The `on_exit` callback is invoked with the *current* state (after any state-machine transitions), not the initial one.
 
 The `try/except SystemExit` inside `run()` catches the quit signal raised by any state, runs `save_game`, then re-raises so Python exits normally.
@@ -511,43 +646,39 @@ The `try/except SystemExit` inside `run()` catches the quit signal raised by any
 
 If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverState`.
 
-First, add `Path` and `SAVE_PATH` to the imports in `game/game_states.py`:
+Add `Path` to the imports in `game/game_states.py`:
 
 ```diff
 +from pathlib import Path
- ...
-+from game.setup_game import SAVE_PATH, load_game, new_game
 ```
 
-Then add the class:
+Do **not** add a module-level import of `setup_game` here: `game_states.py` already participates in the import graph through `engine.py`, and a top-level `from game.setup_game import ...` would create a circular chain. Use a local import inside `on_enter()` instead.
 
-```python
-class GameOverState(GameState):
+Replace the stub `on_enter()` added in Step 2 with the real implementation. Also update `GameOverState.event_keydown` to use the wider return type:
 
-    def on_render(self, console: tcod.console.Console) -> None:
-        super().on_render(console)
+```diff
+ class GameOverState(GameState):
 
-    def handle_events(self, event: tcod.event.Event) -> BaseGameState:
-        match event:
-            case tcod.event.Quit():
-                raise SystemExit()
-            case tcod.event.KeyDown():
-                if (result := self.event_keydown(event)) is not None:
-                    return result
-        return self
+-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
++    def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
+         if event.sym == keys.KEY_QUIT_GAME:
+             return EscapeAction()
 
-    def event_keydown(self, event: tcod.event.KeyDown):
-        if event.sym == tcod.event.KeySym.ESCAPE:
-            raise SystemExit()
-        return None
+         return None
 
-    def on_enter(self) -> None:
-        save_path = Path(SAVE_PATH)
-        if save_path.exists():
-            save_path.unlink()
+-    def on_enter(self) -> None:
+-        pass
++    def on_enter(self) -> None:
++        from game.setup_game import SAVE_PATH
++
++        save_path = Path(SAVE_PATH)
++        if save_path.exists():
++            save_path.unlink()
 ```
 
-Call `new_state.on_enter()` from `GameState.handle_events()` when transitioning to `GameOverState`:
+`GameOverState` keeps its own `event_keydown` so Escape still quits from the game-over screen. The save file is deleted when the state is entered, before the player has a chance to quit.
+
+`new_state.on_enter()` is already called from `GameState.handle_events()` (added in Step 2):
 
 ```python
             if not self.engine.player.is_alive:
@@ -571,6 +702,7 @@ from pathlib import Path
 
 from game.message_log import MessageLog
 
+
 class Engine:
 
     def save_as(self, filename: str, active_state: object = None) -> None:
@@ -582,38 +714,19 @@ class Engine:
                 }
             )
         )
+
         Path(filename).write_bytes(save_data)
 
     @staticmethod
     def load(filename: str):
-        data = pickle.loads(lzma.decompress(Path(filename).read_bytes()))
+        save_data = Path(filename).read_bytes()
+        data = pickle.loads(lzma.decompress(save_data))
         MessageLog.messages = data["message_log"]
+
         return data["state"]
 ```
 
-Also remove `self.game_state`, `Engine.handle_events()`, and `Engine.run()`. State ownership and the main loop both move to `main.py`:
-
-```diff
--from game.game_states import GameState, MainGameState
- ...
- class Engine:
-
-     def __init__(self, ...) -> None:
--        self.game_state: GameState = MainGameState(self)
-         ...
-
--    def handle_events(self, events: Iterable[Any]) -> None:
--        for event in events:
--            action = self.game_state.handle_events(event)
--            ...
--
--    def run(self, context: Context, console: Console) -> None:
--        while True:
--            console.clear()
--            self.game_state.on_render(console=console)
--            context.present(console)
--            ...
-```
+The removals (`self.game_state`, `handle_events`, `run`) are covered in the Refactor section above.
 
 `handle_events` and `run` both referenced `self.game_state`; without it they would crash if called. The free `run()` in `main.py` replaces them entirely.
 
@@ -634,9 +747,10 @@ Run `python main.py`:
 - [ ] The main menu appears with three options
 - [ ] `N` starts a new game
 - [ ] Play for a few turns (pick up items, fight enemies)
-- [ ] Press `Q` or close the window, `"Game saved."` prints in the terminal
+- [ ] Press `Esc` or close the window, `"Game saved."` prints in the terminal
 - [ ] Run `python main.py` again, `C` loads the game with the same map, entities, and message log
-- [ ] Die in combat, the game returns to... nothing (you'd need to press Q to quit, which saves nothing, or add a "return to main menu" key)
+- [ ] Die in combat, the game-over screen appears
+- [ ] Press `Esc` to quit, no new save is written
 - [ ] Run `python main.py` again, `C` shows `"No saved game to load."` because death deleted it
 
 !!! tip "Add a return-to-menu option"
@@ -648,7 +762,7 @@ Run `python main.py`:
 
 Save and load is complete. The verification milestone is met:
 
-> **save, quit, reload → game state restored exactly**
+> **save, quit, reload → map, entities, inventory, and message history restored**
 
 Key additions:
 
@@ -684,6 +798,7 @@ game/
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py               ← modified
+│   ├── keys.py                 ← modified
 │   └── sprites.py
 ├── entities/
 │   ├── __init__.py
