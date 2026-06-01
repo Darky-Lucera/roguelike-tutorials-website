@@ -852,17 +852,19 @@ class InventoryState(GameState):
             bg_blend = tcod.constants.BKGND_SET,
         )
 
-        # Draws only the frame and title, leaving the previous fill intact
+        # Draws only the frame, leaving the previous fill intact
         console.draw_frame(
             x      = x,
             y      = y,
             width  = width,
             height = height,
-            title  = self.TITLE,
             clear  = False,
             fg     = self.FG_COLOR,
             bg     = self.BG_COLOR,
         )
+
+        title = f" {self.TITLE} "
+        console.print(x + (width - len(title)) // 2, y, title, fg=self.FG_COLOR, bg=self.BG_COLOR)
 
         if number_of_items_in_inventory > 0:
             for i, item in enumerate(inventory.items[:height - 2]):

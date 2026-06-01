@@ -439,10 +439,17 @@ class LevelUpState(GameState):
         width = 35
 
         console.draw_frame(
-            x=x, y=y, width=width, height=8,
-            title=self.TITLE, clear=True,
-            fg=colors.WHITE, bg=colors.BLACK,
+            x      = x,
+            y      = y,
+            width  = width,
+            height = 8,
+            clear  = True,
+            fg     = colors.WHITE,
+            bg     = colors.BLACK,
         )
+
+        title = f" {self.TITLE} "
+        console.print(x + (width - len(title)) // 2, y, title, fg=colors.WHITE, bg=colors.BLACK)
 
         console.print(x=x + 1, y=y + 1, text="Congratulations! You level up!")
         console.print(x=x + 1, y=y + 2, text="Select an attribute to increase.")

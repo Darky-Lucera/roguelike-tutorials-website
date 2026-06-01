@@ -498,11 +498,13 @@ class GameOverState(GameState):
             y      = y,
             width  = width,
             height = height,
-            title  = self.TITLE,
             clear  = False,
             fg     = self.FG_COLOR,
             bg     = self.BG_COLOR,
         )
+
+        title = f" {self.TITLE} "
+        console.print(x + (width - len(title)) // 2, y, title, fg=self.FG_COLOR, bg=self.BG_COLOR)
 
         console.print(x + (width - len(hint)) // 2, y + 1, hint, fg=self.FG_COLOR)
 
@@ -517,7 +519,7 @@ class GameOverState(GameState):
 
 `on_render()` defines `hint` first so both dimensions can reference its length. `width` is the wider of the title and the hint, plus four characters for the two border columns and one space of padding on each side. `height` is 3: one row for the top border (which also carries the title), one for the hint, one for the bottom border.
 
-The rendering is a two-pass approach. First, `draw_rect` fills every cell with a space character using `BKGND_SET`, which writes the background color directly over whatever tcod previously rendered. `ch=ord(' ')` clears the character layer too, so the dungeon tiles underneath are fully hidden; the player's attention should leave the map entirely at this point. Second, `draw_frame` draws only the border with `clear=False`, which tells tcod to skip the interior fill and preserve the rectangle just written by `draw_rect`. Passing `title=self.TITLE` embeds the string into the top border, saving a separate `console.print` call. The hint is centered horizontally and printed at `y+1`, the only interior row.
+The rendering is a two-pass approach. First, `draw_rect` fills every cell with a space character using `BKGND_SET`, which writes the background color directly over whatever tcod previously rendered. `ch=ord(' ')` clears the character layer too, so the dungeon tiles underneath are fully hidden; the player's attention should leave the map entirely at this point. Second, `draw_frame` draws only the border with `clear=False`, which tells tcod to skip the interior fill and preserve the rectangle just written by `draw_rect`. The title is then centered on the top border row with a separate `console.print`, overwriting the border character there with the padded title string. The hint is centered horizontally and printed at `y+1`, the only interior row.
 
 The `MouseMotion` case stores the cursor tile position in `engine.mouse_location` so `render_names_at_mouse_location` always has current data. `integer_position` is the tile-space coordinate set by `context.convert_event`; the older `event.tile` attribute is deprecated.
 
