@@ -41,7 +41,31 @@ The challenge: `Fighter.entity` points back to the `Actor` that owns it, `Hostil
     Never load a pickle file from an unknown source, pickle can execute arbitrary code during deserialization. For a single-player game saving its own state, this is fine.
 
 !!! warning "Save files are not stable between code changes"
-    `pickle` stores class names and attribute names. If you rename a class, move a module, or add a required attribute between parts, old save files will fail with `AttributeError` or `ModuleNotFoundError`. Delete your save file whenever you change the code.
+    Understanding what pickle does and does not serialize prevents hours of debugging.
+
+    **What gets serialized:** every object reachable from the saved state, recursively. That means `Engine`, `GameMap`, every `Entity`, every `Fighter`, every `AI` instance, and anything those objects reference. For the plain Python classes in this project, pickle stores each object's `__dict__` (its instance attributes) together with the fully qualified class name (`module.ClassName`) needed to reconstruct it.
+
+    **What does NOT get serialized:** method bodies, property functions, class-level constants (`UPPERCASE` values), and anything not stored as instance data.
+
+    **Changes that break existing saves:**
+
+    - Renaming an instance attribute (`self._hp` to `self._health`): an old save still contains `_hp`, but the new code reads `_health`, so it raises `AttributeError`.
+    - Renaming or moving a class (`game.fighter.Fighter` to `game.components.Fighter`): pickle cannot find the class and raises `ModuleNotFoundError` or `AttributeError`.
+    - Adding a new instance attribute that old saves do not have, unless you provide a migration or fallback.
+
+    **Changes that do not usually break saves by themselves:**
+
+    - Adding or renaming methods, as long as they can still work with old instance data.
+    - Adding properties or class constants, as long as they do not read missing instance attributes.
+    - Changing default parameter values in `__init__` (only affects newly created instances; loading with pickle does not call `__init__`).
+
+    **The fix without deleting the save:** two tools, two use cases.
+
+    - `__getattr__(self, name)`: Python calls this when normal attribute lookup fails. Use it when you *added* a new attribute that old saves simply don't have. It is useful for providing a simple default or lazily creating the missing field.
+
+    - `__setstate__(self, state)`: pickle calls this once when loading, passing the saved `__dict__`. Use it when you *renamed* an attribute: rewrite the old key to the new name before updating `__dict__`, and subsequent accesses are normal.
+
+    Exercise 3 below demonstrates both in sequence.
 
 We add `lzma` compression on top to shrink the file. A typical save is a few kilobytes compressed, negligible, but it is good practice.
 
@@ -74,10 +98,19 @@ class Engine:
 
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(save_data)
+        tmp_path = path.with_suffix(".tmp")
+        tmp_path.write_bytes(save_data)
+        tmp_path.replace(path)
 ```
 
-`pickle.dumps(...)` serializes `active_state` (which transitively includes the engine and everything it references) plus the static message log. `lzma.compress` shrinks it. `path.parent.mkdir(parents=True, exist_ok=True)` creates the `savegames/` directory if it does not exist yet. `path.write_bytes` writes the compressed bytes to disk.
+`pickle.dumps(...)` serializes `active_state` (which transitively includes the engine and everything it references) plus the static message log. `lzma.compress` shrinks it. `path.parent.mkdir(parents=True, exist_ok=True)` creates the `savegames/` directory if it does not exist yet.
+
+The write uses a temporary file first: `savegame.tmp` is written completely, then `tmp_path.replace(path)` replaces `savegame.sav`. This is much safer than writing directly to the final file. If the process dies halfway through `write_bytes`, the old save is still intact. The replacement step is atomic on most filesystems when both files are in the same directory.
+
+!!! tip "`Path.with_suffix()` and `Path.replace()`"
+    `path.with_suffix(".tmp")` returns a new `Path` with the extension swapped: `savegames/savegame.sav` becomes `savegames/savegame.tmp`. The original path is unchanged.
+
+    `tmp_path.replace(path)` renames `tmp_path` to `path`, overwriting the destination if it already exists. On most operating systems this rename is atomic at the filesystem level: any reader of `path` sees either the old file or the new one, never a half-written mix. Both methods are part of the standard library `pathlib.Path` and work identically on Windows and POSIX.
 
 Loading is the inverse:
 
@@ -158,7 +191,6 @@ def new_game() -> Engine:
     )
 
     engine = Engine(game_map=game_map, player=player)
-    engine.update_fov()
 
     MessageLog.add_message(
         "Hello and welcome, adventurer, to yet another dungeon!",
@@ -170,13 +202,22 @@ def new_game() -> Engine:
 
 def load_game(filename: str | Path):
     """Load a save file and return the saved game state."""
-    if not Path(filename).exists():
+    path = Path(filename)
+    if not path.exists():
         raise FileNotFoundError(f"No save file found at {filename!r}")
 
-    return Engine.load(filename)
+    try:
+        return Engine.load(path)
+
+    except Exception as ex:  # pylint: disable=broad-exception-caught
+        backup_path = path.with_suffix(path.suffix + ".bak")
+        path.replace(backup_path)
+        raise RuntimeError(f"Save file could not be loaded and was moved to {backup_path}.") from ex
 ```
 
 `RES_DIR` is the shared path for resource files such as the tileset and the menu background. `SAVE_DIR` and `SAVE_PATH` keep saves out of the project root and give every module one canonical save location.
+
+`load_game()` handles one more practical case: the save file might exist but fail to load because it is corrupt or incompatible with the current code. Instead of leaving the player stuck with a broken Continue option, the failed save is moved aside to `savegame.sav.bak` and the menu can show a clear message.
 
 ---
 
@@ -242,8 +283,8 @@ class PopupMessageState(BaseGameState):
 
     def on_render(self, console: tcod.console.Console) -> None:
         self.parent.on_render(console)
-        console.fg[:] = console.fg // 8
-        console.bg[:] = console.bg // 8
+        console.fg[:] = console.fg // 2
+        console.bg[:] = console.bg // 2
 
         lines  = self.text.split("\n")
         width  = max(len(line) for line in lines) + 4
@@ -306,7 +347,7 @@ KEY_CONTINUE     = tcod.event.KeySym.C
 
 `KEY_QUIT_GAME` (already defined as `ESCAPE`) covers the quit option. With these three constants in place, the menu handler is fully decoupled from raw `KeySym` values.
 
-The menu also needs the image loader and the shared resource directory. Add these near the top of `game/game_states.py`:
+The menu also needs the image loader, the shared resource directory, and the save path. Add these near the top of `game/game_states.py`:
 
 ```diff
  import tcod
@@ -316,7 +357,7 @@ The menu also needs the image loader and the shared resource directory. Add thes
  from game.constants.colors import Color
  from game.exceptions import Impossible
  from game.message_log import MessageLog
-+from game.setup_game import RES_DIR
++from game.setup_game import RES_DIR, SAVE_PATH
 ```
 
 Add this helper near `MESSAGE_LOG_SCROLL_AMOUNT`:
@@ -332,9 +373,16 @@ def _key_label(sym: tcod.event.KeySym) -> str:
     return f"[ {name} ]"
 ```
 
+!!! tip "How `_key_label` picks a name"
+    The function applies three rules in order:
+
+    1. **Override table.** If the key has an entry in `_SPECIAL_KEY_NAMES`, use that string (for example, `ESCAPE` → `"Esc"` instead of the raw enum name `"ESCAPE"`).
+    2. **Printable ASCII.** `int(sym)` converts a `KeySym` to its SDL integer code. If the value is in the printable ASCII range 32–126 (space through tilde), `chr(v).upper()` gives a clean one-character label: `"A"`, `"1"`, `"/"`, and so on. This avoids the verbose enum names that tcod inherits from SDL: the period key would otherwise show as `"PERIOD"` instead of `"."`.
+    3. **Fallback.** Everything else (function keys, numpad, arrows) uses `sym.name`, the string name tcod assigns to that key (e.g., `"F1"`, `"KP_8"`, `"UP"`).
+
 `MainMenuState` is the first state the game enters. Unlike every other state, it holds no engine reference: the engine does not exist until the player makes a choice.
 
-`on_render` draws the background image with `draw_semigraphics`, then overlays a framed menu panel with the title and three options.
+`on_render` draws the background image with `draw_semigraphics`, then overlays a framed menu panel with the title and three options. It also prints `self.author` in white in the lower-right corner, with one row and one column of margin; the default text is `"by caragones"` (me). Change it by your own name. The Continue option is dimmed when no save file exists, but pressing `C` still shows a popup. Ignoring the key would feel like the game had stopped responding.
 
 !!! info "`draw_semigraphics` and half-block rendering"
     A tcod console is a grid of character cells. `draw_semigraphics` maps each 2×1 block of pixels in the source image onto one console cell using the Unicode half-block characters `▀` (upper half filled) and `▄` (lower half filled), setting foreground and background colors independently. The result is an image at twice the vertical resolution of a normal text rendering, at the cost of palette accuracy. The image is loaded once in `__init__` so the file is not re-read on every frame.
@@ -342,7 +390,7 @@ def _key_label(sym: tcod.event.KeySym) -> str:
 `event_keydown` handles three transitions:
 
 - `keys.KEY_NEW_GAME` (`N`): calls `new_game()`, wraps the fresh engine in a `MainGameState`, and returns it.
-- `keys.KEY_CONTINUE` (`C`): calls `load_game()`. If no save file exists it falls back to a `PopupMessageState`; if the file is corrupt it shows the exception message.
+- `keys.KEY_CONTINUE` (`C`): calls `load_game()` when a save exists. If no save file exists it falls back to a `PopupMessageState`; if the file is corrupt or incompatible, `load_game()` moves it to `.bak` and the menu shows the exception message.
 - `keys.KEY_QUIT_GAME` (`Esc`): raises `SystemExit`.
 
 Add to `game/game_states.py` after `PopupMessageState`:
@@ -351,7 +399,8 @@ Add to `game/game_states.py` after `PopupMessageState`:
 class MainMenuState(BaseGameState):
     """Renders the main menu and handles New / Continue / Quit."""
 
-    def __init__(self) -> None:
+    def __init__(self, author: str = "by caragones") -> None:
+        self.author = author
         self._bg = Image.from_file(RES_DIR / "menu_background.png")
 
     def on_render(self, console: tcod.console.Console) -> None:
@@ -371,7 +420,7 @@ class MainMenuState(BaseGameState):
             ch       = ord(" "),
             fg       = colors.MENU_TITLE,
             bg       = colors.BLACK,
-            bg_blend = tcod.libtcodpy.BKGND_ALPHA(0.8),
+            bg_blend = tcod.constants.BKGND_SET,
         )
 
         console.draw_frame(
@@ -388,24 +437,33 @@ class MainMenuState(BaseGameState):
         console.print(x + (width - len(title)) // 2, y, title, fg=colors.MENU_TITLE, bg=colors.BLACK)
 
         menu_options = [
-            (keys.KEY_NEW_GAME,  "Play a new game"),
-            (keys.KEY_CONTINUE,  "Continue last game"),
-            (keys.KEY_QUIT_GAME, "Quit"),
+            (keys.KEY_NEW_GAME,  "Play a new game",    True),
+            (keys.KEY_CONTINUE,  "Continue last game", SAVE_PATH.exists()),
+            (keys.KEY_QUIT_GAME, "Quit",               True),
         ]
-        key_labels = [_key_label(sym) for sym, _ in menu_options]
+        key_labels = [_key_label(sym) for sym, _, _ in menu_options]
         key_width  = max(len(lbl) for lbl in key_labels)
         opt_width  = 30
         opt_x      = console.width // 2 - opt_width // 2
 
-        for i, (label, (_, desc)) in enumerate(zip(key_labels, menu_options)):
+        for i, (label, (_, desc, enabled)) in enumerate(zip(key_labels, menu_options)):
             row  = y + 2 + i
             key  = label.ljust(key_width + 1)
             desc = desc.ljust(opt_width - len(key))
-            console.print(opt_x,            row, key,  fg=colors.MENU_TITLE, bg = colors.BLACK, bg_blend=tcod.libtcodpy.BKGND_SET)
-            console.print(opt_x + len(key), row, desc, fg=colors.MENU_TEXT,  bg_blend=tcod.libtcodpy.BKGND_NONE)
+            fg   = colors.MENU_TEXT if enabled else colors.MENU_TEXT_DISABLED
+            console.print(opt_x,            row, key,  fg=fg, bg = colors.BLACK, bg_blend=tcod.constants.BKGND_SET)
+            console.print(opt_x + len(key), row, desc, fg=fg, bg_blend=tcod.constants.BKGND_NONE)
+
+        console.print(
+            console.width - 2,
+            console.height - 2,
+            self.author,
+            fg        = colors.WHITE,
+            alignment = tcod.constants.RIGHT,
+        )
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | BaseGameState | None:
-        from game.setup_game import SAVE_PATH, load_game, new_game
+        from game.setup_game import load_game, new_game
 
         match event.sym:
             case keys.KEY_NEW_GAME:
@@ -416,6 +474,9 @@ class MainMenuState(BaseGameState):
                 raise SystemExit()
 
             case keys.KEY_CONTINUE:
+                if not SAVE_PATH.exists():
+                    return PopupMessageState(self, "No saved game to load.")
+
                 try:
                     return load_game(SAVE_PATH)
 
@@ -428,7 +489,21 @@ class MainMenuState(BaseGameState):
         return None
 ```
 
-`new_game`, `load_game`, and `SAVE_PATH` are imported locally inside `event_keydown` because they are only needed when the player presses a menu key. `RES_DIR` is imported at the top because rendering the menu needs it every frame. This import is safe once the refactor below removes the old `engine.py -> game_states.py` dependency.
+!!! tip "Nested tuple unpacking with `zip`"
+    ```python
+    for i, (label, (_, desc, enabled)) in enumerate(zip(key_labels, menu_options)):
+    ```
+
+    - `i` comes from `enumerate`.
+    - `label` comes from `key_labels`.
+    - `(_, desc, enabled)` comes from `menu_options`, where each element is `(sym, desc, enabled)`.
+    - `zip` pairs them: `(label, (sym, desc, enabled))`, and Python unpacks both levels in one step.
+
+    `sym` is discarded with `_` because it was already used to build `key_labels`. `_` is a valid variable name; by convention it signals "intentionally unused".
+
+`new_game` and `load_game` are imported locally inside `event_keydown` because they are only needed when the player presses a menu key. `RES_DIR` and `SAVE_PATH` are imported at the top because rendering the menu needs them every frame. This import is safe once the refactor below removes the old `engine.py -> game_states.py` dependency.
+
+The first `except FileNotFoundError` is a TOCTOU guard (Time-Of-Check/Time-Of-Use): the file could be deleted between the `SAVE_PATH.exists()` check above and the actual `load_game()` call, so we handle that race rather than letting it crash.
 
 The `except Exception` that catches load failures is intentionally broad at the menu boundary: a corrupt or incompatible save file should show a user-facing popup, not crash the program.
 
@@ -437,11 +512,14 @@ Add to `game/constants/colors.py`:
 ```python
 MENU_TITLE             = Color(255, 255, 63)
 MENU_TEXT              = WHITE
+MENU_TEXT_DISABLED     = Color(128, 128, 32)
 ```
 
 ---
 
 ## Refactor: states return states
+
+Until now, `GameState.handle_events()` communicated state transitions by writing directly to `engine.game_state`. The engine was both the game model and a shared mutable pointer to the current state. Now that the main menu and popups need to run without an engine, that coupling must go.
 
 !!! warning "Complete all steps and 'Delete save on death' before running type checks"
     After adding `BaseGameState`, mypy will report that `GameState` subclasses are not assignable to `BaseGameState` until Step 2 is done. Step 2 also introduces a call to `GameOverState.on_enter()`, which is not defined until the "Delete save on death" section below. Complete Steps 1, 2, 3 **and** "Delete save on death" before checking types.
@@ -496,7 +574,7 @@ In `game/engine.py`, remove the event-loop and game-state imports (now unused), 
 -                self.handle_events([event])
 ```
 
-Removing `from game.game_states import GameState, MainGameState` breaks the circular chain `engine → game_states → setup_game → engine`.
+Removing `from game.game_states import GameState, MainGameState` breaks the direct circular import `engine → game_states → engine`. It also prevents a larger cycle that would form later, once `game_states.py` imports from `setup_game.py`: without this removal, the chain `game_states → setup_game → engine → game_states` would be circular.
 
 ### Step 2: replace `GameState` with the new version
 
@@ -609,8 +687,6 @@ There are three places in `game_states.py` that assign to `self.engine.game_stat
 @@
          if key == keys.KEY_QUIT_GAME:
 -            return EscapeAction()
-+            from game.setup_game import SAVE_PATH
-+
 +            try:
 +                self.engine.save_as(SAVE_PATH, self)
 +                print(f"Game saved at {SAVE_PATH}.")
@@ -759,9 +835,7 @@ The `try/except SystemExit` inside `run()` catches the quit signal raised by any
 
 If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverState`.
 
-Do **not** add a module-level import of `setup_game` here: `game_states.py` already participates in the import graph through `engine.py`, and a top-level `from game.setup_game import ...` would create a circular chain. Use a local import inside `on_enter()` instead.
-
-`SAVE_PATH` is now a `Path` object defined in `setup_game.py`, so no wrapping is needed and `game_states.py` does not need to import `Path`. Replace the stub `on_enter()` added in Step 2 with the real implementation:
+`SAVE_PATH` is now imported near the top of `game_states.py` together with `RES_DIR`, and it is a `Path` object defined in `setup_game.py`, so no wrapping is needed. Replace the stub `on_enter()` added in Step 2 with the real implementation:
 
 ```diff
  class GameOverState(GameState):
@@ -769,8 +843,6 @@ Do **not** add a module-level import of `setup_game` here: `game_states.py` alre
 -    def on_enter(self) -> None:
 -        pass
 +    def on_enter(self) -> None:
-+        from game.setup_game import SAVE_PATH
-+
 +        if SAVE_PATH.exists():
 +            SAVE_PATH.unlink()
 ```
@@ -816,7 +888,9 @@ class Engine:
 
         path = Path(filename)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(save_data)
+        tmp_path = path.with_suffix(".tmp")
+        tmp_path.write_bytes(save_data)
+        tmp_path.replace(path)
 
     @staticmethod
     def load(filename: str | Path):
@@ -845,7 +919,9 @@ This also breaks the potential circular import introduced when `game_states.py` 
 
 Run `python main.py`:
 
-- [ ] The main menu appears with the background image and three framed options
+- [ ] The main menu appears with the background image, three framed options, and the author text in the lower-right corner
+- [ ] `Continue last game` is dimmed when no save file exists
+- [ ] Pressing `C` with no save shows `"No saved game to load."`
 - [ ] `N` starts a new game
 - [ ] Play for a few turns (pick up items, fight enemies)
 - [ ] Press `Esc` or close the window, the terminal prints where the game was saved
@@ -853,9 +929,6 @@ Run `python main.py`:
 - [ ] Die in combat, the game-over screen appears
 - [ ] Press `Esc` to quit, no new save is written
 - [ ] Run `python main.py` again, `C` shows `"No saved game to load."` because death deleted it
-
-!!! tip "Add a return-to-menu option"
-    Consider binding `Escape` in `GameOverState` to return to `MainMenuState` instead of quitting. This is a one-line change in `event_keydown`: return `MainMenuState()` instead of raising `SystemExit`.
 
 ---
 
@@ -868,6 +941,8 @@ Save and load is complete. The verification milestone is met:
 Key additions:
 
 - **`pickle` + `lzma`**: serialize/deserialize the active state plus static message log state
+- **Atomic save writes**: write to a temporary file before replacing the final save
+- **Corrupt save recovery**: move broken saves to `.bak` instead of trapping the player on a bad Continue option
 - **`game/setup_game.py`**: shared `RES_DIR` / `SAVE_PATH` paths plus `new_game()` and `load_game()` functions
 - **`BaseGameState`**: state base that works without an engine (main menu, popups)
 - **`PopupMessageState`**: dismissable framed overlay with darkened background
@@ -931,10 +1006,120 @@ game/
 
     Change `GameOverState.event_keydown` so `Escape` returns `MainMenuState()` instead of quitting. The player can start a new run without restarting the program.
 
-2. **Multiple save slots**:
+2. **Record a graveyard file**:
 
-    Add a save-slot selection screen before `new_game()` and `load_game()`. Use a list `["slot1.sav", "slot2.sav", "slot3.sav"]` and show which slots are occupied (file exists) vs empty.
+    Add a small run history that is written when the player dies. This is not part of the saved game state, so use JSON instead of pickle.
 
-3. **Autosave**:
+    Add `turn_count` to `Engine` and `kill_count` to `Fighter`. Increment `turn_count` only after a successful player action that consumes a turn. Opening the inventory, cancelling targeting, scrolling the message log, or trying an impossible action should not count.
 
-    Call `self.engine.save_as(SAVE_PATH, self)` after every `handle_enemy_turns()` in `GameState.handle_events()`. A power outage or crash then loses at most one turn. Measure whether the save is fast enough to be imperceptible (it should be, at under 1 ms for a small game state). Note that `Path.write_bytes()` is not atomic: a kill signal mid-write can leave a partial file. For true crash-safety, write to a temporary file first and then call `tmp.replace(SAVE_PATH)`, which is atomic on most filesystems.
+    Increment `kill_count` on the actor that caused another actor to die. Pass the attacker through damage-dealing code so melee attacks and damaging consumables can attribute the kill correctly. Self-inflicted deaths should not count as kills. For example, if the player is caught in their own fireball, that death should not increase the player's `kill_count`.
+
+    When `GameOverState.on_enter()` runs, append one record to `SAVE_DIR / "graveyard.json"`:
+
+    ```json
+    {
+      "date": "2026-06-02T18:42:00",
+      "turns": 183,
+      "kills": 12,
+      "gold": 42
+    }
+    ```
+
+    You can produce that date string with `datetime.now().isoformat(timespec="seconds")` after importing `datetime` from Python's standard library:
+
+    ```python
+    from datetime import datetime
+
+    date = datetime.now().isoformat(timespec="seconds")
+    ```
+
+    Read `kills` from `self.engine.player.fighter.kill_count`. Read `gold` from `self.engine.player.inventory.gold`; do not keep a second gold counter in `Engine`. If `graveyard.json` does not exist yet, start with an empty list. As an extra constraint, keep only the latest 10 runs.
+
+    This exercise is about separating two kinds of persistence: pickle is convenient for the live game state, while JSON is better for small, stable records that should remain readable even if the game's classes change.
+
+3. **Break and fix an old save file**:
+
+    This exercise makes the warning above concrete by demonstrating the two main tools for save compatibility: `__getattr__` for new fields and `__setstate__` for renamed ones.
+
+    Start each part from the normal Part 10 code. The order matters: first create the save, then change the code. That reproduces the real compatibility problem, a player keeps a save from an older version of the game and then runs newer code.
+
+    **Part A: adding a new field with `__getattr__`**
+
+    Run the game, start a new run, play a turn or two, then press `Escape` to save. This is now an old save: its `Fighter` objects do not have `_armor`.
+
+    Now pretend the next version of the game adds armor to `Fighter`. Add an `_armor` attribute to `Fighter.__init__`:
+
+    ```python
+    self._armor: int = 0
+    ```
+
+    Add a property that reads it:
+
+    ```python
+    @property
+    def armor(self) -> int:
+        return self._armor
+    ```
+
+    Then make the damage calculation use it. If your local code is slightly different, the important part is that combat reads `target.fighter.armor`:
+
+    ```diff
+    -base_damage = self.attack - target.fighter.defense
+    +base_damage = self.attack - (target.fighter.defense + target.fighter.armor)
+    ```
+
+    Run the game again and press `C` to load the old save. The load itself succeeds, but the game crashes with `AttributeError: 'Fighter' object has no attribute '_armor'` the first time damage code reads armor.
+
+    Fix it with `__getattr__`. Add `Any` near the imports:
+
+    ```python
+    from typing import Any
+    ```
+
+    Then add this method inside `Fighter`:
+
+    ```python
+    def __getattr__(self, name: str) -> Any:
+        if name == "_armor":
+            self._armor = 0
+            return self._armor
+
+        raise AttributeError(name)
+    ```
+
+    `__getattr__` is called only when normal attribute lookup fails. Fresh objects already have `_armor`, so they use the normal path. Old saves are repaired lazily: the first access creates `_armor`, and the next save will store it normally.
+
+    Revert the exercise changes when done if you want to continue the tutorial from the exact reference code.
+
+    ---
+
+    **Part B: renaming an existing field with `__setstate__`**
+
+    Return to the normal Part 10 code and delete the save from Part A. Run the game, start a new run, play a turn or two, then press `Escape` to save. This old save contains `Fighter._hp`.
+
+    Now pretend the next version of the game renames the internal field. Rename `_hp` to `_health` throughout `game/entities/components/fighter.py`: the `__init__` assignment, the `hp` property getter and setter, and `die()`. The public property can still be named `hp`; only the stored instance attribute changes.
+
+    Run the game again and press `C` to load the old save. The crash is the same pattern:
+
+    ```txt
+    AttributeError: 'Fighter' object has no attribute '_health'
+    ```
+
+    This time `__getattr__` could provide a fallback, but a rename is better handled once at load time. The right tool is `__setstate__`, which pickle calls once on load with the saved `__dict__`. Rewrite the old key to the new one before updating the object:
+
+    ```python
+    def __setstate__(self, state: dict) -> None:
+        if "_hp" in state and "_health" not in state:
+            state["_health"] = state.pop("_hp")
+
+        self.__dict__.update(state)
+    ```
+
+    After `__setstate__` runs, `_health` is in `__dict__` as normal. Subsequent accesses cost nothing extra, and the next save will store `_health` correctly.
+
+    Revert the exercise changes when done if you want to continue the tutorial from the exact reference code.
+
+    ---
+
+    !!! warning "Delete your save before starting Part 11"
+        These exercises intentionally create incompatible save files. Delete `savegames/savegame.sav` before continuing. Part 11 adds new classes that the current save does not know about, and any leftover test save will fail on load.
