@@ -1,3 +1,8 @@
+---
+hide:
+  - footer
+---
+
 # Part 8: Items and Inventory
 
 ## What You Will Build
@@ -1415,3 +1420,7 @@ game/
     ```
 
     `KEY_QUIT_GAME` and `KEY_EXIT` both map to `ESCAPE` but carry different names to express intent: one quits the game, the other closes an overlay. Update `game_states.py` to `from game.constants import colors, keys` and replace every raw `tcod.event.KeySym.*` reference with the corresponding constant. Update `factories.py` the same way: `keys.HEALTH_POTION` and `keys.BACKPACK_SCROLL` instead of hardcoded `KeySym` values, and remove the `import tcod.event` that is no longer needed there. A player can now remap all controls by editing one file without touching any handler or factory.
+
+---
+
+*Finished with Part 8. Continue to [Part 9: Spells and Targeting](part-9.md).*

@@ -62,21 +62,68 @@ Lines starting with `-` are removed. Lines starting with `+` are added.
 
 ## Table of contents
 
-- [Part 0: Introduction and Setup](part-0.md)
-- [Part 1: Drawing the @ and Moving It Around](part-1.md)
-- [Part 2: Entities, the Map, and the Engine](part-2.md)
-- [Part 3: Generating a Dungeon](part-3.md)
-- [Part 4: Field of View](part-4.md)
-- [Part 5: Enemies and the Turn System](part-5.md)
-- [Part 6: Combat](part-6.md)
-- [Part 7: The User Interface](part-7.md)
-- [Part 8A: Items and Inventory](part-8.md)
-- [Part 8B: Items and Inventory (split)](part-8_split.md)
-- [Part 9: Spells and Targeting](part-9.md)
-- [Part 10: Save and Load](part-10.md)
-- [Part 11: Dungeon Levels and Experience](part-11.md)
-- [Part 12: Procedural Difficulty](part-12.md)
-- [Part 13: Equipment](part-13.md)
+- [Part 0: Introduction and Setup](part-0.md):
+
+  Install the tools, create the project, and verify everything runs.
+
+- [Part 1: Drawing the @ and Moving It Around](part-1.md):
+
+  Open a window, draw the player character, and move it with the keyboard.
+
+- [Part 2: Entities, the Map, and the Engine](part-2.md):
+
+  Introduce the Entity class, a numpy tile system, and the Engine as a central coordinator.
+
+- [Part 3: Generating a Dungeon](part-3.md):
+
+  Procedurally generate rooms and corridors; place the player in the first room.
+
+- [Part 4: Field of View](part-4.md):
+
+  Show only what the player can see; remember explored tiles.
+
+- [Part 5: Enemies and the Turn System](part-5.md):
+
+  Spawn enemies, give them AI, and build the alternating turn loop.
+
+- [Part 6: Combat](part-6.md):
+
+  Add HP, attack stats, A* pathfinding, and player death.
+
+- [Part 7: The User Interface](part-7.md):
+
+  Build the HUD: health bar, message log, and mouse-hover entity names.
+
+- **Part 8: Items and Inventory**:
+
+  Add items to the dungeon and give the player an inventory.
+
+  Available in two formats:
+
+  - [Part 8](part-8-intro.md): Full chapter.
+  - [Part 8a: The Item System](part-8a.md) and [Part 8b: Inventory](part-8b.md): Split into two shorter chapters.
+
+  Which format works better for you? Let us know.
+
+- [Part 9: Spells and Targeting](part-9.md):
+
+  Implement a targeting cursor and three scroll types with spell effects.
+
+- [Part 10: Save and Load](part-10.md):
+
+  Serialize game state with pickle; add a main menu with background art.
+
+- [Part 11: Dungeon Levels and Experience](part-11.md):
+
+  Add dungeon floors, stairs, XP, and character level-ups.
+
+- [Part 12: Procedural Difficulty](part-12.md):
+
+  Scale encounter difficulty with floor-keyed weighted spawn tables.
+
+- [Part 13: Equipment](part-13.md):
+
+  Add weapons and armor with attack and defense bonuses.
 
 ---
 
