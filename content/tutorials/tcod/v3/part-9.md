@@ -730,7 +730,7 @@ class FireballDamageConsumable(Consumable):
                 damage = self.damage * weight
                 MessageLog.add_message(
                     f"The {actor.name} is engulfed in a fiery explosion,"
-                    f" taking {damage:.2f} damage!",
+                    f" taking {damage:.1f} damage!",
                     colors.PLAYER_ATTACK,
                 )
                 actor.fighter.take_damage(damage)

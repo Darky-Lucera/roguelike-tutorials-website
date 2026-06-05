@@ -589,13 +589,16 @@ Update `Fighter.melee_attack()` in `game/entities/components/fighter.py`:
      if damage > 0:
 -        print(f"{attack_msg} for {damage} hit points.")
 +        MessageLog.add_message(f"{attack_msg} for {damage} hit points.", attack_color)
-         target.fighter.hp -= damage
+-        target.fighter.hp -= damage
++        target.fighter.take_damage(damage)
      else:
 -        print(f"{attack_msg} but does no damage.")
 +        MessageLog.add_message(f"{attack_msg} but does no damage.", attack_color)
 ```
 
-`self.entity.ai is None` identifies the player: the player never has an AI component, enemies always do. Player attacks use a lighter color (`PLAYER_ATTACK`) and enemy attacks a red tint (`ENEMY_ATTACK`), so the player can scan the log quickly. `die()` is triggered by the `hp` setter as before: no call site change needed in `melee_attack`.
+`self.entity.ai is None` identifies the player: the player never has an AI component, enemies always do. Player attacks use a lighter color (`PLAYER_ATTACK`) and enemy attacks a red tint (`ENEMY_ATTACK`), so the player can scan the log quickly.
+
+Damage now goes through `target.fighter.take_damage(damage)` instead of assigning to `target.fighter.hp` directly. We add `take_damage()` below. For now, it still delegates to the `hp` setter, so death is triggered exactly as before. The benefit is that every damage source can use the same readable method.
 
 Update `Fighter.die()` in `game/entities/components/fighter.py` to write to the message log:
 
@@ -611,6 +614,7 @@ Update `Fighter.die()` in `game/entities/components/fighter.py` to write to the 
 +    if self.entity.ai is None:
 +        death_message = "You died!"
 +        death_message_color = colors.PLAYER_DEATH
++
 +    else:
 +        death_message = f"The {self.entity.name} is dead!"
 +        death_message_color = colors.ENEMY_DEATH
@@ -637,7 +641,7 @@ Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/
         self.hp -= amount
 ```
 
-`heal()` returns the amount actually recovered; the `hp` setter clamps to `max_hp`, so you cannot overheal. It is used in Part 8 by healing potions. `take_damage()` is a thin wrapper over `self.hp -= amount` that gives call sites a readable name.
+`heal()` returns the amount actually recovered; the `hp` setter clamps to `max_hp`, so you cannot overheal. It is used in Part 8 by healing potions. `take_damage()` is a thin wrapper over `self.hp -= amount` that gives call sites a readable name. `melee_attack()` now uses it, and later damage sources will reuse the same method.
 
 !!! note "If you kept Part 5/6 exercise code"
     Convert those messages to `MessageLog.add_message(...)` too. For example, non-combat blockers in `actions.py` should log instead of printing, and optional flee/critical-hit logic in `fighter.py` should keep the same behavior while routing its feedback through the message log.

@@ -261,12 +261,12 @@ class Fighter(BaseComponent):
             death_message = "You died!"
         print(death_message)
 
-        self.entity.char = sprites.CORPSE
+        self.entity.char  = sprites.CORPSE
         self.entity.color = colors.CORPSE
+        self.entity.ai    = None
+        self.entity.name  = f"remains of {self.entity.name}"
         self.entity.blocks_movement = False
-        self.entity.ai = None
-        self.entity.name = f"remains of {self.entity.name}"
-        self.entity.render_order = RenderOrder.CORPSE
+        self.entity.render_order    = RenderOrder.CORPSE
 ```
 
 !!! question "What does `@hp.setter` do?"
