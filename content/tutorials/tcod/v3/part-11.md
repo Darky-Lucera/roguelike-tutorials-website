@@ -65,7 +65,7 @@ class Level(ActorComponent):
         level_up_base  : int = 200,
         level_up_factor: int = 100,
         xp_given       : int = 0,
-    ) -> None        :
+    ) -> None:
         self.current_level    = current_level
         self.current_xp       = current_xp
         self.level_up_base    = level_up_base
@@ -272,8 +272,6 @@ The player passes `level_up_base=200` and leaves `xp_given` at 0 (the player doe
 Update `Actor.__init__` in `game/entities/entity.py` to accept and wire up the `level` component:
 
 ```diff
-+from game.entities.components.level import Level
-
  class Actor(Entity):
 
      def __init__(
@@ -305,6 +303,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from game.engine import Engine
+    from game.map.game_map import GameMap
 
 
 class GameWorld:
@@ -338,6 +337,7 @@ class GameWorld:
         self.max_items_per_room    = max_items_per_room
         self.seed                  = seed
         self.current_floor         = current_floor
+        self.floors: list[GameMap] = []
 
     def generate_floor(self) -> None:
         from game.map.map_generator import generate_dungeon
@@ -428,55 +428,118 @@ Update `game/setup_game.py`, replace the direct `generate_dungeon` call with `Ga
 
 ## Stairs in the map generator
 
+### The Stairs entity
+
+Using a plain `Entity` for stairs works on a single-staircase map, but as soon as there are two sets of stairs (up and down) the code must compare tile positions to decide which type was triggered. A dedicated class carries that information directly.
+
+Add to `game/entities/entity.py`:
+
+```python
+from enum import Enum, auto
+
+class StairsDirection(Enum):
+    UP   = auto()
+    DOWN = auto()
+
+
+class Stairs(Entity):
+    def __init__(
+        self,
+        *,
+        direction: StairsDirection,
+        x: int = 0,
+        y: int = 0,
+        char: str = sprites.UNKNOWN,
+        color: Color = colors.DEFAULT_FG,
+        name: str = "Stairs",
+    ) -> None:
+        super().__init__(
+            x=x, y=y, char=char, color=color, name=name,
+            blocks_movement=False,
+            render_order=RenderOrder.ITEM,
+        )
+        self.direction = direction
+```
+
 Add to `game/constants/sprites.py`:
 
 ```python
 DOWN_STAIRS = ">"
+UP_STAIRS   = "<"
 ```
 
 Add to `game/constants/colors.py`:
 
 ```python
 DOWN_STAIRS = Color(255, 255, 100)
+UP_STAIRS   = Color(200, 200, 255)
 ```
 
-Add stairs to `game/entities/factories.py`:
+Update `game/entities/factories.py` to use `Stairs` instead of bare `Entity`, and add the up-stairs factory:
 
 ```python
-down_stairs = Entity(
-    char            = sprites.DOWN_STAIRS,
-    color           = colors.DOWN_STAIRS,
-    name            = "Stairs",
-    blocks_movement = False,
-    render_order    = RenderOrder.ITEM,
+from game.entities.entity import Actor, Item, Stairs, StairsDirection
+
+down_stairs = Stairs(
+    char      = sprites.DOWN_STAIRS,
+    color     = colors.DOWN_STAIRS,
+    direction = StairsDirection.DOWN,
+)
+
+up_stairs = Stairs(
+    char      = sprites.UP_STAIRS,
+    color     = colors.UP_STAIRS,
+    direction = StairsDirection.UP,
 )
 ```
 
-Add `downstairs_location` to `GameMap`:
+### Updating GameMap
+
+Add both stair locations as class-level attributes and a helper that finds a `Stairs` entity at a given position:
 
 ```python
+from game.entities.entity import Actor, Entity, Item, Stairs
+
 class GameMap:
     downstairs_location: tuple[int, int] = (0, 0)
+    upstairs_location:   tuple[int, int] = (0, 0)
+
+    ...
+
+    def get_stairs_at_location(self, x: int, y: int) -> Stairs | None:
+        from game.entities.entity import Stairs
+        for entity in self.entities:
+            if isinstance(entity, Stairs) and entity.x == x and entity.y == y:
+                return entity
+        return None
 ```
 
-Place a staircase in the last room, in a free cell not occupied by any entity. Update `game/map/map_generator.py`:
+### Placing stairs in map_generator.py
+
+`generate_dungeon` now receives the current floor number so it can decide whether to place up-stairs:
 
 ```diff
-+from game.entities import factories
- from game.entities.entity import Entity
+ def generate_dungeon(
+     ...,
+     player: Entity,
+     seed: int,
++    current_floor: int,
+ ) -> GameMap:
+```
 
- ...
+In the first-room block, place up-stairs on floors 2 and deeper (floor 1 has no previous floor to return to):
 
- def place_entities(...) -> None:
-     ...
--    # Local import to break a circular dependency at module level:
--    # map_generator -> factories -> AI -> actions -> engine -> game_map.
--    from game.entities import factories
+```diff
+     if not rooms:
+         player.place(*new_room.center, dungeon)
++        if current_floor > 1:
++            dungeon.upstairs_location = new_room.center
++            factories.up_stairs.spawn(dungeon, *new_room.center)
+```
 
- ...
+After all rooms are generated, place down-stairs in the last room. Pick a free cell so the stairs do not overwrite an item or monster:
 
- def generate_dungeon(...) -> GameMap:
-     ...
+```diff
 +    last_room = rooms[-1]
 +    free = [
 +        (x, y)
@@ -484,6 +547,7 @@ Place a staircase in the last room, in a free cell not occupied by any entity. U
 +        for y in range(last_room.y1 + 1, last_room.y2)
 +        if not any(e.x == x and e.y == y for e in dungeon.entities)
 +    ]
++
 +    stair_pos = random.choice(free) if free else last_room.center
 +    dungeon.downstairs_location = stair_pos
 +    factories.down_stairs.spawn(dungeon, *stair_pos)
@@ -491,54 +555,95 @@ Place a staircase in the last room, in a free cell not occupied by any entity. U
      return dungeon
 ```
 
-`place_entities` already ran, so items or monsters may occupy any cell in the last room. `free` is a list comprehension with an `if` clause: it keeps only the room cells where no entity already exists. `random.choice(free) if free else last_room.center` chooses a random free cell when possible, and falls back to the room center if the room somehow has no free cells. Because the list is built by walking the room in a fixed order, the same seed can reproduce the same stair placement.
+`free` is a list comprehension with an `if` clause: it keeps only the room cells where no entity already exists. `random.choice(free) if free else last_room.center` chooses a random free cell when possible, and falls back to the room center if the room somehow has no free cells. Because the list is built by walking the room in a fixed order, the same seed can reproduce the same stair placement.
 
-Moving `from game.entities import factories` to the top of the file is now safe. In earlier parts, it had to stay inside `place_entities` because importing it at module level created an import cycle: `map_generator → factories → AI → actions → engine`, and `engine` imported `generate_dungeon` from `map_generator`. Now that responsibility belongs to `GameWorld.generate_floor`, which uses a local import; `engine.py` no longer imports `map_generator` at module level, so the cycle is gone.
+### Passing current_floor from GameWorld
+
+Update `GameWorld.generate_floor` to pass the new parameter:
+
+```diff
+ def generate_floor(self) -> None:
+     from game.map.map_generator import generate_dungeon
+     self.current_floor += 1
+     self.engine.game_map = generate_dungeon(
+         ...,
+         seed          = self.seed + self.current_floor,
++        current_floor = self.current_floor,
+     )
++    self.floors.append(self.engine.game_map)
+```
+
+`generate_floor` appends each new map to `self.floors` so it can be retrieved when the player ascends.
 
 ---
 
 ## TakeStairsAction
 
-Add to `game/constants/colors.py`:
+Add two colors to `game/constants/colors.py`:
 
 ```python
 DESCEND = Color(0x9F, 0x3F, 0xFF)
+ASCEND  = Color(0x9F, 0x9F, 0xFF)
 ```
 
-Add to `game/actions.py`:
+`TakeStairsAction` now queries the map for a `Stairs` entity at the player's position rather than comparing coordinates. This lets a single action handle both directions:
 
 ```python
+from game.entities.entity import Actor, Item, StairsDirection
+
 class TakeStairsAction(Action):
 
     def perform(self, engine: Engine, entity: Entity) -> None:
-        if (entity.x, entity.y) == engine.game_map.downstairs_location:
-            engine.game_world.generate_floor()
-            MessageLog.add_message(
-                "You descend the staircase.", colors.DESCEND
-            )
-
-        else:
+        assert isinstance(entity, Actor)
+        stairs = engine.game_map.get_stairs_at_location(entity.x, entity.y)
+        if stairs is None:
             raise Impossible("There are no stairs here.")
+
+        if stairs.direction == StairsDirection.DOWN:
+            engine.game_world.descend_floor()
+            MessageLog.add_message("You descend the staircase.", colors.DESCEND)
+            return
+
+        if stairs.direction == StairsDirection.UP and engine.game_world.current_floor > 1:
+            engine.game_world.ascend_floor()
+            MessageLog.add_message("You ascend the staircase.", colors.ASCEND)
+            return
+
+        raise Impossible("There are no stairs here.")
 ```
 
-Add `KEY_DESCEND` to `game/constants/keys.py`:
+### descend_floor and ascend_floor in GameWorld
+
+The `self.floors: list[GameMap] = []` line in `GameWorld.__init__` now has a purpose. Add two navigation methods:
+
+```python
+def descend_floor(self) -> None:
+    next_floor_index = self.current_floor
+    if next_floor_index < len(self.floors):
+        self.current_floor += 1
+        next_floor = self.floors[next_floor_index]
+        self.engine.player.place(*next_floor.upstairs_location, next_floor)
+        self.engine.game_map = next_floor
+        return
+    self.generate_floor()
+
+def ascend_floor(self) -> None:
+    previous_floor_index = self.current_floor - 2
+    self.current_floor -= 1
+    previous_floor = self.floors[previous_floor_index]
+    self.engine.player.place(*previous_floor.downstairs_location, previous_floor)
+    self.engine.game_map = previous_floor
+```
+
+`descend_floor` checks whether the next floor already exists in `self.floors`. If it does (the player has been there before), it restores that map. Otherwise it generates a new one. `ascend_floor` always restores an existing map. You cannot ascend above floor 1, and the check `current_floor > 1` in `TakeStairsAction` enforces that.
+
+Add `KEY_DESCEND` to `game/constants/keys.py` (Enter or numpad Enter triggers both up and down stairs, since the action decides based on which stairs entity is underfoot):
 
 ```python
 KEY_DESCEND = {tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER}
 ```
 
-Add `TakeStairsAction` to the imports in `game/game_states.py`:
-
-```diff
- from game.actions import (
-     Action,
-     ...
-+    TakeStairsAction,
-     WaitAction,
- )
-```
-
-Then use it in `MainGameState`:
+Add `TakeStairsAction` to the imports in `game/game_states.py` and wire it up in `MainGameState`:
 
 ```python
         if key in keys.KEY_DESCEND:
@@ -549,7 +654,26 @@ Then use it in `MainGameState`:
 
 ## LevelUpState
 
-Add to `game/game_states.py`:
+### Colors
+
+Add to `game/constants/colors.py`:
+
+```python
+LEVEL_UP_MENU_FRAME    = Color( 32, 255, 255)
+LEVEL_UP_MENU_BG       = Color(  6,  34,  42)
+LEVEL_UP_MENU_ACCENT   = Color( 32, 160, 160)
+LEVEL_UP_MENU_ROW_BG   = Color( 10,  54,  64)
+LEVEL_UP_MENU_TITLE    = Color(255, 245, 160)
+LEVEL_UP_MENU_CONGRATS = Color(255, 215,  96)
+LEVEL_UP_MENU_TEXT     = Color(232, 255, 255)
+LEVEL_UP_MENU_DIM      = Color(168, 216, 216)
+LEVEL_UP_MENU_BONUS    = Color(128, 255, 208)
+LEVEL_UP_MENU_KEY      = BLACK
+```
+
+### on_render
+
+The modal dims the scene behind it, draws a drop shadow, and centers itself. Each stat option gets its own colored row with the key badge, stat name, bonus, and current value separated into columns:
 
 ```python
 class LevelUpState(GameState):
@@ -557,53 +681,102 @@ class LevelUpState(GameState):
 
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
+        console.fg[:] = console.fg // 2
+        console.bg[:] = console.bg // 2
 
-        x, y = 40, 0
-        width = 35
+        fighter = self.engine.player.fighter
+        options = [
+            ("a", "Constitution", "+20 HP",     f"from {fighter.max_hp}"),
+            ("b", "Strength",     "+1 attack",  f"from {fighter.base_attack}"),
+            ("c", "Agility",      "+1 defense", f"from {fighter.base_defense}"),
+        ]
 
+        width  = 52
+        height = 13
+        x      = (console.width  - width)  // 2
+        y      = (console.height - height) // 2
+
+        console.draw_rect(
+            x        = x + 1,
+            y        = y + 1,
+            width    = width,
+            height   = height,
+            ch       = ord(" "),
+            bg       = colors.BLACK,
+        )
+        console.draw_rect(
+            x        = x,
+            y        = y,
+            width    = width,
+            height   = height,
+            ch       = ord(" "),
+            fg       = colors.LEVEL_UP_MENU_FRAME,
+            bg       = colors.LEVEL_UP_MENU_BG,
+            bg_blend = tcod.constants.BKGND_SET,
+        )
         console.draw_frame(
-            x      = x,
-            y      = y,
-            width  = width,
-            height = 8,
-            clear  = True,
-            fg     = colors.WHITE,
-            bg     = colors.BLACK,
+            x        = x,
+            y        = y,
+            width    = width,
+            height   = height,
+            clear    = False,
+            fg       = colors.LEVEL_UP_MENU_FRAME,
+            bg       = colors.LEVEL_UP_MENU_BG,
         )
 
         title = f" {self.TITLE} "
-        console.print(x + (width - len(title)) // 2, y, title, fg=colors.WHITE, bg=colors.BLACK)
-
-        console.print(x=x + 1, y=y + 1, text="Congratulations! You level up!")
-        console.print(x=x + 1, y=y + 2, text="Select an attribute to increase.")
-
-        fighter = self.engine.player.fighter
         console.print(
-            x=x + 1, y=y + 4,
-            text=f"a) Constitution (+20 HP, from {fighter.max_hp})",
+            x + (width - len(title)) // 2,
+            y,
+            title,
+            fg = colors.LEVEL_UP_MENU_TITLE,
+            bg = colors.LEVEL_UP_MENU_BG,
         )
         console.print(
-            x=x + 1, y=y + 5,
-            text=f"b) Strength (+1 attack, from {fighter.base_attack})",
+            console.width // 2,
+            y + 2,
+            "Congratulations! You level up!",
+            fg        = colors.LEVEL_UP_MENU_CONGRATS,
+            alignment = tcod.constants.CENTER,
         )
         console.print(
-            x=x + 1, y=y + 6,
-            text=f"c) Agility (+1 defense, from {fighter.base_defense})",
+            console.width // 2,
+            y + 3,
+            "Select an attribute to increase.",
+            fg        = colors.LEVEL_UP_MENU_TEXT,
+            alignment = tcod.constants.CENTER,
         )
 
+        row_x     = x + 3
+        row_width = width - 6
+        for index, (key, name, bonus, current) in enumerate(options):
+            row_y = y + 6 + index * 2
+            console.draw_rect(
+                x=row_x, y=row_y, width=row_width, height=1,
+                ch=ord(" "), bg=colors.LEVEL_UP_MENU_ROW_BG,
+            )
+
+            console.print(row_x + 2,  row_y, f" {key} ",       fg=colors.LEVEL_UP_MENU_KEY,   bg=colors.LEVEL_UP_MENU_ACCENT)
+            console.print(row_x + 7,  row_y, f"{name:<12}",    fg=colors.LEVEL_UP_MENU_TEXT,  bg=colors.LEVEL_UP_MENU_ROW_BG)
+            console.print(row_x + 22, row_y, f"{bonus:<11}",   fg=colors.LEVEL_UP_MENU_BONUS, bg=colors.LEVEL_UP_MENU_ROW_BG)
+            console.print(row_x + 35, row_y, current,          fg=colors.LEVEL_UP_MENU_DIM,   bg=colors.LEVEL_UP_MENU_ROW_BG)
+```
+
+`console.fg[:] = console.fg // 2` halves every foreground channel in place; the same for `bg`. This darkens everything already rendered without knowing anything about which states drew it. The shadow is a black `draw_rect` offset one cell right and down from the modal origin.
+
+### event_keydown and handle_events
+
+```python
     def event_keydown(self, event: tcod.event.KeyDown) -> BaseGameState | None:
         player = self.engine.player
         index  = event.sym - tcod.event.KeySym.A
 
         if index == 0:
             player.level.increase_max_hp()
-
         elif index == 1:
             player.level.increase_attack()
-
         elif index == 2:
             player.level.increase_defense()
-
         else:
             MessageLog.add_message("Invalid entry.", colors.INVALID)
             return None
@@ -614,10 +787,10 @@ class LevelUpState(GameState):
         result = super().handle_events(event)
         if result is not self:
             return result
-
-        # Stay in level-up screen until a valid choice is made.
         return self
 ```
+
+### Triggering the modal
 
 Trigger the modal from `GameState.handle_events()` after `update_fov()`:
 
@@ -641,36 +814,70 @@ Floor: 1          $ 0
 [   HP: 30/30      ]
 ```
 
-**Step 1.** Add a module-level constant to `game/hud.py` and give `render_bar` a default for `total_width`:
+**Step 1.** Add constants and a contrast-aware text helper to `game/hud.py`.
 
-```diff
-+BAR_WIDTH = 20
+`BAR_WIDTH` is set to 24 (wider than the previous 20) so the HUD has room for the XP bar and the exercise version can embed the level number. `BAR_TEXT_DARK` is used when the bar's fill color is light enough that white text would be hard to read.
 
- def render_bar(
-     console      : Console,
-     current_value: float,
-     maximum_value: int,
--    total_width  : int,
-+    total_width  : int = BAR_WIDTH,
-     y            : int = 45,
- ) -> None:
+`_print_bar_text` renders a string character by character. For each character it checks whether that column falls inside the filled portion of the bar, picks the matching fill or empty color, then chooses the fg color (light or dark) by luminance contrast. This keeps text legible regardless of where the bar boundary sits:
+
+```python
+from game.constants.colors import Color
+
+BAR_WIDTH      = 24
+
+def _contrast_text_color(background: Color, light: Color, dark: Color) -> Color:
+    return dark if background.grey.r > 128 else light
+
+def _bar_background_at(
+    x: int, bar_x: int, bar_width: int,
+    filled_color: Color, empty_color: Color,
+) -> Color:
+    return filled_color if x < bar_x + bar_width else empty_color
+
+def _print_bar_text(
+    console: Console,
+    text: str, x: int, y: int,
+    bar_width: int,
+    filled_color: Color, empty_color: Color,
+    light_text_color: Color, dark_text_color: Color,
+    bar_x: int = 0,
+) -> None:
+    for offset, character in enumerate(text):
+        text_x = x + offset
+        bg = _bar_background_at(
+            x=text_x, bar_x=bar_x, bar_width=bar_width,
+            filled_color=filled_color, empty_color=empty_color,
+        )
+        console.print(
+            x=text_x, y=y, text=character,
+            fg=_contrast_text_color(bg, light_text_color, dark_text_color),
+            bg=bg,
+        )
 ```
 
-**Step 2.** Center the HP text inside the bar in `render_bar`:
+**Step 2.** Update `render_bar` to use `_print_bar_text`. Also add `BAR_TEXT_DARK` to `colors.py`:
+
+```python
+BAR_TEXT_DARK = BLACK
+```
+
+Replace the final `console.print` in `render_bar`:
 
 ```diff
+-    hp_text = f"HP: {int(current_value)}/{maximum_value}"
 -    console.print(
--        x    = 1,
+-        x    = (total_width - len(hp_text)) // 2,
 -        y    = y,
--        text = f"HP: {int(current_value)}/{maximum_value}",
+-        text = hp_text,
 -        fg   = colors.BAR_TEXT,
 -    )
 +    hp_text = f"HP: {int(current_value)}/{maximum_value}"
-+    console.print(
-+        x    = (total_width - len(hp_text)) // 2,
-+        y    = y,
-+        text = hp_text,
-+        fg   = colors.BAR_TEXT,
++    _print_bar_text(
++        console=console, text=hp_text,
++        x=(total_width - len(hp_text)) // 2, y=y,
++        bar_width=bar_width,
++        filled_color=bar_color_fg, empty_color=bar_color_bg,
++        light_text_color=colors.BAR_TEXT, dark_text_color=colors.BAR_TEXT_DARK,
 +    )
 ```
 
@@ -701,7 +908,31 @@ def render_dungeon_level(
     console.print(x=0, y=y, text=f"Floor: {dungeon_floor}", fg=colors.FLOOR)
 ```
 
-**Step 5.** Update `Engine.render()`: drop the now-redundant `total_width` from the bar call and add the floor display:
+**Step 5.** Add `render_xp_bar` to `game/hud.py`. This basic version draws the bar background, fills it proportionally, and centers the XP text. Exercise 1 later replaces it with the full color gradient and the embedded level number:
+
+```python
+def render_xp_bar(
+    console         : Console,
+    current_xp      : int,
+    xp_to_next_level: int,
+    total_width     : int = BAR_WIDTH,
+    y               : int = 46,
+) -> None:
+    xp_ratio  = min(1.0, float(current_xp) / xp_to_next_level)
+    bar_width = int(xp_ratio * total_width)
+
+    console.draw_rect(x=0, y=y, width=total_width, height=1, ch=1, bg=colors.HP_BAR_EMPTY)
+    if bar_width > 0:
+        console.draw_rect(x=0, y=y, width=bar_width, height=1, ch=1, bg=colors.HP_BAR_FILLED)
+
+    xp_text = f"XP: {current_xp}/{xp_to_next_level}"
+    console.print(
+        x=(total_width - len(xp_text)) // 2, y=y,
+        text=xp_text, fg=colors.BAR_TEXT,
+    )
+```
+
+**Step 6.** Update `Engine.render()`: drop the now-redundant `total_width` from the bar call, add the floor and XP displays, and move the message log and mouse-hover x-position to `BAR_WIDTH + 1`:
 
 ```diff
          hud.render_bar(
@@ -711,15 +942,43 @@ def render_dungeon_level(
 -            total_width   = 20,
          )
 
++        hud.render_xp_bar(
++            console          = console,
++            current_xp       = self.player.level.current_xp,
++            xp_to_next_level = self.player.level.xp_to_next_level,
++        )
++
          hud.render_gold(
              console = console,
              gold    = self.player.inventory.gold,
          )
-+
-+        hud.render_dungeon_level(
-+            console       = console,
-+            dungeon_floor = self.game_world.current_floor,
-+        )
+
+         hud.render_dungeon_level(
+             console       = console,
+             dungeon_floor = self.game_world.current_floor,
+         )
+
+         MessageLog.render(
+             console = console,
+-            x       = 21,
++            x       = hud.BAR_WIDTH + 1,
+             ...
+         )
+
+         hud.render_names_at_mouse_location(
+             console        = console,
+-            x              = 21,
++            x              = hud.BAR_WIDTH + 1,
+             ...
+         )
+```
+
+The HUD now shows:
+
+```txt
+Floor: 1             $ 0
+[       HP: 30/30      ]
+[       XP: 0/300      ]
 ```
 
 ---
@@ -731,10 +990,12 @@ Run `python main.py`:
 - [ ] Killing enemies with melee, lightning, fireball, or drain counts toward level-up XP
 - [ ] After enough XP, a level-up screen appears with three stat choices
 - [ ] Selecting an option increases the stat and closes the modal
-- [ ] Finding stairs and pressing Enter generates a new floor
+- [ ] Finding `>` stairs and pressing Enter generates a new floor
+- [ ] Finding `<` stairs and pressing Enter returns to the previous floor with its original layout
 - [ ] The player's HP, inventory, and level persist across floor transitions
-- [ ] Enemies and items are freshly generated on each new floor
-- [ ] The floor counter in the UI increments when descending
+- [ ] Enemies and items are freshly generated on each new floor; revisited floors keep their state
+- [ ] The floor counter in the UI increments and decrements correctly
+- [ ] The XP bar appears below the HP bar with the current XP and next threshold
 
 ---
 
@@ -743,17 +1004,18 @@ Run `python main.py`:
 Character progression and dungeon depth are now linked. Key additions:
 
 - **`Level` component**: XP tracking, level-up threshold, stat-increase methods
-- **`GameWorld`**: owns generation parameters, creates new floors on demand
-- **`TakeStairsAction`**: triggers floor generation when player is on stairs
-- **`LevelUpState`**: modal stat-selection screen
+- **`Stairs` entity**: typed stairs with `StairsDirection`; replaces bare `Entity`
+- **`GameWorld`**: owns generation parameters, floor list, and navigation methods
+- **`TakeStairsAction`**: queries map for stairs entity and delegates to `descend_floor` / `ascend_floor`
+- **`LevelUpState`**: centered modal with dimmed background and colored stat rows
 - **XP on kill**: `Fighter.die()` awards XP to the player
 
 **Current architecture**:
 
-- `GameWorld`: owns dungeon generation parameters and current floor number
-- `Engine`: owns the current `GameMap` plus a `GameWorld` for new floors
+- `GameWorld`: owns dungeon generation parameters, the ordered `floors` list, and `current_floor`
+- `Engine`: owns the current `GameMap` plus a `GameWorld` for navigation
 - `Level`: component that owns XP, level thresholds, and stat increases
-- `TakeStairsAction`: asks `GameWorld` to generate the next floor
+- `TakeStairsAction`: looks up the `Stairs` entity under the player and calls the appropriate `GameWorld` method
 - `LevelUpState`: modal state entered when the player must choose a stat
 
 **File structure**:
@@ -800,12 +1062,101 @@ game/
 
 1. **XP display**:
 
-    Show current XP and XP-to-next-level in the UI panel: `"XP: 120 / 300"`. Add a second small bar next to the HP bar.
+    The HUD already renders an XP bar via `render_xp_bar` (added in the main tutorial). Extend it with the full color gradient and the level number embedded on the left.
 
-2. **Persistent floors**:
+    Add this constant next to `BAR_WIDTH`:
 
-    Store each generated `GameMap` in a list inside `GameWorld`. When the player descends, generate a new floor. When they ascend (add `<` stairs), restore the previous map. This requires saving entity positions and the player being removed from the old map before being placed on the new one.
+    ```python
+    XP_LEVEL_WIDTH = 4
+    ```
 
-3. **Level cap**:
+    Also add `current_level` to the `render_xp_bar` parameters and pass `self.player.level.current_level` from `Engine.render()`.
 
-    Cap the player at level 10. Above level 10, `add_xp` still accumulates but `requires_level_up` always returns `False`. Print `"You are at maximum level."` instead of the modal.
+    The bar is already 24 chars wide; both bars share `BAR_WIDTH`. At level 50 the XP text reaches `"XP: 122700/127700"` (17 chars). With 24 chars total and 4 reserved for the level prefix, 20 chars remain, enough for any realistic play-through.
+
+    Print the level number at `x=1` inside the XP bar in `colors.LEVEL_UP` (level-up yellow), then center the XP text in the remaining 20 characters:
+
+    ```txt
+    [      HP: 30/30       ]   24 chars, HP bar unchanged
+    [ 1   XP: 0/300        ]   level on the left, XP centered in the rest
+    [10   XP: 4700/5700    ]   level 10
+    [50  XP: 122700/127700 ]   level 50
+    ```
+
+    For the bar fill color, use a three-tier gradient that conveys *accumulating power* rather than the HP bar's danger ramp:
+
+    | Fill ratio | Bar filled | Bar empty | Feel |
+    |---|---|---|---|
+    | 0-33% | `(0x70, 0x30, 0xC8)` violet | `(0x30, 0x10, 0x54)` | just started |
+    | 33-66% | `(0x20, 0x60, 0xC0)` bright blue | `(0x0C, 0x28, 0x60)` | building up |
+    | 66-100% | `colors.LEVEL_UP` yellow | `(0x58, 0x48, 0x08)` | almost there |
+
+    The final tier reuses `LEVEL_UP`: the bar turns yellow before a level-up, making the reward feel imminent without any extra text.
+
+2. **XP from exploration**:
+
+    Reward the player for exploring each floor, scaling with dungeon depth so the reward stays relevant at every level.
+
+    **Step 1: precompute explorable tiles.**
+    Add exploration fields to `GameMap.__init__`. The actual tile count is set later, in `generate_dungeon`, once all rooms and corridors are carved. The milestone and descent flags live on the map because floors now persist:
+
+    ```python
+    self.explorable_tiles: int = 0
+    self.exploration_milestones = [False, False, False, False]
+    self.descent_xp_awarded = False
+    ```
+
+    At the end of `generate_dungeon`, after all tiles are placed:
+
+    ```python
+    dungeon.explorable_tiles = int(dungeon.tiles["walkable"].sum())
+    ```
+
+    **Step 2: milestone rewards.**
+    After each FOV update, calculate the exploration ratio and check for newly crossed milestones.
+    Guard against division by zero first, since `explorable_tiles` is 0 until `generate_dungeon` fills it in:
+
+    ```python
+    if game_map.explorable_tiles == 0:
+        return
+    revealed = int((game_map.explored & game_map.tiles["walkable"]).sum())
+    ratio    = revealed / game_map.explorable_tiles
+    ```
+
+    Award XP at 25%, 50%, 75%, and 100% using an escalating formula so later milestones feel increasingly rewarding:
+
+    ```txt
+    xp_at_milestone_i = (26 + i * 16) * current_floor   (i = 0, 1, 2, 3)
+    ```
+
+    | Milestone | Floor 1 | Floor 5 | Floor 10 |
+    |---|---|---|---|
+    | 25% | 26 XP | 130 XP | 260 XP |
+    | 50% | 42 XP | 210 XP | 420 XP |
+    | 75% | 58 XP | 290 XP | 580 XP |
+    | 100% | 74 XP | 370 XP | 740 XP |
+    | **Total** | **200 XP** | **1 000 XP** | **2 000 XP** |
+
+    Track which milestones have already fired per floor (a list of four booleans, reset when a new floor is generated) to avoid awarding the same milestone twice.
+
+    **Step 3: descending reward.**
+    `TakeStairsAction` already triggers a new floor. Add an XP award there too, scaled by the floor the player is *leaving*. Because floors persist, guard the reward so walking up and down the same staircase cannot farm infinite XP:
+
+    ```python
+    if not engine.game_map.descent_xp_awarded:
+        xp_reward = 100 * engine.game_world.current_floor
+        entity.level.add_xp(xp_reward)
+        engine.game_map.descent_xp_awarded = True
+    ```
+
+    At every depth, exploration alone gives exactly double the descent reward. Fully exploring a floor before descending gives triple the XP of descending immediately.
+
+    **Suggested messages** (use `colors.LEVEL_UP` for the 100% line):
+
+    ```txt
+    "You have explored 25% of this floor. You gain {xp} XP."
+    "You have explored half of this floor. You gain {xp} XP."
+    "You have explored 75% of this floor. You gain {xp} XP."
+    "You have fully explored this floor! You gain {xp} XP."
+    "You descend deeper into the dungeon. You gain {xp} XP."
+    ```
