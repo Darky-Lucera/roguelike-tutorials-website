@@ -21,7 +21,7 @@ This is the formula used in the tutorial because it is easy to read and easy to 
 
 Many traditional roguelikes favor small, readable mitigation systems over large percentage curves. This formula fits that design style: numbers stay small, outcomes are easy to inspect, and players can reason about armor quickly.
 
-![Simple Linear Formula](images/linearFormula.png)
+![Simple Linear Formula](images/formulaLinear.png)
 
 ### Intuition
 
@@ -70,7 +70,12 @@ In general:
 target.defense = N * K  ->  damage = attack / (N + 1)
 ```
 
-[Insert graph here showing damage vs target defense with K = 10]
+**K = 5**:
+![Smooth Scaled Formula K=5](images/formulaSmoothScaled5.png)
+
+**K = 10**:
+![Smooth Scaled Formula K=10](images/formulaSmoothScaled10.png)
+
 
 ### Intuition
 
@@ -138,7 +143,7 @@ damage = (attack * attack) / (attack + target.defense)
 
 The key idea is that the relevant question is no longer "how much defense do you have?" but "how much defense do you have *relative to your attacker*?" This makes the formula appealing in games where enemies span a wide power range and a single global constant would struggle to stay calibrated across all of them.
 
-[Insert graph here comparing the fixed-K formula against the attacker-scaled formula]
+![Attacker Scaled Formula](images/formulaAttackerScaled.png)
 
 ### Intuition
 

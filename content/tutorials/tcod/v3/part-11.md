@@ -46,6 +46,27 @@ The first level-up costs `level_up_base + current_level * level_up_factor` XP (3
 
 ---
 
+## config.py additions
+
+Part 11 introduces the Level/XP system. Append these groups to `game/constants/config.py`:
+
+```python
+# --- Level / XP ---
+DEFAULT_LEVEL_UP_BASE   = 200
+DEFAULT_LEVEL_UP_FACTOR = 100
+
+# --- Stat bonuses on level-up ---
+LEVEL_STAT_HP      = 20
+LEVEL_STAT_ATTACK  = 1
+LEVEL_STAT_DEFENSE = 1
+```
+
+`DEFAULT_LEVEL_UP_BASE` and `DEFAULT_LEVEL_UP_FACTOR` name the numbers that drive the XP curve explained above. `LEVEL_STAT_*` name the per-choice bonuses awarded in the level-up modal — adjusting them in one place changes the feel of every stat option at once.
+
+The exploration-reward constants (`EXPLORATION_MILESTONES`, `EXPLORATION_XP_BASE`, etc.) belong to Exercise 2 and are listed there.
+
+---
+
 ## The Level component
 
 Create `game/entities/components/level.py`:
@@ -53,6 +74,7 @@ Create `game/entities/components/level.py`:
 ```python
 from __future__ import annotations
 
+from game.constants import config as constants
 from game.entities.components.base_component import ActorComponent
 
 
@@ -62,8 +84,8 @@ class Level(ActorComponent):
         self,
         current_level  : int = 1,
         current_xp     : int = 0,
-        level_up_base  : int = 200,
-        level_up_factor: int = 100,
+        level_up_base  : int = constants.DEFAULT_LEVEL_UP_BASE,
+        level_up_factor: int = constants.DEFAULT_LEVEL_UP_FACTOR,
         xp_given       : int = 0,
     ) -> None:
         self.current_level    = current_level
@@ -93,15 +115,15 @@ class Level(ActorComponent):
         # On level up recover all hp points
         self.entity.fighter.heal(self.entity.fighter.max_hp)
 
-    def increase_max_hp(self, amount: int = 20) -> None:
+    def increase_max_hp(self, amount: int = constants.LEVEL_STAT_HP) -> None:
         self.entity.fighter.max_hp += amount
         self.increase_level()
 
-    def increase_attack(self, amount: int = 1) -> None:
+    def increase_attack(self, amount: int = constants.LEVEL_STAT_ATTACK) -> None:
         self.entity.fighter.base_attack += amount
         self.increase_level()
 
-    def increase_defense(self, amount: int = 1) -> None:
+    def increase_defense(self, amount: int = constants.LEVEL_STAT_DEFENSE) -> None:
         self.entity.fighter.base_defense += amount
         self.increase_level()
 ```
@@ -243,6 +265,7 @@ LEVEL_UP = Color(0xFF, 0xFF, 0x00)
 Update `game/entities/factories.py` imports, then attach `Level` to every actor:
 
 ```diff
++from game.constants import config as constants
 +from game.entities.components.level import Level
 -from game.entities.entity import Actor, Item
 +from game.entities.entity import Actor, Entity, Item
@@ -251,7 +274,7 @@ Update `game/entities/factories.py` imports, then attach `Level` to every actor:
  player = Actor(
      ...
      inventory = Inventory(capacity=10, max_capacity=26),
-+    level     = Level(level_up_base=200),
++    level     = Level(level_up_base=constants.DEFAULT_LEVEL_UP_BASE),
  )
 
  orc = Actor(
@@ -267,7 +290,7 @@ Update `game/entities/factories.py` imports, then attach `Level` to every actor:
  )
 ```
 
-The player passes `level_up_base=200` and leaves `xp_given` at 0 (the player does not award XP to anything). Enemies pass only `xp_given` and use the default thresholds (which are never triggered because nothing calls `add_xp` on them).
+The player passes `level_up_base=constants.DEFAULT_LEVEL_UP_BASE` and leaves `xp_given` at 0 (the player does not award XP to anything). Enemies pass only `xp_given` and use the default thresholds (which are never triggered because nothing calls `add_xp` on them). Because `Level.__init__` now defaults to `constants.DEFAULT_LEVEL_UP_BASE`, passing it explicitly here is redundant — but leaving it makes the per-entity configuration explicit and searchable.
 
 Update `Actor.__init__` in `game/entities/entity.py` to accept and wire up the `level` component:
 
@@ -392,15 +415,15 @@ Update `game/setup_game.py`, replace the direct `generate_dungeon` call with `Ga
  def new_game() -> Engine:
      ...
 -    game_map = generate_dungeon(
--        max_rooms             = MAX_ROOMS,
--        room_min_size         = ROOM_MIN_SIZE,
--        room_max_size         = ROOM_MAX_SIZE,
--        map_width             = MAP_WIDTH,
--        map_height            = MAP_HEIGHT,
--        min_monsters_per_room = MIN_MONSTERS_PER_ROOM,
--        max_monsters_per_room = MAX_MONSTERS_PER_ROOM,
--        min_items_per_room    = MIN_ITEMS_PER_ROOM,
--        max_items_per_room    = MAX_ITEMS_PER_ROOM,
+-        max_rooms             = constants.MAX_ROOMS,
+-        room_min_size         = constants.ROOM_MIN_SIZE,
+-        room_max_size         = constants.ROOM_MAX_SIZE,
+-        map_width             = constants.MAP_WIDTH,
+-        map_height            = constants.MAP_HEIGHT,
+-        min_monsters_per_room = constants.MIN_MONSTERS_PER_ROOM,
+-        max_monsters_per_room = constants.MAX_MONSTERS_PER_ROOM,
+-        min_items_per_room    = constants.MIN_ITEMS_PER_ROOM,
+-        max_items_per_room    = constants.MAX_ITEMS_PER_ROOM,
 -        player                = player,
 -        seed                  = seed,
 -    )
@@ -409,15 +432,15 @@ Update `game/setup_game.py`, replace the direct `generate_dungeon` call with `Ga
 +    engine = Engine(player=player)
 +    engine.game_world = GameWorld(
 +        engine                = engine,
-+        max_rooms             = MAX_ROOMS,
-+        room_min_size         = ROOM_MIN_SIZE,
-+        room_max_size         = ROOM_MAX_SIZE,
-+        map_width             = MAP_WIDTH,
-+        map_height            = MAP_HEIGHT,
-+        min_monsters_per_room = MIN_MONSTERS_PER_ROOM,
-+        max_monsters_per_room = MAX_MONSTERS_PER_ROOM,
-+        min_items_per_room    = MIN_ITEMS_PER_ROOM,
-+        max_items_per_room    = MAX_ITEMS_PER_ROOM,
++        max_rooms             = constants.MAX_ROOMS,
++        room_min_size         = constants.ROOM_MIN_SIZE,
++        room_max_size         = constants.ROOM_MAX_SIZE,
++        map_width             = constants.MAP_WIDTH,
++        map_height            = constants.MAP_HEIGHT,
++        min_monsters_per_room = constants.MIN_MONSTERS_PER_ROOM,
++        max_monsters_per_room = constants.MAX_MONSTERS_PER_ROOM,
++        min_items_per_room    = constants.MIN_ITEMS_PER_ROOM,
++        max_items_per_room    = constants.MAX_ITEMS_PER_ROOM,
 +        seed                  = seed,
 +    )
 +    engine.game_world.generate_floor()
@@ -814,16 +837,15 @@ Floor: 1          $ 0
 [   HP: 30/30      ]
 ```
 
-**Step 1.** Add constants and a contrast-aware text helper to `game/hud.py`.
+**Step 1.** Add the config import and a contrast-aware text helper to `game/hud.py`.
 
-`BAR_WIDTH` is set to 24 (wider than the previous 20) so the HUD has room for the XP bar and the exercise version can embed the level number. `BAR_TEXT_DARK` is used when the bar's fill color is light enough that white text would be hard to read.
+`constants.BAR_WIDTH` is set to 24 (wider than the previous 20) so the HUD has room for the XP bar and the exercise version can embed the level number. `BAR_TEXT_DARK` is used when the bar's fill color is light enough that white text would be hard to read.
 
 `_print_bar_text` renders a string character by character. For each character it checks whether that column falls inside the filled portion of the bar, picks the matching fill or empty color, then chooses the fg color (light or dark) by luminance contrast. This keeps text legible regardless of where the bar boundary sits:
 
 ```python
+from game.constants import config as constants
 from game.constants.colors import Color
-
-BAR_WIDTH      = 24
 
 def _contrast_text_color(background: Color, light: Color, dark: Color) -> Color:
     return dark if background.grey.r > 128 else light
@@ -853,6 +875,19 @@ def _print_bar_text(
             fg=_contrast_text_color(bg, light_text_color, dark_text_color),
             bg=bg,
         )
+```
+
+Also give `render_bar` a default width:
+
+```diff
+ def render_bar(
+     console      : Console,
+     current_value: float,
+     maximum_value: int,
+-    total_width  : int,
++    total_width  : int = constants.BAR_WIDTH,
+     y            : int = 45,
+ ) -> None:
 ```
 
 **Step 2.** Update `render_bar` to use `_print_bar_text`. Also add `BAR_TEXT_DARK` to `colors.py`:
@@ -893,7 +928,7 @@ FLOOR = Color(0x00, 0xD7, 0xFF)
 def render_gold(
     console    : Console,
     gold       : int,
-    total_width: int = BAR_WIDTH,
+    total_width: int = constants.BAR_WIDTH,
     y          : int = 44,
 ) -> None:
     text = f"$ {gold}"
@@ -915,7 +950,7 @@ def render_xp_bar(
     console         : Console,
     current_xp      : int,
     xp_to_next_level: int,
-    total_width     : int = BAR_WIDTH,
+    total_width     : int = constants.BAR_WIDTH,
     y               : int = 46,
 ) -> None:
     xp_ratio  = min(1.0, float(current_xp) / xp_to_next_level)
@@ -932,7 +967,7 @@ def render_xp_bar(
     )
 ```
 
-**Step 6.** Update `Engine.render()`: drop the now-redundant `total_width` from the bar call, add the floor and XP displays, and move the message log and mouse-hover x-position to `BAR_WIDTH + 1`:
+**Step 6.** Update `Engine.render()`: drop the now-redundant `total_width` from the bar call, add the floor and XP displays, and move the message log and mouse-hover x-position to `constants.BAR_WIDTH + 1`:
 
 ```diff
          hud.render_bar(
@@ -961,14 +996,14 @@ def render_xp_bar(
          MessageLog.render(
              console = console,
 -            x       = 21,
-+            x       = hud.BAR_WIDTH + 1,
++            x       = constants.BAR_WIDTH + 1,
              ...
          )
 
          hud.render_names_at_mouse_location(
              console        = console,
 -            x              = 21,
-+            x              = hud.BAR_WIDTH + 1,
++            x              = constants.BAR_WIDTH + 1,
              ...
          )
 ```
@@ -1035,6 +1070,7 @@ game/
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py               ← modified
+│   ├── config.py               ← modified
 │   └── sprites.py              ← modified
 ├── entities/
 │   ├── __init__.py
@@ -1064,15 +1100,11 @@ game/
 
     The HUD already renders an XP bar via `render_xp_bar` (added in the main tutorial). Extend it with the full color gradient and the level number embedded on the left.
 
-    Add this constant next to `BAR_WIDTH`:
+    `XP_LEVEL_WIDTH = 4` is already defined in `game/constants/config.py` (added in Part 10). `hud.py` reads it as `constants.XP_LEVEL_WIDTH`.
 
-    ```python
-    XP_LEVEL_WIDTH = 4
-    ```
+    Add `current_level` to the `render_xp_bar` parameters and pass `self.player.level.current_level` from `Engine.render()`.
 
-    Also add `current_level` to the `render_xp_bar` parameters and pass `self.player.level.current_level` from `Engine.render()`.
-
-    The bar is already 24 chars wide; both bars share `BAR_WIDTH`. At level 50 the XP text reaches `"XP: 122700/127700"` (17 chars). With 24 chars total and 4 reserved for the level prefix, 20 chars remain, enough for any realistic play-through.
+    The bar is already 24 chars wide; both bars share `constants.BAR_WIDTH`. At level 50 the XP text reaches `"XP: 122700/127700"` (17 chars). With 24 chars total and 4 reserved for the level prefix, 20 chars remain, enough for any realistic play-through.
 
     Print the level number at `x=1` inside the XP bar in `colors.LEVEL_UP` (level-up yellow), then center the XP text in the remaining 20 characters:
 
@@ -1096,6 +1128,24 @@ game/
 2. **XP from exploration**:
 
     Reward the player for exploring each floor, scaling with dungeon depth so the reward stays relevant at every level.
+
+    First, append these groups to `game/constants/config.py`:
+
+    ```python
+    # --- Exploration rewards ---
+    EXPLORATION_MILESTONES = (0.25, 0.50, 0.75, 1.00)
+    EXPLORATION_MESSAGES = (
+        "You have explored 25% of this floor. You gain {xp} XP.",
+        "You have explored half of this floor. You gain {xp} XP.",
+        "You have explored 75% of this floor. You gain {xp} XP.",
+        "You have fully explored this floor! You gain {xp} XP.",
+    )
+    EXPLORATION_XP_BASE  = 26
+    EXPLORATION_XP_TIER  = 16
+    DESCENT_XP_PER_FLOOR = 100
+    ```
+
+    `{xp}` is a named `.format()` placeholder substituted at the call site with `.format(xp=xp_reward)`. `EXPLORATION_XP_BASE` and `EXPLORATION_XP_TIER` name the two numbers inside the formula below.
 
     **Step 1: precompute explorable tiles.**
     Add exploration fields to `GameMap.__init__`. The actual tile count is set later, in `generate_dungeon`, once all rooms and corridors are carved. The milestone and descent flags live on the map because floors now persist:
@@ -1123,10 +1173,25 @@ game/
     ratio    = revealed / game_map.explorable_tiles
     ```
 
+    In `game/engine.py`, use the exploration constants through `constants`. The `constants` import was added to `engine.py` in Part 10:
+
+    ```python
+    for index, milestone in enumerate(constants.EXPLORATION_MILESTONES):
+        ...
+        xp_reward = (
+            constants.EXPLORATION_XP_BASE
+            + index * constants.EXPLORATION_XP_TIER
+        ) * self.game_world.current_floor
+        MessageLog.add_message(
+            constants.EXPLORATION_MESSAGES[index].format(xp=xp_reward),
+            message_color,
+        )
+    ```
+
     Award XP at 25%, 50%, 75%, and 100% using an escalating formula so later milestones feel increasingly rewarding:
 
     ```txt
-    xp_at_milestone_i = (26 + i * 16) * current_floor   (i = 0, 1, 2, 3)
+    xp_at_milestone_i = (EXPLORATION_XP_BASE + i * EXPLORATION_XP_TIER) * current_floor   (i = 0, 1, 2, 3)
     ```
 
     | Milestone | Floor 1 | Floor 5 | Floor 10 |
@@ -1142,9 +1207,15 @@ game/
     **Step 3: descending reward.**
     `TakeStairsAction` already triggers a new floor. Add an XP award there too, scaled by the floor the player is *leaving*. Because floors persist, guard the reward so walking up and down the same staircase cannot farm infinite XP:
 
+    Add the config import to `game/actions.py`:
+
+    ```python
+    from game.constants import config as constants
+    ```
+
     ```python
     if not engine.game_map.descent_xp_awarded:
-        xp_reward = 100 * engine.game_world.current_floor
+        xp_reward = constants.DESCENT_XP_PER_FLOOR * engine.game_world.current_floor
         entity.level.add_xp(xp_reward)
         engine.game_map.descent_xp_awarded = True
     ```

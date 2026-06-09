@@ -130,6 +130,78 @@ The active state is now the root of the saved object graph. Any state that inher
 
 ---
 
+## game/constants/config.py
+
+The `game/constants/` package already holds `colors.py`, `sprites.py`, and `keys.py`. This is a good moment to add a fourth member: a home for numeric and text constants that are currently scattered across `main.py`, `hud.py`, and component defaults.
+
+Create `game/constants/config.py`:
+
+```python
+from __future__ import annotations
+
+from pathlib import Path
+
+# --- Paths ---
+_ROOT     = Path(__file__).parent.parent.parent
+RES_DIR   = _ROOT / "res"
+SAVE_DIR  = _ROOT / "savegames"
+SAVE_PATH = SAVE_DIR / "savegame.sav"
+
+# --- Screen / window ---
+SCREEN_WIDTH  = 80
+SCREEN_HEIGHT = 50
+TITLE         = "Roguelike Tutorial"
+VERSION       = "0.1.0"
+APP_ID        = "com.tutorial.roguelike"
+
+# --- HUD layout ---
+BAR_WIDTH      = 24
+XP_LEVEL_WIDTH = 4
+
+# --- Map generation ---
+MAP_WIDTH             = 80
+MAP_HEIGHT            = 44
+MAX_ROOMS             = 30
+ROOM_MIN_SIZE         = 6
+ROOM_MAX_SIZE         = 10
+MIN_MONSTERS_PER_ROOM = 0
+MAX_MONSTERS_PER_ROOM = 2
+MIN_ITEMS_PER_ROOM    = 0
+MAX_ITEMS_PER_ROOM    = 2
+
+# --- Field of view ---
+FOV_RADIUS = 8
+
+# --- Combat ---
+DEFAULT_CRITICAL_CHANCE     = 0.1
+DEFAULT_CRITICAL_MULTIPLIER = 2.0
+```
+
+`_ROOT` is a private helper — the underscore signals it is not meant to be imported. It walks three `parent` steps from `game/constants/config.py` to reach the project root, where `res/` and `savegames/` live.
+
+`RES_DIR` lives here rather than in `setup_game.py` because two unrelated modules need it: `main.py` for the tileset and `MainMenuState` for the background image. A single definition prevents drift.
+
+`DEFAULT_CRITICAL_CHANCE` and `DEFAULT_CRITICAL_MULTIPLIER` name the values that were previously anonymous `0.1` and `2.0` literals in `Fighter.__init__`. `BAR_WIDTH` and `XP_LEVEL_WIDTH` move here from `hud.py`, and `FOV_RADIUS` replaces the hardcoded `8` in `Engine.__init__`.
+
+!!! note "The name `config.py` inside `game/constants/`"
+    `game.constants.config` is slightly redundant — the package name already says "constants". A cleaner package name (`game.data`) would remove the redundancy, but that rename is a separate step. The name `config.py` at least avoids the worse `game.constants.constants`.
+
+Every caller imports the module under the alias `constants`:
+
+```python
+from game.constants import config as constants
+```
+
+Then uses qualified names at every site: `constants.MAP_WIDTH`, `constants.FOV_RADIUS`, `constants.SAVE_PATH`. The qualifier makes the origin explicit without a long destructured import list.
+
+The files that gain an import and lose or avoid local definitions:
+
+- `game/hud.py`: later HUD changes will read `constants.BAR_WIDTH` and `constants.XP_LEVEL_WIDTH` instead of defining local layout constants.
+- `game/engine.py`: `fov_radius: int = 8` becomes `fov_radius: int = constants.FOV_RADIUS`.
+- `game/entities/components/fighter.py`: `critical_chance: float = 0.1` becomes `critical_chance: float = constants.DEFAULT_CRITICAL_CHANCE`, and similarly for `critical_multiplier`.
+
+---
+
 ## setup_game.py
 
 We need a function that creates a fresh game (used by "New Game") and one that loads an existing save (used by "Continue"). Extract them into a dedicated module so `main.py` and the main menu state stay clean.
@@ -145,24 +217,11 @@ import secrets
 from pathlib import Path
 
 from game.constants import colors
+from game.constants import config as constants
 from game.engine import Engine
 from game.entities import factories
 from game.map.map_generator import generate_dungeon
 from game.message_log import MessageLog
-
-RES_DIR   = Path(__file__).parent.parent / "res"
-SAVE_DIR  = Path(__file__).parent.parent / "savegames"
-SAVE_PATH = SAVE_DIR / "savegame.sav"
-
-MAP_WIDTH             = 80
-MAP_HEIGHT            = 44
-MAX_ROOMS             = 30
-ROOM_MIN_SIZE         = 6
-ROOM_MAX_SIZE         = 10
-MIN_MONSTERS_PER_ROOM = 0
-MAX_MONSTERS_PER_ROOM = 2
-MIN_ITEMS_PER_ROOM    = 0
-MAX_ITEMS_PER_ROOM    = 2
 
 
 def new_game() -> Engine:
@@ -171,21 +230,20 @@ def new_game() -> Engine:
 
     # Part-3. Ex 1: Reproducible dungeons
     seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
-    #seed = 12345 # Write here the game seed to reproduce a map
     print(f"Game seed: {seed}")
 
     player = copy.deepcopy(factories.player)
 
     game_map = generate_dungeon(
-        max_rooms             = MAX_ROOMS,
-        room_min_size         = ROOM_MIN_SIZE,
-        room_max_size         = ROOM_MAX_SIZE,
-        map_width             = MAP_WIDTH,
-        map_height            = MAP_HEIGHT,
-        min_monsters_per_room = MIN_MONSTERS_PER_ROOM,
-        max_monsters_per_room = MAX_MONSTERS_PER_ROOM,
-        min_items_per_room    = MIN_ITEMS_PER_ROOM,
-        max_items_per_room    = MAX_ITEMS_PER_ROOM,
+        max_rooms             = constants.MAX_ROOMS,
+        room_min_size         = constants.ROOM_MIN_SIZE,
+        room_max_size         = constants.ROOM_MAX_SIZE,
+        map_width             = constants.MAP_WIDTH,
+        map_height            = constants.MAP_HEIGHT,
+        min_monsters_per_room = constants.MIN_MONSTERS_PER_ROOM,
+        max_monsters_per_room = constants.MAX_MONSTERS_PER_ROOM,
+        min_items_per_room    = constants.MIN_ITEMS_PER_ROOM,
+        max_items_per_room    = constants.MAX_ITEMS_PER_ROOM,
         player                = player,
         seed                  = seed,
     )
@@ -215,9 +273,9 @@ def load_game(filename: str | Path):
         raise RuntimeError(f"Save file could not be loaded and was moved to {backup_path}.") from ex
 ```
 
-`RES_DIR` is the shared path for resource files such as the tileset and the menu background. `SAVE_DIR` and `SAVE_PATH` keep saves out of the project root and give every module one canonical save location.
+The map dimensions and spawn counts are now read from `constants` rather than defined here. `Path` is still imported because `load_game` uses it in its type annotation and for the backup path.
 
-`load_game()` handles one more practical case: the save file might exist but fail to load because it is corrupt or incompatible with the current code. Instead of leaving the player stuck with a broken Continue option, the failed save is moved aside to `savegame.sav.bak` and the menu can show a clear message.
+`load_game()` handles one practical edge case: the save file might exist but fail to load because it is corrupt or incompatible with the current code. Instead of leaving the player stuck with a broken Continue option, the failed save is moved aside to `savegame.sav.bak` and the menu can show a clear message.
 
 ---
 
@@ -347,17 +405,17 @@ KEY_CONTINUE     = tcod.event.KeySym.C
 
 `KEY_QUIT_GAME` (already defined as `ESCAPE`) covers the quit option. With these three constants in place, the menu handler is fully decoupled from raw `KeySym` values.
 
-The menu also needs the image loader, the shared resource directory, and the save path. Add these near the top of `game/game_states.py`:
+The menu also needs the image loader and access to the config constants. Add these near the top of `game/game_states.py`:
 
 ```diff
  import tcod
 +from tcod.image import Image
 
  from game.constants import colors, keys
++from game.constants import config as constants
  from game.constants.colors import Color
  from game.exceptions import Impossible
  from game.message_log import MessageLog
-+from game.setup_game import RES_DIR, SAVE_PATH
 ```
 
 Add this helper near `MESSAGE_LOG_SCROLL_AMOUNT`:
@@ -401,7 +459,7 @@ class MainMenuState(BaseGameState):
 
     def __init__(self, author: str = "by caragones") -> None:
         self.author = author
-        self._bg = Image.from_file(RES_DIR / "menu_background.png")
+        self._bg = Image.from_file(constants.RES_DIR / "menu_background.png")
 
     def on_render(self, console: tcod.console.Console) -> None:
         console.draw_semigraphics(self._bg, 0, 0)
@@ -438,7 +496,7 @@ class MainMenuState(BaseGameState):
 
         menu_options = [
             (keys.KEY_NEW_GAME,  "Play a new game",    True),
-            (keys.KEY_CONTINUE,  "Continue last game", SAVE_PATH.exists()),
+            (keys.KEY_CONTINUE,  "Continue last game", constants.SAVE_PATH.exists()),
             (keys.KEY_QUIT_GAME, "Quit",               True),
         ]
         key_labels = [_key_label(sym) for sym, _, _ in menu_options]
@@ -474,11 +532,11 @@ class MainMenuState(BaseGameState):
                 raise SystemExit()
 
             case keys.KEY_CONTINUE:
-                if not SAVE_PATH.exists():
+                if not constants.SAVE_PATH.exists():
                     return PopupMessageState(self, "No saved game to load.")
 
                 try:
-                    return load_game(SAVE_PATH)
+                    return load_game(constants.SAVE_PATH)
 
                 except FileNotFoundError:
                     return PopupMessageState(self, "No saved game to load.")
@@ -501,9 +559,9 @@ class MainMenuState(BaseGameState):
 
     `sym` is discarded with `_` because it was already used to build `key_labels`. `_` is a valid variable name; by convention it signals "intentionally unused".
 
-`new_game` and `load_game` are imported locally inside `event_keydown` because they are only needed when the player presses a menu key. `RES_DIR` and `SAVE_PATH` are imported at the top because rendering the menu needs them every frame. This import is safe once the refactor below removes the old `engine.py -> game_states.py` dependency.
+`new_game` and `load_game` are imported locally inside `event_keydown` because they are only needed when the player presses a menu key. `constants` is imported at the top because rendering the menu reads `constants.RES_DIR` on every frame. This import is safe once the refactor below removes the old `engine.py -> game_states.py` dependency.
 
-The first `except FileNotFoundError` is a TOCTOU guard (Time-Of-Check/Time-Of-Use): the file could be deleted between the `SAVE_PATH.exists()` check above and the actual `load_game()` call, so we handle that race rather than letting it crash.
+The first `except FileNotFoundError` is a TOCTOU guard (Time-Of-Check/Time-Of-Use): the file could be deleted between the `constants.SAVE_PATH.exists()` check above and the actual `load_game()` call, so we handle that race rather than letting it crash.
 
 The `except Exception` that catches load failures is intentionally broad at the menu boundary: a corrupt or incompatible save file should show a user-facing popup, not crash the program.
 
@@ -541,6 +599,7 @@ In `game/engine.py`, remove the event-loop and game-state imports (now unused), 
 -from tcod.context import Context
 
  from game import hud
++from game.constants import config as constants
  from game.entities.entity import Actor
 -from game.game_states import GameState, MainGameState
  from game.map.game_map import GameMap
@@ -552,7 +611,7 @@ In `game/engine.py`, remove the event-loop and game-state imports (now unused), 
                   game_map: GameMap,
                   player: Actor,
                   # Part-4. Ex 1: Variable torch radius
-                  fov_radius: int = 8,
+                  fov_radius: int = constants.FOV_RADIUS,
                   # Part-4. Ex 4: Fading memory
                   fading_memory: bool = False,
                   memory_duration: int = 10) -> None:
@@ -688,8 +747,8 @@ There are three places in `game_states.py` that assign to `self.engine.game_stat
          if key == keys.KEY_QUIT_GAME:
 -            return EscapeAction()
 +            try:
-+                self.engine.save_as(SAVE_PATH, self)
-+                print(f"Game saved at {SAVE_PATH}.")
++                self.engine.save_as(constants.SAVE_PATH, self)
++                print(f"Game saved at {constants.SAVE_PATH}.")
 +
 +            except Exception as ex:  # pylint: disable=broad-exception-caught
 +                print(f"Warning: could not save ({ex}).")
@@ -733,8 +792,8 @@ from __future__ import annotations
 
 import tcod
 
+from game.constants import config as constants
 from game.game_states import BaseGameState, MainMenuState
-from game.setup_game import RES_DIR, SAVE_PATH
 
 
 def run(
@@ -765,34 +824,27 @@ def save_game(state: BaseGameState) -> None:
 
     if isinstance(state, GameState) and not isinstance(state, GameOverState):
         try:
-            state.engine.save_as(SAVE_PATH, state)
-            print(f"Game saved at {SAVE_PATH}.")
+            state.engine.save_as(constants.SAVE_PATH, state)
+            print(f"Game saved at {constants.SAVE_PATH}.")
 
         except Exception as ex:  # pylint: disable=broad-exception-caught
             print(f"Warning: game state could not be saved ({ex}).")
 
 
 def main() -> None:
-    screen_width  = 80
-    screen_height = 50
-
     state: BaseGameState = MainMenuState()
 
     tileset = tcod.tileset.load_tilesheet(
-        RES_DIR / "dejavu12x12_gs_tc.png",
+        constants.RES_DIR / "dejavu12x12_gs_tc.png",
         32,
         8,
         tcod.tileset.CHARMAP_TCOD,
     )
 
-    title   = "Roguelike Tutorial"
-    version = "0.1.0"
-    app_id  = "com.tutorial.roguelike"
-
     tcod.lib.SDL_SetAppMetadata(
-        title.encode("utf-8"),
-        version.encode("utf-8"),
-        app_id.encode("utf-8")
+        constants.TITLE.encode("utf-8"),
+        constants.VERSION.encode("utf-8"),
+        constants.APP_ID.encode("utf-8")
     )
     tcod.lib.SDL_SetHint(
         b"SDL_RENDER_SCALE_QUALITY",
@@ -800,14 +852,14 @@ def main() -> None:
     )
 
     with tcod.context.new(
-        columns          = screen_width,
-        rows             = screen_height,
+        columns          = constants.SCREEN_WIDTH,
+        rows             = constants.SCREEN_HEIGHT,
         tileset          = tileset,
-        title            = title,
+        title            = constants.TITLE,
         vsync            = True,
         sdl_window_flags = tcod.context.SDL_WINDOW_ALLOW_HIGHDPI | tcod.context.SDL_WINDOW_RESIZABLE,
     ) as context:
-        root_console = tcod.console.Console(screen_width, screen_height, order="F")
+        root_console = tcod.console.Console(constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT, order="F")
         run(state, context, root_console, on_exit=save_game)
 
 
@@ -819,7 +871,9 @@ if __name__ == "__main__":
 
 `main.py` no longer generates a seed or adds the welcome message. Both belong in `new_game()`: the seed decides the map layout, and the welcome message is part of the initial game state, not app setup.
 
-`RES_DIR`, `SAVE_DIR`, and `SAVE_PATH` are built once in `setup_game.py` from `Path(__file__).parent.parent`. Because they are absolute `Path` values, every module that imports them uses the same files regardless of the working directory: `main.py` and `MainMenuState` agree on resource locations, while `save_game`, `on_enter`, and `load_game` agree on the save file without any path-joining at call sites.
+The local variables `screen_width`, `screen_height`, `title`, `version`, and `app_id` that were defined inline inside `main()` are gone. They now live in `config.py` as `SCREEN_WIDTH`, `SCREEN_HEIGHT`, `TITLE`, `VERSION`, and `APP_ID`, and `main.py` reads them through `constants`.
+
+`RES_DIR`, `SAVE_DIR`, and `SAVE_PATH` are built once in `config.py` from `Path(__file__).parent.parent.parent`. Because they are absolute `Path` values, every module that imports `constants` uses the same files regardless of the working directory: `main.py` and `MainMenuState` agree on resource locations, while `save_game`, `on_enter`, and `load_game` agree on the save file without any path-joining at call sites.
 
 `save_game()` is the fallback for unexpected exits (closing the window with the X button or a crash). The normal in-game quit path (Escape) already saves explicitly before transitioning to `MainMenuState`, so `save_game` mainly catches the case where the player is mid-game and closes the window without pressing Escape. If they are at the main menu or game-over screen there is nothing to save.
 
@@ -835,7 +889,7 @@ The `try/except SystemExit` inside `run()` catches the quit signal raised by any
 
 If the player dies, the save file is stale (it would reload a dead character). Delete it in `GameOverState`.
 
-`SAVE_PATH` is now imported near the top of `game_states.py` together with `RES_DIR`, and it is a `Path` object defined in `setup_game.py`, so no wrapping is needed. Replace the stub `on_enter()` added in Step 2 with the real implementation:
+`constants.SAVE_PATH` is available at the top of `game_states.py` via the `config` import added earlier. Replace the stub `on_enter()` added in Step 2 with the real implementation:
 
 ```diff
  class GameOverState(GameState):
@@ -843,8 +897,8 @@ If the player dies, the save file is stale (it would reload a dead character). D
 -    def on_enter(self) -> None:
 -        pass
 +    def on_enter(self) -> None:
-+        if SAVE_PATH.exists():
-+            SAVE_PATH.unlink()
++        if constants.SAVE_PATH.exists():
++            constants.SAVE_PATH.unlink()
 ```
 
 `GameOverState` keeps its own `event_keydown` so Escape still quits from the game-over screen. The save file is deleted when the state is entered, before the player has a chance to quit.
@@ -907,7 +961,9 @@ The removals (`self.game_state`, `handle_events`, `run`) are covered in the Refa
 
 This also breaks the potential circular import introduced when `game_states.py` imports from `setup_game.py`: once `engine.py` no longer imports from `game_states.py`, the chain `game_states → setup_game → engine` is not circular.
 
-**`game/setup_game.py`**: new file (full content above), defines `RES_DIR`, `SAVE_DIR`, and `SAVE_PATH`
+**`game/constants/config.py`**: new file, defines paths, screen dimensions, HUD layout, map parameters, FOV radius, and combat defaults
+
+**`game/setup_game.py`**: new file (full content above), imports from `config` and provides `new_game()` / `load_game()`
 
 **`game/game_states.py`**: additions: `BaseGameState`, `PopupMessageState`, `MainMenuState`, updated `GameState`
 
@@ -943,7 +999,8 @@ Key additions:
 - **`pickle` + `lzma`**: serialize/deserialize the active state plus static message log state
 - **Atomic save writes**: write to a temporary file before replacing the final save
 - **Corrupt save recovery**: move broken saves to `.bak` instead of trapping the player on a bad Continue option
-- **`game/setup_game.py`**: shared `RES_DIR` / `SAVE_PATH` paths plus `new_game()` and `load_game()` functions
+- **`game/constants/config.py`**: single source of truth for paths, screen size, map parameters, and tuning defaults
+- **`game/setup_game.py`**: `new_game()` and `load_game()` functions; reads all dimensions from `config`
 - **`BaseGameState`**: state base that works without an engine (main menu, popups)
 - **`PopupMessageState`**: dismissable framed overlay with darkened background
 - **`MainMenuState`**: background image plus framed New / Continue / Quit menu at startup
@@ -977,6 +1034,7 @@ game/
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py               ← modified
+│   ├── config.py               ← new
 │   ├── keys.py                 ← modified
 │   └── sprites.py
 ├── entities/
@@ -1014,7 +1072,7 @@ game/
 
     Increment `kill_count` on the actor that caused another actor to die. Pass the attacker through damage-dealing code so melee attacks and damaging consumables can attribute the kill correctly. Self-inflicted deaths should not count as kills. For example, if the player is caught in their own fireball, that death should not increase the player's `kill_count`.
 
-    When `GameOverState.on_enter()` runs, append one record to `SAVE_DIR / "graveyard.json"`:
+    When `GameOverState.on_enter()` runs, append one record to `constants.SAVE_DIR / "graveyard.json"`:
 
     ```json
     {
@@ -1033,7 +1091,7 @@ game/
     date = datetime.now().isoformat(timespec="seconds")
     ```
 
-    Read `kills` from `self.engine.player.fighter.kill_count`. Read `gold` from `self.engine.player.inventory.gold`; do not keep a second gold counter in `Engine`. If `graveyard.json` does not exist yet, start with an empty list. As an extra constraint, keep only the latest 10 runs.
+    `game_states.py` already imports `config` as `constants`. Read `kills` from `self.engine.player.fighter.kill_count`. Read `gold` from `self.engine.player.inventory.gold`; do not keep a second gold counter in `Engine`. If `graveyard.json` does not exist yet, start with an empty list. As an extra constraint, keep only the latest 10 runs.
 
     This exercise is about separating two kinds of persistence: pickle is convenient for the live game state, while JSON is better for small, stable records that should remain readable even if the game's classes change.
 

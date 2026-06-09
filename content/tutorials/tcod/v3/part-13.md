@@ -55,6 +55,22 @@ class EquipmentType(Enum):
 
 ---
 
+## config.py additions
+
+Part 13 introduces equipment bonuses. Append to `game/constants/config.py`:
+
+```python
+# --- Equipment bonuses ---
+DAGGER_ATTACK_BONUS     = 2
+SWORD_ATTACK_BONUS      = 4
+LEATHER_ARMOR_DEF_BONUS = 1
+CHAIN_MAIL_DEF_BONUS    = 3
+```
+
+Named constants make balance tweaks immediate: changing `SWORD_ATTACK_BONUS` from 4 to 5 takes one edit and one search confirms every weapon subclass reflects it.
+
+---
+
 ## game/entities/components/equippable.py
 
 Create `game/entities/components/equippable.py`:
@@ -64,6 +80,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from game.constants import config as constants
 from game.entities.components.base_component import ItemComponent
 from game.entities.equipment_type import EquipmentType
 
@@ -87,28 +104,28 @@ class Equippable(ItemComponent):
 class Dagger(Equippable):
 
     def __init__(self) -> None:
-        super().__init__(equipment_type=EquipmentType.WEAPON, attack_bonus=2)
+        super().__init__(equipment_type=EquipmentType.WEAPON, attack_bonus=constants.DAGGER_ATTACK_BONUS)
 
 
 class Sword(Equippable):
 
     def __init__(self) -> None:
-        super().__init__(equipment_type=EquipmentType.WEAPON, attack_bonus=4)
+        super().__init__(equipment_type=EquipmentType.WEAPON, attack_bonus=constants.SWORD_ATTACK_BONUS)
 
 
 class LeatherArmor(Equippable):
 
     def __init__(self) -> None:
-        super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=1)
+        super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=constants.LEATHER_ARMOR_DEF_BONUS)
 
 
 class ChainMail(Equippable):
 
     def __init__(self) -> None:
-        super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=3)
+        super().__init__(equipment_type=EquipmentType.ARMOR, defense_bonus=constants.CHAIN_MAIL_DEF_BONUS)
 ```
 
-Subclassing for each item type is optional, we could pass parameters directly. Subclasses make `game/entities/factories.py` easier to read (`Dagger()` vs `Equippable(EquipmentType.WEAPON, attack_bonus=2)`).
+Subclassing for each item type is optional, we could pass parameters directly. Subclasses make `game/entities/factories.py` easier to read (`Dagger()` vs `Equippable(EquipmentType.WEAPON, attack_bonus=constants.DAGGER_ATTACK_BONUS)`).
 
 ---
 
@@ -361,6 +378,7 @@ Extend `game/constants/colors.py` in a new equipment colors section:
 ```python
 from __future__ import annotations
 
+from game.constants import config as constants
 from game.entities.components.equippable import ChainMail, Dagger, LeatherArmor, Sword
 from game.entities.components.equipment import Equipment
 from game.constants import colors, sprites
@@ -372,7 +390,7 @@ player = Actor(
     ai=None,
     fighter=Fighter(hp=30, defense=2, attack=5),
     inventory=Inventory(capacity=26),
-    level=Level(level_up_base=200),
+    level=Level(level_up_base=constants.DEFAULT_LEVEL_UP_BASE),
     equipment=Equipment(),
 )
 
@@ -528,6 +546,7 @@ game/
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py               ← modified
+│   ├── config.py
 │   └── sprites.py              ← modified
 ├── entities/
 │   ├── __init__.py

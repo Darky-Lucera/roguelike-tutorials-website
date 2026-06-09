@@ -60,6 +60,20 @@ On floor 7: troll has weight 60.
 
 ---
 
+## config.py additions
+
+Part 12 introduces the floor-limit tables. Append to `game/constants/config.py`:
+
+```python
+# --- Procedural spawn limits ---
+MAX_ITEMS_BY_FLOOR    = [(1, 1), (4, 2)]
+MAX_MONSTERS_BY_FLOOR = [(1, 2), (4, 3), (6, 5)]
+```
+
+Each tuple is `(floor_minimum, max_count)`. The entity-weight tables (`item_chances`, `enemy_chances`) stay in `map_generator.py` because they reference entity instances from `factories.py` — moving them to `config.py` would create a circular import.
+
+---
+
 ## The map generator: rewrite spawn logic
 
 Replace the static `place_entities` with a table-driven version. Update `game/map/map_generator.py`:
@@ -73,25 +87,13 @@ from typing import TYPE_CHECKING
 
 import tcod
 
+from game.constants import config as constants
 from game.entities import factories
 from game.map.game_map import GameMap
 from game.map import tile_types
 
 if TYPE_CHECKING:
     from game.entities.entity import Entity
-
-# ── Spawn count tables ────────────────────────────────────────────────────────
-
-max_items_by_floor = [
-    (1, 1),
-    (4, 2),
-]
-
-max_monsters_by_floor = [
-    (1, 2),
-    (4, 3),
-    (6, 5),
-]
 
 # ── Weighted entity tables ────────────────────────────────────────────────────
 
@@ -171,10 +173,10 @@ class RectangularRoom:
 
 def place_entities(room: RectangularRoom, dungeon: GameMap, floor_number: int) -> None:
     number_of_monsters = random.randint(
-        0, get_max_value_for_floor(max_monsters_by_floor, floor_number)
+        0, get_max_value_for_floor(constants.MAX_MONSTERS_BY_FLOOR, floor_number)
     )
     number_of_items = random.randint(
-        0, get_max_value_for_floor(max_items_by_floor, floor_number)
+        0, get_max_value_for_floor(constants.MAX_ITEMS_BY_FLOOR, floor_number)
     )
 
     monsters = get_entities_at_random(enemy_chances, number_of_monsters, floor_number)
@@ -322,7 +324,7 @@ Spawn rates now scale with dungeon depth. Key additions:
 
 - **`get_max_value_for_floor`**: reads a floor-keyed table and returns the current value
 - **`get_entities_at_random`**: weighted random selection for any number of entities
-- **Floor-keyed tables**: `max_monsters_by_floor`, `max_items_by_floor`, `item_chances`, `enemy_chances`
+- **Floor-keyed tables**: `constants.MAX_MONSTERS_BY_FLOOR`, `constants.MAX_ITEMS_BY_FLOOR`, `item_chances`, `enemy_chances`
 
 **Current architecture**:
 
@@ -348,6 +350,7 @@ game/
 ├── constants/
 │   ├── __init__.py
 │   ├── colors.py
+│   ├── config.py
 │   └── sprites.py
 ├── entities/
 │   ├── __init__.py
