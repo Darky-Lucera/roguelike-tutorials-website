@@ -6,11 +6,11 @@ Part 8a builds the data model: items exist in the dungeon, can be seen, but cann
 
 ---
 
-### What You Will Build
+## What You Will Build
 
 By the end of Block 1, health potions and chests appear in the dungeon. Hovering the mouse over either shows its name. Walking over a chest does nothing yet: the auto-collect mechanic will be added in Part 8b. There are no other keyboard interactions with items yet either.
 
-### Learning goals
+## Learning goals
 
 - Add `Item` as a new entity subclass with an `owner` field
 - Introduce `Impossible` as a structured rejection pattern
@@ -20,7 +20,7 @@ By the end of Block 1, health potions and chests appear in the dungeon. Hovering
 
 ---
 
-### Where does an item live?
+## Where does an item live?
 
 Before writing any code, consider the central design question: a health potion needs to exist in two places.
 
@@ -44,7 +44,7 @@ This chapter also introduces a second architectural change: **important action r
 
 ---
 
-### `game/exceptions.py`
+## `game/exceptions.py`
 
 Create a new file:
 
@@ -63,7 +63,7 @@ Compare the alternatives. Returning `None` is silent: the caller has to check fo
 
 ---
 
-### New constants
+## New constants
 
 Block 1 introduces the visual constants for both item types: the health potion, the chest, and the gold color. The colors used for action rejections and the inventory overlay will be introduced in Part 8b, at the point where they are first used.
 
@@ -103,7 +103,7 @@ Then add `HEALTH_RECOVERED` and `GOLD` alongside the other message colors:
 
 ---
 
-### Narrowing component types
+## Narrowing component types
 
 Every component in `game/entities/components/base_component.py` declares `entity: Entity`. That annotation is incorrect. A `Fighter` component's entity is always an `Actor`, it will never be a plain `Entity` or an `Item`. Once this chapter moves `ai` off `Entity`, `entity: Entity` no longer describes the design accurately: `self.entity.ai` and `self.entity.is_alive` are `Actor` attributes, and `Entity` does not declare them.
 
@@ -177,11 +177,11 @@ The two new components introduced in this chapter (`Inventory` and `Consumable`)
 
 ---
 
-### Updating `game/entities/entity.py`
+## Updating `game/entities/entity.py`
 
 `entity.py` changes in several steps. Each step introduces one concept before the next one depends on it.
 
-#### Step 1: Remove `ai` from `Entity` and expand TYPE_CHECKING imports
+## Step 1: Remove `ai` from `Entity` and expand TYPE_CHECKING imports
 
 `ai` is an `Actor` concern, not an `Entity` concern. Plain entities (passive blockers, map decorations) never have AI. Keeping it on the base class was a holdover from before `Actor` existed.
 
@@ -210,7 +210,7 @@ At the same time, add the imports that the new classes and annotations in this c
 -        self.ai              = ai
 ```
 
-#### Step 2: Add the `owner` field
+## Step 2: Add the `owner` field
 
 Add `owner` as the first parameter of `__init__`, and auto-register the entity when an owner is provided:
 
@@ -254,7 +254,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 
         `Inventory` is only set later, on pickup, so accepting it at construction time would be misleading.
 
-#### Step 3: Update `spawn()`
+## Step 3: Update `spawn()`
 
 `spawn()` existed since Part 5. It creates a deep copy and adds it to the map's entity set. Now it also sets `owner` on the clone:
 
@@ -268,7 +268,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
          return clone
 ```
 
-#### Step 4: Add `place()`
+## Step 4: Add `place()`
 
 `place()` moves an entity to a new position and optionally transfers it to a new owner. The inventory `drop()` method calls it to return an item to the dungeon floor:
 
@@ -291,7 +291,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 
 The local import makes `GameMap` available at runtime without introducing a module-level circular import. `self.owner is not None` guards against placing a fresh template entity for the first time. Once that check passes, `isinstance(self.owner, GameMap)` determines whether the entity is registered directly with the map and needs to be removed from it: items being dropped from inventory have `owner = Inventory`, so the isinstance check is `False` and the discard is skipped correctly.
 
-#### Step 5: Add `inventory` to `Actor` and fix the `ai` annotation
+## Step 5: Add `inventory` to `Actor` and fix the `ai` annotation
 
 `Actor` now requires an `Inventory` component. This step also cleans up the `ai` wiring: since `Entity` no longer accepts `ai`, `Actor` must own the attribute directly.
 
@@ -335,7 +335,7 @@ Update `Actor.__init__`:
 
 `ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it.
 
-#### Step 6: Add the `Item` class
+## Step 6: Add the `Item` class
 
 `Item` is parallel to `Actor`: a specialised entity with its own required component. Replace the stub with the full class:
 
@@ -371,7 +371,7 @@ Items do not usually block movement (you can stand on top of a potion) and rende
 
 ---
 
-### Add `items` to `GameMap`
+## Add `items` to `GameMap`
 
 Items on the map need a way to be found. Add a filtered property to `game/map/game_map.py` that yields only `Item` instances:
 
@@ -395,7 +395,7 @@ Items on the map need a way to be found. Add a filtered property to `game/map/ga
 
 ---
 
-### Create `game/entities/components/inventory.py`
+## Create `game/entities/components/inventory.py`
 
 ```python
 from __future__ import annotations
@@ -443,7 +443,7 @@ class Inventory(ActorComponent):
 
 ---
 
-### Create `game/entities/components/consumable.py`
+## Create `game/entities/components/consumable.py`
 
 ```python
 from __future__ import annotations
@@ -532,7 +532,7 @@ The file defines three classes: `Consumable` as the base for all item effects, `
 
 ---
 
-### Update `game/entities/factories.py`
+## Update `game/entities/factories.py`
 
 Every `Actor` now requires an `Inventory`. Add the component to the existing templates, and also import both consumable classes and `Item`:
 
@@ -608,7 +608,7 @@ item_chances = [
 
 ---
 
-### Update `game/map/map_generator.py`
+## Update `game/map/map_generator.py`
 
 In Part 5, `place_entities` accepted a single monster limit. Part 8 adds **item** spawning, so the function receives both monster and item limits.
 
@@ -705,7 +705,7 @@ Update the call site in `generate_dungeon`:
 
 ---
 
-### Update `main.py`
+## Update `main.py`
 
 Add the item density parameters alongside the monster parameters:
 
@@ -731,7 +731,7 @@ Pass them to `generate_dungeon`:
 
 ---
 
-### Testing Block 1
+## Testing Block 1
 
 Run the game and verify the following:
 

@@ -61,8 +61,13 @@ WELCOME_TEXT  = Color(0x20, 0xA0, 0xFF)
 BAR_TEXT      = WHITE
 HP_BAR_FILLED = Color(0x00, 0x60, 0x00)
 HP_BAR_EMPTY  = Color(0x40, 0x10, 0x10)
-GAME_OVER_FG  = Color(255,  80,  80)
-GAME_OVER_BG  = Color( 64,   0,   0)
+
+# Game over screen colors
+GAME_OVER_FRAME    = Color(255,  72,  72)
+GAME_OVER_PANEL_BG = Color( 38,   5,   8)
+GAME_OVER_TITLE    = Color(255, 192, 160)
+GAME_OVER_TEXT     = Color(255, 232, 224)
+GAME_OVER_DIM      = Color(216, 144, 144)
 ```
 
 We split the new constants into three sections (`Generic colors`, `Combat message colors`, `UI colors`) to make scanning the file easier as it grows. Notice we name the death colors `PLAYER_DEATH` and `ENEMY_DEATH`, not `_die`: full words read better at every call site.
@@ -383,6 +388,7 @@ from game.actions import (
     WaitAction,
 )
 from game.constants import colors
+from game.constants.colors import Color
 from game.message_log import MessageLog
 
 if TYPE_CHECKING:
@@ -421,6 +427,51 @@ WAIT_KEYS = {
     tcod.event.KeySym.KP_5,
     tcod.event.KeySym.CLEAR,
 }
+
+
+def _draw_panel(
+    console: tcod.console.Console,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    frame_color: Color,
+    bg_color: Color,
+    shadow: bool = True,
+) -> None:
+    if shadow:
+        # Draw the panel shadow one tile down and to the right.
+        console.draw_rect(
+            x      = x + 1,
+            y      = y + 1,
+            width  = width,
+            height = height,
+            ch     = ord(" "),
+            bg     = colors.BLACK,
+        )
+
+    # Fill the panel interior with the selected background color.
+    console.draw_rect(
+        x        = x,
+        y        = y,
+        width    = width,
+        height   = height,
+        ch       = ord(" "),
+        fg       = frame_color,
+        bg       = bg_color,
+        bg_blend = tcod.constants.BKGND_SET,
+    )
+
+    # Draw the panel frame over the filled background.
+    console.draw_frame(
+        x      = x,
+        y      = y,
+        width  = width,
+        height = height,
+        clear  = False,
+        fg     = frame_color,
+        bg     = bg_color,
+    )
 
 
 class GameState:
@@ -468,45 +519,53 @@ class MainGameState(GameState):
 
 class GameOverState(GameState):
     TITLE    = "GAME OVER"
-    FG_COLOR = colors.GAME_OVER_FG
-    BG_COLOR = colors.GAME_OVER_BG
+    FG_COLOR = colors.GAME_OVER_FRAME
+    BG_COLOR = colors.GAME_OVER_PANEL_BG
 
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
-        hint   = "Press ESC to quit"
-        width  = max(len(self.TITLE), len(hint)) + 4
-        height = 3
+        # Dim the map background to highlight the game-over screen.
+        console.fg[:] = console.fg // 2
+        console.bg[:] = console.bg // 2
+
+        title   = f" {self.TITLE} "
+        message = "The dungeon claims another adventurer"
+        hint    = "Press ESC to quit"
+        width   = max(len(title) + 4, len(message) + 6, len(hint) + 6)
+        height  = 6
         x = (console.width  - width)  // 2
         y = (console.height - height) // 2
 
-        # Fills the entire window with the game over background color
-        console.draw_rect(
-            x        = x,
-            y        = y,
-            width    = width,
-            height   = height,
-            ch       = ord(' '),
-            fg       = self.FG_COLOR,
-            bg       = self.BG_COLOR,
-            bg_blend = tcod.constants.BKGND_SET,
+        # Draw the game-over box.
+        _draw_panel(console, x, y, width, height, self.FG_COLOR, self.BG_COLOR)
+
+        # Draw the centered game-over title over the frame.
+        console.print(
+            x    = x + (width - len(title)) // 2,
+            y    = y,
+            text = title,
+            fg   = colors.GAME_OVER_TITLE,
+            bg   = self.BG_COLOR,
         )
 
-        # Draws only the frame and title, leaving the previous fill intact
-        console.draw_frame(
-            x      = x,
-            y      = y,
-            width  = width,
-            height = height,
-            clear  = False,
-            fg     = self.FG_COLOR,
-            bg     = self.BG_COLOR,
+        # Draw the main game-over line.
+        console.print(
+            x         = console.width // 2,
+            y         = y + 2,
+            text      = message,
+            fg        = colors.GAME_OVER_TEXT,
+            alignment = tcod.constants.CENTER,
         )
 
-        title = f" {self.TITLE} "
-        console.print(x + (width - len(title)) // 2, y, title, fg=self.FG_COLOR, bg=self.BG_COLOR)
-
-        console.print(x + (width - len(hint)) // 2, y + 1, hint, fg=self.FG_COLOR)
+        # Draw the quit hint at the bottom of the panel.
+        console.print(
+            x         = console.width // 2,
+            y         = y + height - 2,
+            text      = hint,
+            fg        = colors.GAME_OVER_DIM,
+            alignment = tcod.constants.CENTER,
+        )
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         if event.sym == tcod.event.KeySym.ESCAPE:
@@ -515,11 +574,21 @@ class GameOverState(GameState):
         return None
 ```
 
+*The finished game over screen*:
+
+![Game Over](images/window_gameover.png)
+
 `GameOverState` declares three class variables (`TITLE`, `FG_COLOR`, and `BG_COLOR`) so subclasses can override them independently. The pattern will appear again in Part 8 for the inventory overlays.
 
-`on_render()` defines `hint` first so both dimensions can reference its length. `width` is the wider of the title and the hint, plus four characters for the two border columns and one space of padding on each side. `height` is 3: one row for the top border (which also carries the title), one for the hint, one for the bottom border.
+`on_render()` starts by dimming everything already on the console: `console.fg[:] = console.fg // 2` halves every foreground color channel in place, and the matching `bg` line halves the backgrounds. The map and HUD stay visible but faded, so the player's attention moves to the panel. This dimming trick reappears in every modal screen from here on (inventory, popups, level-up).
 
-The rendering is a two-pass approach. First, `draw_rect` fills every cell with a space character using `BKGND_SET`, which writes the background color directly over whatever tcod previously rendered. `ch=ord(' ')` clears the character layer too, so the dungeon tiles underneath are fully hidden; the player's attention should leave the map entirely at this point. Second, `draw_frame` draws only the border with `clear=False`, which tells tcod to skip the interior fill and preserve the rectangle just written by `draw_rect`. The title is then centered on the top border row with a separate `console.print`, overwriting the border character there with the padded title string. The hint is centered horizontally and printed at `y+1`, the only interior row.
+`_draw_panel()` is the panel workhorse; later parts reuse it for every menu and popup, so it is worth understanding once. It renders in three passes:
+
+1. An optional **drop shadow**: a plain black `draw_rect` offset one cell right and down from the panel origin, which gives the panel a floating look.
+2. A **fill** pass: `draw_rect` covers the panel area with a space character using `bg_blend=tcod.constants.BKGND_SET`, which writes the background color directly over whatever tcod previously rendered. `ch=ord(" ")` clears the character layer too, so the dungeon tiles underneath are fully hidden.
+3. A **frame** pass: `draw_frame` with `clear=False` draws only the border characters, preserving the interior just filled by `draw_rect`.
+
+Back in `on_render()`, the panel width adapts to its longest content line (title, message, or hint, each padded for the borders and a margin). The title is centered on the top border row with a separate `console.print`, overwriting the frame characters there with the padded title string. The message is centered in the interior, and the hint sits on the row just above the bottom border in a dimmer color, so it reads as secondary information.
 
 The `MouseMotion` case stores the cursor tile position in `engine.mouse_location` so `render_names_at_mouse_location` always has current data. `integer_position` is the tile-space coordinate set by `context.convert_event`; the older `event.tile` attribute is deprecated.
 
@@ -659,6 +728,7 @@ Run `python main.py`:
 - [ ] When enemies attack you, the message appears in a different color
 - [ ] Hovering the mouse over a visible entity shows its name on the panel's top row
 - [ ] On death, `"You died!"` appears in the log and the bar shows 0 HP
+- [ ] On death, the screen dims and a framed game-over panel with a drop shadow appears centered
 - [ ] Repeated identical messages stack: `"Orc attacks Player for 2 hit points. (x3)"`
 
 ---
@@ -670,6 +740,7 @@ The UI panel is now live. Key additions:
 - **`game/constants/colors.py`**: centralized color constants for the whole project
 - **`MessageLog`**: static class that stores and renders recent events with stacking and color
 - **`hud`**: stateless HUD helpers for the bar and mouse names
+- **`_draw_panel()`**: shared shadow + fill + frame helper reused by every later menu and popup
 - **`on_render()`**: each game state controls its own frame rendering
 - **`mouse_location`**: engine tracks the cursor for hover tooltips
 

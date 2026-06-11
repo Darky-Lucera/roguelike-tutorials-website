@@ -2,11 +2,11 @@
 
 In Part 8a we built the item data model: items exist in the dungeon, and can be seen but not touched. This part adds the player-facing side: actions, keyboard bindings, and the inventory overlay.
 
-### What You Will Build
+## What You Will Build
 
 By the end of Part 8b, the player can pick up health potions with `G`, browse the inventory with `I`, use items by letter, drop items with `D`, and collect treasure chests by walking over them. A gold counter appears below the HP bar.
 
-### Learning goals
+## Learning goals
 
 - Implement `PickupAction`, `ItemAction`, and `DropItem`
 - Refactor `GameState` so each state controls its own post-action flow
@@ -15,7 +15,7 @@ By the end of Part 8b, the player can pick up health potions with `G`, browse th
 
 ---
 
-### Update `game/actions.py`
+## Update `game/actions.py`
 
 Add the three new action classes and two new imports at the top of the file:
 
@@ -129,7 +129,7 @@ Now that `ItemAction` exists, add `get_action()` to `Consumable` in `game/entiti
 
 ---
 
-### Move action execution into `GameState`
+## Move action execution into `GameState`
 
 So far `Engine.handle_events()` ran the action returned by the active game state. That worked with only one state, but modal states (the inventory overlay) need to switch the active state *after* an action completes. Only the state knows which state it should return to; the engine does not.
 
@@ -230,7 +230,7 @@ The return type of `handle_events` changes from `Action | None` to `None`. Updat
 
 ---
 
-### Trim movement keys
+## Trim movement keys
 
 Vi keys (`b`, `h`, `j`, `k`, `l`, `n`, `u`, `y`) have been part of roguelikes since the original *Rogue* (1980), which ran on VT100 terminals with no arrow keys. On a modern keyboard, arrow keys and the numpad cover the same directions with less ambiguity, and freeing those letters matters here: this chapter adds `G`, `I`, and `D` as action keys, and Exercise 3 assigns the remaining letters to items for direct use from the map.
 
@@ -253,7 +253,7 @@ Remove the vi keys block from `MOVE_KEYS` in `game/game_states.py`:
 
 ---
 
-### Update `MainGameState`
+## Update `MainGameState`
 
 Add three key bindings at the end of `event_keydown`:
 
@@ -277,7 +277,7 @@ Add three key bindings at the end of `event_keydown`:
 
 ---
 
-### Inventory states
+## Inventory states
 
 Three new state classes go at the bottom of `game/game_states.py`.
 
@@ -287,73 +287,183 @@ Add the inventory overlay colors to `game/constants/colors.py`:
  INVALID = Color(0xFF, 0xFF, 0x00)
 +
 +# Inventory overlay colors
-+INVENTORY_USE_FG  = Color(132, 198, 140)
-+INVENTORY_USE_BG  = Color( 16,  99,  27)
-+INVENTORY_DROP_FG = Color(192, 128, 255)
-+INVENTORY_DROP_BG = Color(128,   0, 255)
++INVENTORY_MENU_TITLE = Color(255, 245, 160)
++INVENTORY_MENU_TEXT  = Color(232, 255, 255)
++INVENTORY_MENU_DIM   = Color(168, 216, 216)
++INVENTORY_MENU_KEY   = BLACK
++
++INVENTORY_USE_FG     = Color( 80, 255, 184)
++INVENTORY_USE_BG     = Color(  5,  36,  30)
++INVENTORY_USE_ACCENT = Color( 32, 168, 112)
++INVENTORY_USE_ROW_BG = Color( 10,  58,  44)
++
++INVENTORY_DROP_FG     = Color(224, 128, 255)
++INVENTORY_DROP_BG     = Color( 38,  14,  58)
++INVENTORY_DROP_ACCENT = Color(160,  80, 232)
++INVENTORY_DROP_ROW_BG = Color( 58,  22,  82)
 ```
 
-The inventory overlay uses two distinct color schemes: green tones for item use (activation) and purple tones for item dropping. At a glance, the player always knows which overlay is open.
+The inventory overlay uses two distinct color schemes: green tones for item use (activation) and purple tones for item dropping. At a glance, the player always knows which overlay is open. The `INVENTORY_MENU_*` constants are shared by both schemes: title, text, and dim shades that look the same in either overlay, plus the key badge foreground.
 
 !!! tip "Modal states"
     An inventory state follows exactly the same pattern as `GameOverState` from Part 7: it overrides `on_render()` to draw an overlay on top of the map, and `event_keydown()` to handle its own key set. The overlay closes when the player selects a valid item (an action executes, then `GameState.handle_events` switches back to `MainGameState`) or presses `Escape` (handled explicitly in `event_keydown`, which sets the state directly without returning an action). Any other unrecognised key does nothing. This pattern composes cleanly: any state can open any other state, and the "stack" is simply `self.engine.game_state` with no state stack to maintain.
+
+Item names come from data, so a very long name could overflow the panel. A small helper trims text to a maximum width and marks the cut with `...`. Add it to `game/game_states.py`, next to `_draw_panel` from Part 7:
+
+```python
+def _trim_text(text: str, max_width: int) -> str:
+    if len(text) <= max_width:
+        return text
+
+    if max_width <= 3:
+        return text[:max_width]
+
+    return f"{text[:max_width - 3]}..."
+```
+
+Now the three state classes:
 
 ```python
 class InventoryState(GameState):
     """Base class for inventory screens (use and drop share the same UI)."""
 
-    TITLE    = "<missing title>"
-    FG_COLOR = colors.WHITE
-    BG_COLOR = colors.BLACK
+    TITLE        = "<missing title>"
+    PROMPT       = "<missing prompt>"
+    EMPTY_TEXT   = "Your pack is empty."
+    FG_COLOR     = colors.WHITE
+    BG_COLOR     = colors.BLACK
+    ACCENT_COLOR = colors.WHITE
+    ROW_BG_COLOR = colors.BLACK
 
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)  # draws the map behind the overlay
 
+        # Dim the map background to highlight the inventory.
+        console.fg[:] = console.fg // 2
+        console.bg[:] = console.bg // 2
+
         inventory = self.engine.player.inventory
         number_of_items_in_inventory = len(inventory.items)
 
-        height = min(max(3, number_of_items_in_inventory + 2), console.height - 2)
+        slot_count   = f"({len(inventory.items)} / {inventory.capacity} slots)"
+        max_height   = console.height - 4
+        height       = min(max(8, number_of_items_in_inventory + 7), max_height)
+        visible_rows = min(number_of_items_in_inventory, max(0, height - 7))
 
-        item_width = max((len(item.name) for item in inventory.items), default=0) + 8
-        width  = max(len(self.TITLE) + 4, item_width)
+        item_width = max((len(item.name) for item in inventory.items), default=0) + 14
+        width = min(
+            console.width - 4,
+            max(
+                46,
+                len(self.TITLE) + 4,
+                len(self.PROMPT) + 6,
+                len(slot_count) + 6,
+                item_width,
+            ),
+        )
+
         x = (console.width  - width)  // 2
         y = (console.height - height) // 2
 
-        # Fills the entire window with the inventory background color
-        console.draw_rect(
-            x        = x,
-            y        = y,
-            width    = width,
-            height   = height,
-            ch       = ord(' '),
-            fg       = self.FG_COLOR,
-            bg       = self.BG_COLOR,
-            bg_blend = tcod.constants.BKGND_SET,
-        )
-
-        # Draws only the frame, leaving the previous fill intact
-        console.draw_frame(
-            x      = x,
-            y      = y,
-            width  = width,
-            height = height,
-            clear  = False,
-            fg     = self.FG_COLOR,
-            bg     = self.BG_COLOR,
-        )
+        # Draw the inventory box.
+        _draw_panel(console, x, y, width, height, self.FG_COLOR, self.BG_COLOR)
 
         title = f" {self.TITLE} "
-        console.print(x + (width - len(title)) // 2, y, title, fg=self.FG_COLOR, bg=self.BG_COLOR)
+        # Draw the inventory title over the frame.
+        console.print(
+            x  = x + (width - len(title)) // 2,
+            y  = y,
+            text = title,
+            fg = colors.INVENTORY_MENU_TITLE,
+            bg = self.BG_COLOR,
+        )
 
-        if number_of_items_in_inventory > 0:
-            for i, item in enumerate(inventory.items[:height - 2]):
+        # Draw the main help text.
+        console.print(
+            x         = console.width // 2,
+            y         = y + 2,
+            text      = self.PROMPT,
+            fg        = colors.INVENTORY_MENU_TEXT,
+            alignment = tcod.constants.CENTER,
+        )
+
+        row_x = x + 3
+        row_width = width - 6
+        if visible_rows > 0:
+            name_width = max(1, row_width - 12)
+            for i, item in enumerate(inventory.items[:visible_rows]):
                 item_key = chr(ord("a") + i)
-                console.print(x + 1, y + i + 1, f"({item_key}) ")
-                console.print(x + 5, y + i + 1, item.char, fg=item.color)
-                console.print(x + 7, y + i + 1, item.name)
+                row_y = y + 4 + i
+
+                # Draw the background for one item row.
+                console.draw_rect(
+                    x      = row_x,
+                    y      = row_y,
+                    width  = row_width,
+                    height = 1,
+                    ch     = ord(" "),
+                    bg     = self.ROW_BG_COLOR,
+                )
+
+                # Draw the key that selects this item.
+                console.print(
+                    row_x + 2,
+                    row_y,
+                    f"[ {item_key} ]",
+                    fg = colors.INVENTORY_MENU_KEY,
+                    bg = self.ACCENT_COLOR,
+                )
+
+                # Draw the item glyph using its own color.
+                console.print(
+                    row_x + 8,
+                    row_y,
+                    item.char,
+                    fg = item.color,
+                    bg = self.ROW_BG_COLOR
+                )
+
+                # Draw the item name, trimmed if it does not fit.
+                console.print(
+                    row_x + 10,
+                    row_y,
+                    _trim_text(item.name, name_width),
+                    fg = colors.INVENTORY_MENU_TEXT,
+                    bg = self.ROW_BG_COLOR,
+                )
 
         else:
-            console.print(x + 1, y + 1, "(Empty)")
+            row_y = y + 4
+
+            # Draw the empty row when there are no items.
+            console.draw_rect(
+                x      = row_x,
+                y      = row_y,
+                width  = row_width,
+                height = 1,
+                ch     = ord(" "),
+                bg     = self.ROW_BG_COLOR,
+            )
+
+            # Draw the empty-inventory message.
+            console.print(
+                x         = console.width // 2,
+                y         = row_y,
+                text      = self.EMPTY_TEXT,
+                fg        = colors.INVENTORY_MENU_DIM,
+                bg        = self.ROW_BG_COLOR,
+                alignment = tcod.constants.CENTER,
+            )
+
+        # Draw the used-slots counter after the item list.
+        console.print(
+            x         = console.width // 2,
+            y         = y + height - 2,
+            text      = slot_count,
+            fg        = colors.INVENTORY_MENU_DIM,
+            bg        = self.BG_COLOR,
+            alignment = tcod.constants.CENTER,
+        )
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         player = self.engine.player
@@ -377,21 +487,34 @@ class InventoryState(GameState):
 
     def on_item_selected(self, item: Item) -> Action | None:
         raise NotImplementedError()
+```
 
-
+```python
 class InventoryUseState(InventoryState):
-    TITLE    = "Select an item to use"
-    FG_COLOR = colors.INVENTORY_USE_FG
-    BG_COLOR = colors.INVENTORY_USE_BG
+    TITLE        = "Use Item"
+    PROMPT       = "Select an item to use:"
+    FG_COLOR     = colors.INVENTORY_USE_FG
+    BG_COLOR     = colors.INVENTORY_USE_BG
+    ACCENT_COLOR = colors.INVENTORY_USE_ACCENT
+    ROW_BG_COLOR = colors.INVENTORY_USE_ROW_BG
 
     def on_item_selected(self, item: Item) -> Action | None:
         return item.consumable.get_action(self.engine.player, self.engine)
+```
+
+**The use inventory overlay looks like this**:
+
+![Inventory: Use Item](images/window_inventory_use1.png)
 
 
+```python
 class InventoryDropState(InventoryState):
-    TITLE    = "Select an item to drop"
-    FG_COLOR = colors.INVENTORY_DROP_FG
-    BG_COLOR = colors.INVENTORY_DROP_BG
+    TITLE        = "Drop Item"
+    PROMPT       = "Select an item to drop:"
+    FG_COLOR     = colors.INVENTORY_DROP_FG
+    BG_COLOR     = colors.INVENTORY_DROP_BG
+    ACCENT_COLOR = colors.INVENTORY_DROP_ACCENT
+    ROW_BG_COLOR = colors.INVENTORY_DROP_ROW_BG
 
     def on_item_selected(self, item: Item) -> Action | None:
         from game.actions import DropItem
@@ -399,20 +522,24 @@ class InventoryDropState(InventoryState):
         return DropItem(item=item)
 ```
 
+**The drop overlay shares the same layout**:
+
+![Inventory: Drop Item](images/window_inventory_drop1.png)
+
 !!! info "Pattern: Template Method"
     `InventoryState` defines the complete algorithm (render the overlay, map keys to items, call `on_item_selected`) but leaves the final step as an abstract hook that each concrete subclass fills in. `InventoryUseState` uses the item; `InventoryDropState` drops it. The skeleton of the algorithm lives in the base class; the variation lives in the subclasses.
 
     The same structure appears with `on_index_selected` in `SelectIndexState` (Part 9).
 
-`on_render()` renders the map first via `super()`, then draws the overlay in two passes.
+`on_render()` renders the map first via `super()`, dims it with the same `// 2` trick introduced in Part 7 for the game-over screen, and then draws the box with `_draw_panel()` (shadow, fill, frame). Nothing new there: the overlay reuses the exact machinery the game-over panel taught us.
 
-The first pass is `console.draw_rect()` with `bg_blend=tcod.constants.BKGND_SET`. The SET blend mode writes the background color directly, producing an opaque fill. `ch=ord(' ')` replaces every character cell in the rectangle with a space, so the map tiles underneath are fully hidden. `fg=self.FG_COLOR` sets the foreground color on those cells as well, so the text printed on top inherits the right color from the start.
+The panel layout is fixed at the top and grows downward with the item list. Row `y` carries the frame and the centered title; `y+2` prints the `PROMPT` help text; item rows start at `y+4`. The used-slots counter (`(3 / 10 slots)`) sits on the row above the bottom border, like a status line, and doubles as capacity feedback now that the inventory can fill up.
 
-The second pass is `console.draw_frame()` with `clear=False`. Because `draw_rect` already set the background, `clear=False` tells `draw_frame` to draw only the border characters without overwriting the interior. `fg=self.FG_COLOR` colors the border; `bg=self.BG_COLOR` sets the border cells' background to match.
+Each item row is drawn in four pieces: a one-row `draw_rect` with `ROW_BG_COLOR` that makes the row read as a single unit, the selection key as a badge (`[ a ]`, dark text over `ACCENT_COLOR`), the item sprite in its own color at `row_x + 8`, and the name at `row_x + 10`, passed through `_trim_text()` so a long name cannot break the layout. The badge-over-accent style makes the actionable keys pop out from the text around them.
 
-Each item line is printed in three pieces: the letter key at `x+1` (e.g. `(a)`), the item sprite in its own color at `x+5`, and the name at `x+7`. This separates the selection key from the item's visual identity and lets the sprite color stand out. The frame width is calculated to fit the longest item name: `len(name) + 8` accounts for the 7 prefix characters (key, space, sprite, space) plus 1 for a trailing margin.
+`width` adapts to the longest content line (title, prompt, counter, or item name plus its prefixes) with a floor of 46 cells, and is clamped to `console.width - 4` so the panel always leaves a margin. `height` follows the item count, with `visible_rows` recomputed from the clamped height so the loop never draws past the bottom border. When the inventory is empty, a single dim row prints `EMPTY_TEXT` instead of the item list.
 
-`TITLE`, `FG_COLOR`, and `BG_COLOR` follow the same class-variable pattern introduced in Part 7 for `GameOverState`. Each subclass overrides them: green tones for activation, purple tones for dropping, so the player always knows which overlay is open at a glance.
+`TITLE`, `PROMPT`, and the four color class variables follow the same class-variable pattern introduced in Part 7 for `GameOverState`. Each subclass overrides them: green tones for activation, purple tones for dropping, so the player always knows which overlay is open at a glance.
 
 `event_keydown()` converts the pressed key to an index: `a → 0`, `b → 1`, and so on. The range `0 <= index <= 25` covers exactly the 26 letters `a`-`z`. If the index falls outside the item list, it logs "Invalid entry." and returns `None`. Otherwise it calls `on_item_selected()`, which the two subclasses implement differently. `Escape` closes the overlay immediately by switching back to `MainGameState` without returning an action (so enemies do not take a turn).
 
@@ -430,11 +557,11 @@ Also add `Item` to the imports at the top of `game_states.py` so that `on_item_s
 
 ---
 
-### Treasure chests
+## Treasure chests
 
 Part 8a defined both consumable types and spawned chests on the floor. The chest template and `auto_activate = True` are already in place. This section adds the three pieces that make chests actually work: the `GameMap` helper, the contact method on `Consumable`, and the HUD element that shows the accumulated gold.
 
-#### Auto-collect in `MovementAction`
+## Auto-collect in `MovementAction`
 
 `PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. This requires three additions.
 
@@ -471,7 +598,7 @@ The `isinstance(entity, Actor)` check satisfies the type checker: `on_contact` e
 
 `items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. There is no player-only guard here: every actor that steps on a tile triggers contact. Whether the consumable reacts depends on the consumable itself.
 
-#### `render_gold` in `hud.py`
+## `render_gold` in `hud.py`
 
 Add a one-line gold display below the HP bar:
 
@@ -497,17 +624,18 @@ Call it from `Engine.render()`:
 
 ---
 
-### Testing Part 8b
+## Testing Part 8b
 
 Run the game and verify the following:
 
 - Health potions (`!`) appear on the dungeon floor.
 - Walking over a potion and pressing `G` adds it to the inventory and shows "You picked up the Health Potion!".
 - Pressing `G` on an empty tile shows "There is nothing here to pick up." in yellow.
-- Pressing `I` opens the "Select an item to use" overlay and lists carried items by letter.
+- Pressing `I` opens the "Use Item" overlay: the map dims, a framed panel with a drop shadow appears, and carried items are listed as rows with `[ a ]`-style key badges.
+- The overlay shows the used-slots counter (for example `(2 / 10 slots)`) at the bottom of the panel.
 - Pressing the letter for a potion when injured heals the player and shows a green message.
 - Pressing the letter for a potion at full health shows "Your health is already full." in yellow.
-- Pressing `D` opens the "Select an item to drop" overlay; selecting an item drops it at the player's feet.
+- Pressing `D` opens the "Drop Item" overlay in purple tones; selecting an item drops it at the player's feet.
 - Pressing an out-of-range letter in the inventory overlay shows "Invalid entry." in yellow.
 - Enemies still act on their turn after the player successfully uses or drops an item.
 - Enemies do *not* act when the player tries to pick up from an empty tile (a failed action costs no turn).
@@ -526,7 +654,7 @@ Items are now a first-class part of the game. Key additions:
 - **`Item` / `Inventory`**: new entity subclass and actor component; pickup, use, and drop are modelled as actions
 - **`HealingConsumable`**: first consumable component; knows how to apply its effect independently of the action layer
 - **`TreasureConsumable`**: second consumable; collected on contact rather than through the inventory; `auto_activate = True` triggers pickup on walk
-- **`InventoryState`**: modal overlay base class; subclasses override `TITLE`, `FG_COLOR`, `BG_COLOR`, and `on_item_selected()`
+- **`InventoryState`**: modal overlay base class; subclasses override `TITLE`, `PROMPT`, the four color class variables, and `on_item_selected()`
 - **`Inventory.gold`**: running treasure total stored in the `Inventory` component; read as `player.inventory.gold`; keeping all player-held state in one place simplifies future serialization
 
 **Current architecture**:
@@ -537,7 +665,7 @@ Items are now a first-class part of the game. Key additions:
 - `HealingConsumable.activate()`: applies healing and calls `self.consume()` to remove the item from inventory
 - `TreasureConsumable.activate()`: adds gold, logs the message, and removes the item from the map directly; it never enters inventory
 - `Impossible`: raised anywhere in the action chain; `handle_events` catches it and shows the message in the log
-- `InventoryState`: subclasses provide `on_item_selected()` and override the three class variables; `GameState.handle_events()` automatically switches back to `MainGameState` after an inventory action
+- `InventoryState`: subclasses provide `on_item_selected()` and override the title, prompt, and color class variables; `GameState.handle_events()` automatically switches back to `MainGameState` after an inventory action
 - `ActorComponent` / `ItemComponent`: `entity` annotation narrows from `Entity` to the actual holder type, so type checkers can verify component attribute access correctly
 
 **Class Diagram**:
@@ -588,7 +716,7 @@ game/
 
 1. **Item stacking**:
 
-    When the inventory displays items, group identical items and show a count: `(h) Health Potion (x3)`. Items with the same `name` form a stack.
+    When the inventory displays items, group identical items and show a count: `[ h ] Health Potion (x3)`. Items with the same `name` form a stack.
 
     Extract two static helpers on `InventoryState`:
 
@@ -651,9 +779,10 @@ game/
       chest           = Item(..., key=None)
       ```
 
-    - In `InventoryState.on_render()`, sort the stacks by key before rendering (`stacks.sort(key=lambda s: s[0].key or 0)`) so items always appear in the same order. Display the assigned letter with `chr(item.key) if item.key is not None else " "`: `KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` yields `'h'`.
+    - In `InventoryState.on_render()`, sort the stacks by key before rendering (`stacks.sort(key=lambda s: s[0].key or 0)`) so items always appear in the same order. Display the assigned letter in the key badge with `chr(item.key) if item.key is not None else "-"`: `KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` yields `'h'`.
     - In `InventoryState.event_keydown()`, replace the index computation with a loop that checks `stack[0].key is not None and stack[0].key == key`. After the key loop and the escape check, add a fallback for unrecognised letter keys: if `ord("a") <= int(key) <= ord("z")`, log `"Invalid entry."` in `colors.INVALID` and return `None`.
     - In `MainGameState.event_keydown()`, add a fallback at the end: scan the player's inventory for an item whose `key is not None` and matches `event.sym`, then call `item.consumable.get_action()`. This is identical to opening the inventory and selecting the item; if the consumable requires targeting (Part 9), the targeting UI opens just the same.
+    - In `PickupAction`, surface the new hotkey the moment the player grabs an item. After the `"You picked up the ..."` message, if `item.key is not None`, log a second line. Import the formatting helper with `from game.constants.keys import key_label` and write `MessageLog.add_message(f"Press {key_label(item.key)} to use it.")`. `key_label` turns a `KeySym` into a badge such as `[ H ]`; you add it to `keys.py` in Exercise 4.
 
     Because keys are stored on the template object, every copy produced by `spawn()` carries the same key automatically. No assignment or cleanup logic is needed on pickup, consume, or drop. With vi keys removed, `a`–`z` minus `g`, `i`, `d` gives 23 conflict-free hotkey slots.
 
@@ -665,6 +794,17 @@ game/
     from __future__ import annotations
 
     import tcod.event
+
+
+    _SPECIAL_KEY_NAMES = {
+        tcod.event.KeySym.ESCAPE: "Esc",
+    }
+
+    def key_label(sym: tcod.event.KeySym) -> str:
+        v    = int(sym)
+        name = _SPECIAL_KEY_NAMES.get(sym) or (chr(v).upper() if 32 <= v <= 126 else sym.name)
+        return f"[ {name} ]"
+
 
     MOVE_KEYS = { ... }   # arrow keys + numpad
     WAIT_KEYS = { ... }   # period, KP_5, CLEAR
@@ -683,5 +823,10 @@ game/
     HEALTH_POTION   = tcod.event.KeySym.H
     BACKPACK_SCROLL = tcod.event.KeySym.B
     ```
+
+    The `key_label` helper formats a `KeySym` as a display badge like `[ H ]` or `[ Esc ]`. The pickup hint from Exercise 3 and the main menu in Part 10 both render their keys through it.
+
+    !!! tip "How `key_label` picks a name"
+        Three rules, in order: an entry in `_SPECIAL_KEY_NAMES` wins first (`ESCAPE` becomes `Esc`); otherwise, a printable ASCII code (32 to 126) becomes `chr(v).upper()`, so the period key reads `.` instead of the verbose `"PERIOD"`; everything else falls back to `sym.name` (`"F1"`, `"KP_8"`, `"UP"`).
 
     `KEY_QUIT_GAME` and `KEY_EXIT` both map to `ESCAPE` but carry different names to express intent: one quits the game, the other closes an overlay. Update `game_states.py` to `from game.constants import colors, keys` and replace every raw `tcod.event.KeySym.*` reference with the corresponding constant. Update `factories.py` the same way: `keys.HEALTH_POTION` and `keys.BACKPACK_SCROLL` instead of hardcoded `KeySym` values, and remove the `import tcod.event` that is no longer needed there. A player can now remap all controls by editing one file without touching any state or factory.

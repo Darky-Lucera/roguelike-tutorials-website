@@ -70,7 +70,7 @@ MAX_ITEMS_BY_FLOOR    = [(1, 1), (4, 2)]
 MAX_MONSTERS_BY_FLOOR = [(1, 2), (4, 3), (6, 5)]
 ```
 
-Each tuple is `(floor_minimum, max_count)`. The entity-weight tables (`item_chances`, `enemy_chances`) stay in `map_generator.py` because they reference entity instances from `factories.py` — moving them to `config.py` would create a circular import.
+Each tuple is `(floor_minimum, max_count)`. The entity-weight tables (`item_chances`, `enemy_chances`) stay in `map_generator.py` because they reference entity instances from `factories.py`; moving them to `config.py` would create a circular import.
 
 ---
 

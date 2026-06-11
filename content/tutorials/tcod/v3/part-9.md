@@ -146,6 +146,7 @@ class SelectIndexState(ActionModalState):
 
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
+
         x, y = self.engine.mouse_location
         if self.engine.game_map.in_bounds(x, y):
             console.bg[x, y] = colors.WHITE
@@ -259,6 +260,7 @@ The simplest approach draws a rectangular frame around the cursor:
 ```python
 def on_render(self, console: tcod.console.Console) -> None:
     super().on_render(console)
+
     x, y = self.engine.mouse_location
     diameter = self.radius * 2 + 1
     console.draw_frame(
@@ -397,6 +399,7 @@ Rewrite `on_render` to highlight the matching tiles:
 ```python
 def on_render(self, console: tcod.console.Console) -> None:
     super().on_render(console)
+
     x, y = self.engine.mouse_location
     aoe = self.engine.game_map.get_aoe_tiles_in_radius(x, y, self.radius)
     console.bg[aoe] = self.color
@@ -468,6 +471,7 @@ Then the final `on_render`:
 ```python
 def on_render(self, console: tcod.console.Console) -> None:
     super().on_render(console)
+
     x, y = self.engine.mouse_location
 
     weights = self.engine.game_map.get_aoe_weights_in_radius(x, y, self.radius)

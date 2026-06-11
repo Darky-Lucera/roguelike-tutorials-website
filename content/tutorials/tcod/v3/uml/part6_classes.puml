@@ -64,7 +64,7 @@ class "BaseComponent" as game.entities.components.base_component.BaseComponent #
 class "BumpAction" as game.actions.BumpAction {
 }
 
-class "CowardEnemy" as game.entities.components.ai.CowardEnemy #e0e0d0 {
+class "CowardEnemy" as game.entities.components.ai.CowardEnemy <<Ex. 6.3>> #e0e0d0 {
 }
 
 class "Engine" as game.engine.Engine {
@@ -119,7 +119,7 @@ game.actions.ActionWithDirection <|-- game.actions.MovementAction
 game.actions.Action <|-- game.actions.WaitAction
 
 game.entities.components.base_component.BaseComponent <|-- game.entities.components.ai.BaseAI
-game.entities.components.ai.BaseAI <|-- "Ex. 6.3" game.entities.components.ai.CowardEnemy
+game.entities.components.ai.BaseAI <|-- game.entities.components.ai.CowardEnemy
 game.entities.components.ai.BaseAI <|-- game.entities.components.ai.HostileEnemy
 game.entities.components.base_component.BaseComponent <|-- game.entities.components.fighter.Fighter
 game.entities.entity.Entity <|-- game.entities.entity.Actor

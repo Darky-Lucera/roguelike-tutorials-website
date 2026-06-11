@@ -61,7 +61,7 @@ LEVEL_STAT_ATTACK  = 1
 LEVEL_STAT_DEFENSE = 1
 ```
 
-`DEFAULT_LEVEL_UP_BASE` and `DEFAULT_LEVEL_UP_FACTOR` name the numbers that drive the XP curve explained above. `LEVEL_STAT_*` name the per-choice bonuses awarded in the level-up modal — adjusting them in one place changes the feel of every stat option at once.
+`DEFAULT_LEVEL_UP_BASE` and `DEFAULT_LEVEL_UP_FACTOR` name the numbers that drive the XP curve explained above. `LEVEL_STAT_*` name the per-choice bonuses awarded in the level-up modal; adjusting them in one place changes the feel of every stat option at once.
 
 The exploration-reward constants (`EXPLORATION_MILESTONES`, `EXPLORATION_XP_BASE`, etc.) belong to Exercise 2 and are listed there.
 
@@ -290,7 +290,7 @@ Update `game/entities/factories.py` imports, then attach `Level` to every actor:
  )
 ```
 
-The player passes `level_up_base=constants.DEFAULT_LEVEL_UP_BASE` and leaves `xp_given` at 0 (the player does not award XP to anything). Enemies pass only `xp_given` and use the default thresholds (which are never triggered because nothing calls `add_xp` on them). Because `Level.__init__` now defaults to `constants.DEFAULT_LEVEL_UP_BASE`, passing it explicitly here is redundant — but leaving it makes the per-entity configuration explicit and searchable.
+The player passes `level_up_base=constants.DEFAULT_LEVEL_UP_BASE` and leaves `xp_given` at 0 (the player does not award XP to anything). Enemies pass only `xp_given` and use the default thresholds (which are never triggered because nothing calls `add_xp` on them). Because `Level.__init__` now defaults to `constants.DEFAULT_LEVEL_UP_BASE`, passing it explicitly here is redundant, but leaving it makes the per-entity configuration explicit and searchable.
 
 Update `Actor.__init__` in `game/entities/entity.py` to accept and wire up the `level` component:
 
@@ -696,7 +696,7 @@ LEVEL_UP_MENU_KEY      = BLACK
 
 ### on_render
 
-The modal dims the scene behind it, draws a drop shadow, and centers itself. Each stat option gets its own colored row with the key badge, stat name, bonus, and current value separated into columns:
+The modal dims the scene behind it, draws a drop shadow, and centers itself, all with the tools built in earlier parts (`// 2` dimming and `_draw_panel` from Part 7). Each stat option gets its own colored row with the key badge, stat name, bonus, and current value separated into columns:
 
 ```python
 class LevelUpState(GameState):
@@ -704,6 +704,8 @@ class LevelUpState(GameState):
 
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
+
+        # Dim the map background to highlight the level-up menu.
         console.fg[:] = console.fg // 2
         console.bg[:] = console.bg // 2
 
@@ -716,76 +718,105 @@ class LevelUpState(GameState):
 
         width  = 52
         height = 13
-        x      = (console.width  - width)  // 2
-        y      = (console.height - height) // 2
+        x = (console.width  - width)  // 2
+        y = (console.height - height) // 2
 
-        console.draw_rect(
-            x        = x + 1,
-            y        = y + 1,
-            width    = width,
-            height   = height,
-            ch       = ord(" "),
-            bg       = colors.BLACK,
-        )
-        console.draw_rect(
-            x        = x,
-            y        = y,
-            width    = width,
-            height   = height,
-            ch       = ord(" "),
-            fg       = colors.LEVEL_UP_MENU_FRAME,
-            bg       = colors.LEVEL_UP_MENU_BG,
-            bg_blend = tcod.constants.BKGND_SET,
-        )
-        console.draw_frame(
-            x        = x,
-            y        = y,
-            width    = width,
-            height   = height,
-            clear    = False,
-            fg       = colors.LEVEL_UP_MENU_FRAME,
-            bg       = colors.LEVEL_UP_MENU_BG,
+        # Draw the level-up menu box.
+        _draw_panel(
+            console,
+            x,
+            y,
+            width,
+            height,
+            colors.LEVEL_UP_MENU_FRAME,
+            colors.LEVEL_UP_MENU_BG,
         )
 
         title = f" {self.TITLE} "
+        # Draw the title over the top frame.
         console.print(
-            x + (width - len(title)) // 2,
-            y,
-            title,
-            fg = colors.LEVEL_UP_MENU_TITLE,
-            bg = colors.LEVEL_UP_MENU_BG,
+            x    = x + (width - len(title)) // 2,
+            y    = y,
+            text = title,
+            fg   = colors.LEVEL_UP_MENU_TITLE,
+            bg   = colors.LEVEL_UP_MENU_BG,
         )
+
+        # Draw the congratulations message.
         console.print(
-            console.width // 2,
-            y + 2,
-            "Congratulations! You level up!",
+            x         = console.width // 2,
+            y         = y + 2,
+            text      = "Congratulations! You level up!",
             fg        = colors.LEVEL_UP_MENU_CONGRATS,
             alignment = tcod.constants.CENTER,
         )
+
+        # Draw the instruction for choosing an attribute.
         console.print(
-            console.width // 2,
-            y + 3,
-            "Select an attribute to increase.",
+            x         = console.width // 2,
+            y         = y + 3,
+            text      = "Select an attribute to increase:",
             fg        = colors.LEVEL_UP_MENU_TEXT,
             alignment = tcod.constants.CENTER,
         )
 
-        row_x     = x + 3
+        row_x = x + 3
         row_width = width - 6
         for index, (key, name, bonus, current) in enumerate(options):
             row_y = y + 6 + index * 2
+
+            # Draw the background for one attribute option.
             console.draw_rect(
-                x=row_x, y=row_y, width=row_width, height=1,
-                ch=ord(" "), bg=colors.LEVEL_UP_MENU_ROW_BG,
+                x      = row_x,
+                y      = row_y,
+                width  = row_width,
+                height = 1,
+                ch     = ord(" "),
+                bg     = colors.LEVEL_UP_MENU_ROW_BG,
             )
 
-            console.print(row_x + 2,  row_y, f" {key} ",       fg=colors.LEVEL_UP_MENU_KEY,   bg=colors.LEVEL_UP_MENU_ACCENT)
-            console.print(row_x + 7,  row_y, f"{name:<12}",    fg=colors.LEVEL_UP_MENU_TEXT,  bg=colors.LEVEL_UP_MENU_ROW_BG)
-            console.print(row_x + 22, row_y, f"{bonus:<11}",   fg=colors.LEVEL_UP_MENU_BONUS, bg=colors.LEVEL_UP_MENU_ROW_BG)
-            console.print(row_x + 35, row_y, current,          fg=colors.LEVEL_UP_MENU_DIM,   bg=colors.LEVEL_UP_MENU_ROW_BG)
+            # Draw the key that selects this option.
+            console.print(
+                row_x + 2,
+                row_y,
+                f"[ {key} ]",
+                fg = colors.LEVEL_UP_MENU_KEY,
+                bg = colors.LEVEL_UP_MENU_ACCENT,
+            )
+
+            # Draw the attribute name.
+            console.print(
+                row_x + 8,
+                row_y,
+                f"{name:<12}",
+                fg = colors.LEVEL_UP_MENU_TEXT,
+                bg = colors.LEVEL_UP_MENU_ROW_BG,
+            )
+
+            # Draw the bonus that will be applied.
+            console.print(
+                row_x + 22,
+                row_y,
+                f"{bonus:<11}",
+                fg = colors.LEVEL_UP_MENU_BONUS,
+                bg = colors.LEVEL_UP_MENU_ROW_BG,
+            )
+
+            # Draw the current attribute value.
+            console.print(
+                row_x + 35,
+                row_y,
+                current,
+                fg = colors.LEVEL_UP_MENU_DIM,
+                bg = colors.LEVEL_UP_MENU_ROW_BG,
+            )
 ```
 
-`console.fg[:] = console.fg // 2` halves every foreground channel in place; the same for `bg`. This darkens everything already rendered without knowing anything about which states drew it. The shadow is a black `draw_rect` offset one cell right and down from the modal origin.
+*The finished Level Up stats overlay looks like this*:
+
+![Level Up](images/window_gameover_stats.png)
+
+The dimming and the drop shadow come straight from Part 7: `// 2` halves every color channel of the frame already rendered, and `_draw_panel` draws the shadow, fill, and frame in one call. The key badges (`[ a ]`, dark text over the accent color) match the style of the inventory rows from Part 8, so every selectable option in the game now looks the same.
 
 ### event_keydown and handle_events
 
@@ -796,10 +827,13 @@ class LevelUpState(GameState):
 
         if index == 0:
             player.level.increase_max_hp()
+
         elif index == 1:
             player.level.increase_attack()
+
         elif index == 2:
             player.level.increase_defense()
+
         else:
             MessageLog.add_message("Invalid entry.", colors.INVALID)
             return None
@@ -810,6 +844,7 @@ class LevelUpState(GameState):
         result = super().handle_events(event)
         if result is not self:
             return result
+
         return self
 ```
 
@@ -833,7 +868,7 @@ Trigger the modal from `GameState.handle_events()` after `update_fov()`:
 Redesign the top two rows of the HUD panel:
 
 ```txt
-Floor: 1          $ 0
+Floor: 1         $ 0
 [   HP: 30/30      ]
 ```
 
@@ -1052,6 +1087,10 @@ Character progression and dungeon depth are now linked. Key additions:
 - `Level`: component that owns XP, level thresholds, and stat increases
 - `TakeStairsAction`: looks up the `Stairs` entity under the player and calls the appropriate `GameWorld` method
 - `LevelUpState`: modal state entered when the player must choose a stat
+
+**Class Diagram**:
+
+![classes](images/part11_classes.png)
 
 **File structure**:
 

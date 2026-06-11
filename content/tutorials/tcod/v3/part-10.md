@@ -177,14 +177,14 @@ DEFAULT_CRITICAL_CHANCE     = 0.1
 DEFAULT_CRITICAL_MULTIPLIER = 2.0
 ```
 
-`_ROOT` is a private helper — the underscore signals it is not meant to be imported. It walks three `parent` steps from `game/constants/config.py` to reach the project root, where `res/` and `savegames/` live.
+`_ROOT` is a private helper: the underscore signals it is not meant to be imported. It walks three `parent` steps from `game/constants/config.py` to reach the project root, where `res/` and `savegames/` live.
 
 `RES_DIR` lives here rather than in `setup_game.py` because two unrelated modules need it: `main.py` for the tileset and `MainMenuState` for the background image. A single definition prevents drift.
 
 `DEFAULT_CRITICAL_CHANCE` and `DEFAULT_CRITICAL_MULTIPLIER` name the values that were previously anonymous `0.1` and `2.0` literals in `Fighter.__init__`. `BAR_WIDTH` and `XP_LEVEL_WIDTH` move here from `hud.py`, and `FOV_RADIUS` replaces the hardcoded `8` in `Engine.__init__`.
 
 !!! note "The name `config.py` inside `game/constants/`"
-    `game.constants.config` is slightly redundant — the package name already says "constants". A cleaner package name (`game.data`) would remove the redundancy, but that rename is a separate step. The name `config.py` at least avoids the worse `game.constants.constants`.
+    `game.constants.config` is slightly redundant: the package name already says "constants". A cleaner package name (`game.data`) would remove the redundancy, but that rename is a separate step. The name `config.py` at least avoids the worse `game.constants.constants`.
 
 Every caller imports the module under the alias `constants`:
 
@@ -341,50 +341,79 @@ class PopupMessageState(BaseGameState):
 
     def on_render(self, console: tcod.console.Console) -> None:
         self.parent.on_render(console)
+
+        # Dim the screen behind the popup.
         console.fg[:] = console.fg // 2
         console.bg[:] = console.bg // 2
 
-        lines  = self.text.split("\n")
-        width  = max(len(line) for line in lines) + 4
-        height = len(lines) + 4
+        title = " Message "
+        hint = "Press any key"
+        max_lines = max(1, console.height - 8)
+        max_width = console.width - 10
+        lines: list[str] = []
+        for raw_line in self.text.split("\n"):
+            # Wrap long lines instead of cutting them, like the message log.
+            lines.extend(textwrap.wrap(raw_line, max_width) or [""])
+        lines = lines[:max_lines]
+        width = min(
+            console.width - 4,
+            max(len(title), len(hint), *(len(line) for line in lines)) + 6,
+        )
+        height = len(lines) + 5
         x      = (console.width  - width)  // 2
         y      = (console.height - height) // 2
 
-        console.draw_rect(
-            x        = x,
-            y        = y,
-            width    = width,
-            height   = height,
-            ch       = ord(" "),
-            fg       = colors.WHITE,
-            bg       = colors.BLACK,
-            bg_blend = tcod.constants.BKGND_SET,
-        )
+        # Draw the popup box.
+        _draw_panel(console, x, y, width, height, colors.POPUP_FRAME, colors.POPUP_BG)
 
-        console.draw_frame(
-            x      = x,
-            y      = y,
-            width  = width,
-            height = height,
-            clear  = False,
-            fg     = colors.WHITE,
-            bg     = colors.BLACK,
+        # Draw the popup title over the frame.
+        console.print(
+            x    = x + (width - len(title)) // 2,
+            y    = y,
+            text = title,
+            fg   = colors.POPUP_TITLE,
+            bg   = colors.POPUP_BG,
         )
 
         for i, line in enumerate(lines):
+            # Draw each message line centered inside the popup.
             console.print(
                 console.width // 2,
                 y + 2 + i,
                 line,
-                fg        = colors.WHITE,
+                fg        = colors.POPUP_TEXT,
+                bg        = colors.POPUP_BG,
                 alignment = tcod.constants.CENTER,
             )
+
+        # Draw the close hint at the bottom of the popup.
+        console.print(
+            x         = console.width // 2,
+            y         = y + height - 2,
+            text      = hint,
+            fg        = colors.POPUP_DIM,
+            bg        = colors.POPUP_BG,
+            alignment = tcod.constants.CENTER,
+        )
 
     def event_keydown(self, _event: tcod.event.KeyDown) -> Action | BaseGameState | None:
         return self.parent
 ```
 
-`PopupMessageState` darkens the existing frame by dividing all color channels by 8, then draws a small framed box sized to the message text. Any keypress dismisses it and returns to the parent state.
+The popup needs its own small palette. Add to `game/constants/colors.py`:
+
+```python
+# Popup colors
+POPUP_FRAME = Color(255, 245, 160)
+POPUP_BG    = Color( 14,  18,  26)
+POPUP_TITLE = Color(255, 245, 160)
+POPUP_TEXT  = Color(232, 240, 255)
+POPUP_DIM   = Color(160, 176, 200)
+```
+
+`PopupMessageState` renders its parent state first, then dims the whole console by halving every color channel (the `// 2` trick from Part 7) and draws the box with `_draw_panel()`. The body is defensive about size: long lines are wrapped with `textwrap.wrap` (the same module the message log uses; add `import textwrap` at the top of `game_states.py`), `max_lines` caps how many wrapped lines fit on screen, and `width` is clamped to `console.width - 4`. The `or [""]` keeps intentional blank lines: `textwrap.wrap("")` returns an empty list, which would otherwise swallow them. The box carries a `" Message "` title on the top frame row and a dim "Press any key" hint above the bottom border. Any keypress dismisses it and returns to the parent state.
+
+![Popup](images/window_popup.png)
 
 ---
 
@@ -414,33 +443,16 @@ The menu also needs the image loader and access to the config constants. Add the
  from game.constants import colors, keys
 +from game.constants import config as constants
  from game.constants.colors import Color
++from game.constants.keys import key_label
  from game.exceptions import Impossible
  from game.message_log import MessageLog
 ```
 
-Add this helper near `MESSAGE_LOG_SCROLL_AMOUNT`:
-
-```python
-_SPECIAL_KEY_NAMES = {
-    tcod.event.KeySym.ESCAPE: "Esc",
-}
-
-def _key_label(sym: tcod.event.KeySym) -> str:
-    v    = int(sym)
-    name = _SPECIAL_KEY_NAMES.get(sym) or (chr(v).upper() if 32 <= v <= 126 else sym.name)
-    return f"[ {name} ]"
-```
-
-!!! tip "How `_key_label` picks a name"
-    The function applies three rules in order:
-
-    1. **Override table.** If the key has an entry in `_SPECIAL_KEY_NAMES`, use that string (for example, `ESCAPE` → `"Esc"` instead of the raw enum name `"ESCAPE"`).
-    2. **Printable ASCII.** `int(sym)` converts a `KeySym` to its SDL integer code. If the value is in the printable ASCII range 32–126 (space through tilde), `chr(v).upper()` gives a clean one-character label: `"A"`, `"1"`, `"/"`, and so on. This avoids the verbose enum names that tcod inherits from SDL: the period key would otherwise show as `"PERIOD"` instead of `"."`.
-    3. **Fallback.** Everything else (function keys, numpad, arrows) uses `sym.name`, the string name tcod assigns to that key (e.g., `"F1"`, `"KP_8"`, `"UP"`).
+The menu renders each option's key as a badge with `key_label`, the helper you added to `game/constants/keys.py` back in Part 8, Exercise 4. It turns a `KeySym` into a label such as `[ N ]` or `[ Esc ]`, so the menu and the in-game hints style keys the same way.
 
 `MainMenuState` is the first state the game enters. Unlike every other state, it holds no engine reference: the engine does not exist until the player makes a choice.
 
-`on_render` draws the background image with `draw_semigraphics`, then overlays a framed menu panel with the title and three options. It also prints `self.author` in white in the lower-right corner, with one row and one column of margin; the default text is `"by caragones"` (me). Change it by your own name. The Continue option is dimmed when no save file exists, but pressing `C` still shows a popup. Ignoring the key would feel like the game had stopped responding.
+`on_render` draws the background image with `draw_semigraphics`, then overlays a framed menu panel (via `_draw_panel`, without shadow so it blends with the artwork) in the upper third of the screen. Each option shows its key as a badge over `MENU_ACCENT`, the same style the inventory rows use. It also prints `self.author` in a dim olive tone in the lower-right corner, with one row and one column of margin; the default text is `"by caragones"` (me). Change it by your own name. The Continue option is dimmed when no save file exists, but pressing `C` still shows a popup. Ignoring the key would feel like the game had stopped responding.
 
 !!! info "`draw_semigraphics` and half-block rendering"
     A tcod console is a grid of character cells. `draw_semigraphics` maps each 2×1 block of pixels in the source image onto one console cell using the Unicode half-block characters `▀` (upper half filled) and `▄` (lower half filled), setting foreground and background colors independently. The result is an image at twice the vertical resolution of a normal text rendering, at the cost of palette accuracy. The image is loaded once in `__init__` so the file is not re-read on every frame.
@@ -462,61 +474,72 @@ class MainMenuState(BaseGameState):
         self._bg = Image.from_file(constants.RES_DIR / "menu_background.png")
 
     def on_render(self, console: tcod.console.Console) -> None:
+        # Draw the main menu background image.
         console.draw_semigraphics(self._bg, 0, 0)
 
         title_text = "ROGUELIKE TUTORIAL"
-        width      = max(len(title_text) + 4, console.width // 2)
-        height     = 7  # border + blank + 3 options + blank + border
+        width      = max(len(title_text) + 4, console.width // 2 - 2)
+        height     = 9
         x          = (console.width  - width)  // 2
-        y          = console.height // 2 - 4
+        y          = console.height // 3 - 5
 
-        console.draw_rect(
-            x        = x,
-            y        = y,
-            width    = width,
-            height   = height,
-            ch       = ord(" "),
-            fg       = colors.MENU_TITLE,
-            bg       = colors.BLACK,
-            bg_blend = tcod.constants.BKGND_SET,
-        )
-
-        console.draw_frame(
-            x      = x,
-            y      = y,
-            width  = width,
-            height = height,
-            clear  = False,
-            fg     = colors.MENU_TITLE,
-            bg     = colors.BLACK,
+        # Draw the main box containing the title and options.
+        _draw_panel(
+            console,
+            x,
+            y,
+            width,
+            height,
+            colors.MENU_TITLE,
+            colors.MENU_ROW_BG,
+            shadow = False
         )
 
         title = f" {title_text} "
-        console.print(x + (width - len(title)) // 2, y, title, fg=colors.MENU_TITLE, bg=colors.BLACK)
+        # Draw the centered title over the top frame.
+        console.print(
+            x    = x + (width - len(title)) // 2,
+            y    = y,
+            text = title,
+            fg   = colors.MENU_TITLE,
+            bg   = colors.MENU_BG,
+        )
 
         menu_options = [
             (keys.KEY_NEW_GAME,  "Play a new game",    True),
             (keys.KEY_CONTINUE,  "Continue last game", constants.SAVE_PATH.exists()),
             (keys.KEY_QUIT_GAME, "Quit",               True),
         ]
-        key_labels = [_key_label(sym) for sym, _, _ in menu_options]
-        key_width  = max(len(lbl) for lbl in key_labels)
-        opt_width  = 30
-        opt_x      = console.width // 2 - opt_width // 2
+        key_labels = [key_label(sym) for sym, _, _ in menu_options]
+        key_width  = max(len(label) for label in key_labels) + 2
+        row_x      = x + 4
 
         for i, (label, (_, desc, enabled)) in enumerate(zip(key_labels, menu_options)):
-            row  = y + 2 + i
-            key  = label.ljust(key_width + 1)
-            desc = desc.ljust(opt_width - len(key))
-            fg   = colors.MENU_TEXT if enabled else colors.MENU_TEXT_DISABLED
-            console.print(opt_x,            row, key,  fg=fg, bg = colors.BLACK, bg_blend=tcod.constants.BKGND_SET)
-            console.print(opt_x + len(key), row, desc, fg=fg, bg_blend=tcod.constants.BKGND_NONE)
+            row = y + 3 + i
+            fg = colors.MENU_TEXT if enabled else colors.MENU_TEXT_DISABLED
+            # Draw the key bound to this option.
+            console.print(
+                row_x + 2,
+                row,
+                label,
+                fg = colors.BLACK if enabled else colors.MENU_TEXT_DISABLED,
+                bg = colors.MENU_ACCENT if enabled else colors.MENU_BG,
+            )
 
+            # Draw the option description.
+            console.print(
+                row_x + key_width + 2,
+                row,
+                desc,
+                fg = fg,
+            )
+
+        # Draw the author credit in the bottom-right corner.
         console.print(
             console.width - 2,
             console.height - 2,
             self.author,
-            fg        = colors.WHITE,
+            fg        = colors.MENU_DIM,
             alignment = tcod.constants.RIGHT,
         )
 
@@ -547,6 +570,10 @@ class MainMenuState(BaseGameState):
         return None
 ```
 
+*The finished main menu screen*:
+
+![Main Menu](images/window_mainmenu.png)
+
 !!! tip "Nested tuple unpacking with `zip`"
     ```python
     for i, (label, (_, desc, enabled)) in enumerate(zip(key_labels, menu_options)):
@@ -570,7 +597,11 @@ Add to `game/constants/colors.py`:
 ```python
 MENU_TITLE             = Color(255, 255, 63)
 MENU_TEXT              = WHITE
-MENU_TEXT_DISABLED     = Color(128, 128, 32)
+MENU_TEXT_DISABLED     = Color(128, 128, 128)
+MENU_BG                = Color(  0,   0,   0)
+MENU_ACCENT            = Color(192, 168,  32)
+MENU_ROW_BG            = Color( 34,  30,  12)
+MENU_DIM               = Color(184, 176, 112)
 ```
 
 ---
@@ -1015,6 +1046,10 @@ Key additions:
 - `MainMenuState`: starts before an `Engine` exists
 - `Engine.save_as(filename, state)` / `Engine.load()`: serialize and restore the active state (engine included transitively) plus `MessageLog.messages`
 
+**Class Diagram**:
+
+![classes](images/part10_classes.png)
+
 **File structure**:
 
 ```text
@@ -1064,6 +1099,42 @@ game/
 
     Change `GameOverState.event_keydown` so `Escape` returns `MainMenuState()` instead of quitting. The player can start a new run without restarting the program.
 
+    Update the hint in `on_render()` too, so the screen tells the truth about what `Escape` now does. Draw the key as a badge (dark text over an accent color, the same style as the inventory rows from Part 8) followed by the description. Add the accent color to `colors.py`:
+
+    ```python
+    GAME_OVER_ACCENT = Color(160,  32,  32)
+    ```
+
+    Build the hint from two pieces so the badge and the description can be styled independently (the combined string is still useful for the width calculation):
+
+    ```python
+    hint_key  = key_label(keys.KEY_QUIT_GAME)
+    hint_text = "Return to menu"
+    hint      = f"{hint_key} {hint_text}"
+    ```
+
+    ```python
+    # Draw the hint for returning to the main menu.
+    hint_x = (console.width - len(hint)) // 2
+    hint_y = y + height - 2
+    # Draw the key that returns to the main menu.
+    console.print(
+        x    = hint_x,
+        y    = hint_y,
+        text = hint_key,
+        fg   = colors.BLACK,
+        bg   = colors.GAME_OVER_ACCENT,
+    )
+
+    # Draw the description for the return-to-menu action.
+    console.print(
+        x    = hint_x + len(hint_key) + 1,
+        y    = hint_y,
+        text = hint_text,
+        fg   = colors.GAME_OVER_DIM,
+    )
+    ```
+
 2. **Record a graveyard file**:
 
     Add a small run history that is written when the player dies. This is not part of the saved game state, so use JSON instead of pickle.
@@ -1072,14 +1143,26 @@ game/
 
     Increment `kill_count` on the actor that caused another actor to die. Pass the attacker through damage-dealing code so melee attacks and damaging consumables can attribute the kill correctly. Self-inflicted deaths should not count as kills. For example, if the player is caught in their own fireball, that death should not increase the player's `kill_count`.
 
+    Once the counters exist, show them on the game-over panel itself: the screen has the space, and a final tally makes death feel like the end of a run instead of a dead end. Add a row background color to `colors.py`:
+
+    ```python
+    GAME_OVER_ROW_BG = Color( 64,  12,  16)
+    ```
+
+    In `GameOverState.on_render()`, grow the panel (`height = 10`) and draw a centered stats box between the message and the hint, starting at `y + 4`: one row per stat (`Turns`, `Kills`, `Gold`), each over its own `GAME_OVER_ROW_BG` row, the same row pattern the inventory overlay uses. Align labels left and values right with f-string field widths (`f"{label:<{label_width}}{value:>{value_width}}"`), and include the stat lines in the `width` calculation so long values never overflow. Read the values from `self.engine.turn_count`, `player.fighter.kill_count`, and `player.inventory.gold`.
+
+    *The finished game over screen with stats*:
+
+    ![Game Over](images/window_gameover_stats.png)
+
     When `GameOverState.on_enter()` runs, append one record to `constants.SAVE_DIR / "graveyard.json"`:
 
     ```json
     {
       "date": "2026-06-02T18:42:00",
       "turns": 183,
-      "kills": 12,
-      "gold": 42
+      "kills":  12,
+      "gold":   42
     }
     ```
 

@@ -317,7 +317,7 @@ When the selected item is equippable, return an `EquipAction` instead of an `Ite
 
 ```python
 class InventoryUseState(InventoryState):
-    TITLE = "Select an item to use"
+    # TITLE, PROMPT, and the color class variables stay as defined in Part 8.
 
     def on_item_selected(self, item) -> Action | None:
         if item.equippable:
@@ -330,17 +330,21 @@ class InventoryUseState(InventoryState):
 
 ## Show equipped status in the inventory overlay
 
-Update `InventoryState.on_render` to mark equipped items with `(E)`:
+Update the name part of the item row in `InventoryState.on_render` to mark equipped items with `(E)`:
 
 ```python
-        if number_of_items_in_inventory > 0:
-            for i, item in enumerate(self.engine.player.inventory.items):
-                item_key = chr(ord("a") + i)
-                is_equipped = self.engine.player.equipment.item_is_equipped(item)
-                item_string = f"({item_key}) {item.name}"
-                if is_equipped:
-                    item_string = f"{item_string} (E)"
-                console.print(x + 1, y + i + 1, item_string)
+                # Draw the item name, trimmed if it does not fit.
+                item_name = item.name
+                if self.engine.player.equipment.item_is_equipped(item):
+                    item_name = f"{item_name} (E)"
+
+                console.print(
+                    row_x + 10,
+                    row_y,
+                    _trim_text(item_name, name_width),
+                    fg = colors.INVENTORY_MENU_TEXT,
+                    bg = self.ROW_BG_COLOR,
+                )
 ```
 
 ---
