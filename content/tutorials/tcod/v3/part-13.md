@@ -60,7 +60,7 @@ class EquipmentType(Enum):
 Part 13 introduces equipment bonuses. Append to `game/constants/config.py`:
 
 ```python
-# --- Equipment bonuses ---
+# Equipment bonuses
 DAGGER_ATTACK_BONUS     = 2
 SWORD_ATTACK_BONUS      = 4
 LEATHER_ARMOR_DEF_BONUS = 1
@@ -470,32 +470,19 @@ Starting equipment is equipped at game start; the messages go to the log as norm
 
 ## Add equipment to the item spawn tables
 
-Update `item_chances` in `game/map/map_generator.py`:
+Equipment spawns like any other item. Extend `item_chances` in `game/entities/factories.py` with the new templates and their floor-keyed weights:
 
-```python
-item_chances: dict[str, list[tuple[int, int]]] = {
-    "health_potion":    [(1, 35)],
-    "confusion_scroll": [(2, 10)],
-    "lightning_scroll": [(4, 25)],
-    "fireball_scroll":  [(6, 25)],
-    "dagger":           [(1, 5)],
-    "sword":            [(4, 5)],
-    "leather_armor":    [(1, 5)],
-    "chain_mail":       [(6, 15)],
-}
+```diff
+     teleport_scroll:  [(5, 10)],   # Part-9. Ex 3: Teleport scroll
+     fireball_scroll:  [(6, 25)],
++    dagger:           [(1, 5)],
++    sword:            [(4, 5)],
++    leather_armor:    [(1, 5)],
++    chain_mail:       [(6, 15)],
+ }
 ```
 
-Add entries to `ITEM_FACTORIES`:
-
-```python
-ITEM_FACTORIES = {
-    ...
-    "dagger":        factories.dagger,
-    "sword":         factories.sword,
-    "leather_armor": factories.leather_armor,
-    "chain_mail":    factories.chain_mail,
-}
-```
+There is no lookup table to update: `place_entities` spawns whatever templates the table yields, so the new gear starts appearing on dungeon floors immediately.
 
 ---
 
@@ -591,22 +578,26 @@ game/
 
 You have built a complete roguelike. Here are directions to take it further:
 
-**Content**
+**Content**:
+
 - More monster types per Part 12's weighted tables (troll variants, vampires, dragons)
 - More spell scrolls: confusion variants, area heals, walls of fire
 - Ranged weapons (bow + arrow inventory item)
 
-**Depth**
+**Depth**:
+
 - Persistent dungeon floors (store each `GameMap` in a list; ascend/descend freely)
 - Named artifacts: unique items with special effects that only spawn once per run
 - Status effects: poison, blindness, haste, each as a component with a countdown
 
-**Polish**
+**Polish**:
+
 - Graphical tiles: replace the tileset with a 16×16 pixel art set; tcod supports it with no code changes beyond the tileset loader
 - Sound: `pygame.mixer` can play `.wav` files alongside tcod's rendering
 - Fullscreen: extend the existing `sdl_window_flags` value passed to `tcod.context.new`, for example by adding `tcod.context.SDL_WINDOW_FULLSCREEN`
 
-**Publishing**
+**Publishing**:
+
 - The tutorial files are plain Markdown. `mkdocs build` generates a self-contained `site/` folder you can zip and share
 - For the official python-tcod docs: convert admonitions (`!!! type "Title"\n    body` → `:::{type}\nTitle\nbody\n:::`) with a single regex pass, then open a PR to the `python-tcod` repository's `docs/` folder
 

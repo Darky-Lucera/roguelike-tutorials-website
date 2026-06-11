@@ -141,24 +141,24 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# --- Paths ---
+# Paths
 _ROOT     = Path(__file__).parent.parent.parent
 RES_DIR   = _ROOT / "res"
 SAVE_DIR  = _ROOT / "savegames"
 SAVE_PATH = SAVE_DIR / "savegame.sav"
 
-# --- Screen / window ---
+# Screen / window
 SCREEN_WIDTH  = 80
 SCREEN_HEIGHT = 50
 TITLE         = "Roguelike Tutorial"
 VERSION       = "0.1.0"
 APP_ID        = "com.tutorial.roguelike"
 
-# --- HUD layout ---
+# HUD layout
 BAR_WIDTH      = 24
 XP_LEVEL_WIDTH = 4
 
-# --- Map generation ---
+# Map generation
 MAP_WIDTH             = 80
 MAP_HEIGHT            = 44
 MAX_ROOMS             = 30
@@ -169,10 +169,10 @@ MAX_MONSTERS_PER_ROOM = 2
 MIN_ITEMS_PER_ROOM    = 0
 MAX_ITEMS_PER_ROOM    = 2
 
-# --- Field of view ---
+# Field of view
 FOV_RADIUS = 8
 
-# --- Combat ---
+# Combat
 DEFAULT_CRITICAL_CHANCE     = 0.1
 DEFAULT_CRITICAL_MULTIPLIER = 2.0
 ```

@@ -37,7 +37,7 @@ class LightningDamageConsumable(Consumable):
     `level: int = 1` means the argument is optional. `LightningDamageConsumable()` and `LightningDamageConsumable(level=1)` are equivalent. Using a default of `1` keeps the common case short while still letting the factory pass higher tiers explicitly.
 
 !!! info "Connecting level to dungeon depth"
-    A `level` parameter is most useful when the item factory controls which tier appears on which dungeon floor. Part 12 introduces `item_chances`: a list that maps each item variant to floor-weight pairs. A `MappingConsumable(level=4)` would be configured to appear only from floor 6 onward, while `level=1` is available from the start. This way, the difficulty curve in the factory data automatically selects which tier the player finds, with no extra logic inside the consumable itself.
+    A `level` parameter is most useful when the item factory controls which tier appears on which dungeon floor. Part 12 turns `item_chances` into a floor-keyed table: each item template maps to `(floor, weight)` pairs. A `MappingConsumable(level=4)` would be configured to appear only from floor 6 onward, while `level=1` is available from the start. This way, the difficulty curve in the factory data automatically selects which tier the player finds, with no extra logic inside the consumable itself.
 
 ---
 

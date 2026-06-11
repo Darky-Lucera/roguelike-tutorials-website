@@ -863,9 +863,9 @@ Each scroll pairs a sprite and color constant with its consumable. The parameter
 
 ```diff
  item_chances = [
-     (health_potion,    15),
-     (chest,            25),
-     (backpack_scroll,  15),
+     (health_potion,    40),
+     (chest,            60),
+     (backpack_scroll,  20),
 +    (confusion_scroll, 15),
 +    (fireball_scroll,  15),
 +    (lightning_scroll, 15),

@@ -51,11 +51,11 @@ The first level-up costs `level_up_base + current_level * level_up_factor` XP (3
 Part 11 introduces the Level/XP system. Append these groups to `game/constants/config.py`:
 
 ```python
-# --- Level / XP ---
+# Level / XP
 DEFAULT_LEVEL_UP_BASE   = 200
 DEFAULT_LEVEL_UP_FACTOR = 100
 
-# --- Stat bonuses on level-up ---
+# Stat bonuses on level-up
 LEVEL_STAT_HP      = 20
 LEVEL_STAT_ATTACK  = 1
 LEVEL_STAT_DEFENSE = 1
@@ -1171,7 +1171,7 @@ game/
     First, append these groups to `game/constants/config.py`:
 
     ```python
-    # --- Exploration rewards ---
+    # Exploration rewards
     EXPLORATION_MILESTONES = (0.25, 0.50, 0.75, 1.00)
     EXPLORATION_MESSAGES = (
         "You have explored 25% of this floor. You gain {xp} XP.",
