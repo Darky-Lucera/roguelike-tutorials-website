@@ -285,7 +285,7 @@ from game.map.map_generator import generate_dungeon
 
 
 def main() -> None:
-    # Part-3. Ex 1: Reproducible dungeons
+    # Part-3. Exercise 1: Reproducible dungeons
     seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
     #seed = 12345 # Write here the game seed to reproduce a map
     print(f"Game seed: {seed}")

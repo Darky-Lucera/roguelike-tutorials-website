@@ -767,7 +767,7 @@ from game.map.map_generator import generate_dungeon
 
 
 def main() -> None:
-    # Part-3. Ex 1: Reproducible dungeons
+    # Part-3. Exercise 1: Reproducible dungeons
     seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
     #seed = 12345 # Write here the game seed to reproduce a map
     print(f"Game seed: {seed}")
@@ -912,6 +912,6 @@ game/
 
     The current 80/20 split is hardcoded. Replace it with a list of `(entity_template, weight)` tuples and use `random.choices(population, weights)` to pick. This makes adding new monster types a one-line change.
 
-3. **Passive entities**:
+3. **Passive blocking entities**:
 
     Add a `chest` entity that has `blocks_movement=True` but no AI. Verify that `BumpAction` prints an attack message when you walk into it (because it is blocking). In Part 8, items like chests will have a different interaction.

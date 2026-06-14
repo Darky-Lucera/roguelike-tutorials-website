@@ -185,7 +185,7 @@ Update `game/entities/components/fighter.py`. Remove the `hp` setter entirely, t
         self._hp = max(0.0, min(self.hp - amount, float(self.max_hp)))
 
         if self.hp == 0:
-            # Part-10. Ex 2: Record a graveyard file
+            # Part-10. Exercise 2: Record a graveyard file
             # Self-inflicted deaths do not count as kills.
             if attacker is not self.entity:
                 attacker.fighter.kill_count += 1
@@ -280,7 +280,7 @@ Update `game/entities/factories.py` imports, then attach `Level` to every actor:
  orc = Actor(
      ...
      inventory = Inventory(capacity=0, max_capacity=0),
-+    level     = Level(xp_given=48),
++    level     = Level(xp_given=54),
  )
 
  troll = Actor(
@@ -867,7 +867,7 @@ Trigger the modal from `GameState.handle_events()` after `update_fov()`:
 
 Redesign the top two rows of the HUD panel:
 
-```txt
+```text
 Floor: 1         $ 0
 [   HP: 30/30      ]
 ```
@@ -1045,7 +1045,7 @@ def render_xp_bar(
 
 The HUD now shows:
 
-```txt
+```text
 Floor: 1             $ 0
 [       HP: 30/30      ]
 [       XP: 0/300      ]
@@ -1147,7 +1147,7 @@ game/
 
     Print the level number at `x=1` inside the XP bar in `colors.LEVEL_UP` (level-up yellow), then center the XP text in the remaining 20 characters:
 
-    ```txt
+    ```text
     [      HP: 30/30       ]   24 chars, HP bar unchanged
     [ 1   XP: 0/300        ]   level on the left, XP centered in the rest
     [10   XP: 4700/5700    ]   level 10
@@ -1229,7 +1229,7 @@ game/
 
     Award XP at 25%, 50%, 75%, and 100% using an escalating formula so later milestones feel increasingly rewarding:
 
-    ```txt
+    ```text
     xp_at_milestone_i = (EXPLORATION_XP_BASE + i * EXPLORATION_XP_TIER) * current_floor   (i = 0, 1, 2, 3)
     ```
 
@@ -1263,7 +1263,7 @@ game/
 
     **Suggested messages** (use `colors.LEVEL_UP` for the 100% line):
 
-    ```txt
+    ```text
     "You have explored 25% of this floor. You gain {xp} XP."
     "You have explored half of this floor. You gain {xp} XP."
     "You have explored 75% of this floor. You gain {xp} XP."

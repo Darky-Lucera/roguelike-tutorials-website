@@ -154,7 +154,7 @@ class SelectIndexState(ActionModalState):
 
     def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
         key = event.sym
-        # Part 8. Exercise 4: Centralise keybindings (keys.*)
+        # Part-8. Exercise 4: Centralise keybindings (keys.*)
         if key in keys.MOVE_KEYS:
             modifier = 1
             if event.mod & keys.CURSOR_FAST:
@@ -812,7 +812,7 @@ Add the scroll hotkeys to `keys.py`:
 
 ```diff
  HEALTH_POTION    = tcod.event.KeySym.H
- BACKPACK_SCROLL  = tcod.event.KeySym.B  # Part 8. Exercise 2: Backpack growing scroll
+ BACKPACK_SCROLL  = tcod.event.KeySym.B  # Part-8. Exercise 2: Backpack growing scroll
 +CONFUSION_SCROLL = tcod.event.KeySym.C
 +FIREBALL_SCROLL  = tcod.event.KeySym.F
 +LIGHTNING_SCROLL = tcod.event.KeySym.L
@@ -834,8 +834,8 @@ confusion_scroll = Item(
     color      = colors.CONFUSION_SCROLL,
     name       = "Confusion Scroll",
     consumable = ConfusionConsumable(number_of_turns=10),
-    # Part 8. Exercise 3: Persistent item keys
-    key        = keys.CONFUSION_SCROLL,     # Part 8. Exercise 4: Centralise keybindings (keys.*)
+    # Part-8. Exercise 3: Persistent item keys
+    key        = keys.CONFUSION_SCROLL,     # Part-8. Exercise 4: Centralise keybindings (keys.*)
 )
 
 fireball_scroll = Item(
@@ -843,8 +843,8 @@ fireball_scroll = Item(
     color      = colors.FIREBALL_SCROLL,
     name       = "Fireball Scroll",
     consumable = FireballDamageConsumable(damage=12, radius=3),
-    # Part 8. Exercise 3: Persistent item keys
-    key        = keys.FIREBALL_SCROLL,       # Part 8. Exercise 4: Centralise keybindings (keys.*)
+    # Part-8. Exercise 3: Persistent item keys
+    key        = keys.FIREBALL_SCROLL,       # Part-8. Exercise 4: Centralise keybindings (keys.*)
 )
 
 lightning_scroll = Item(
@@ -852,8 +852,8 @@ lightning_scroll = Item(
     color      = colors.LIGHTNING_SCROLL,
     name       = "Lightning Scroll",
     consumable = LightningDamageConsumable(damage=20, maximum_range=5),
-    # Part 8. Exercise 3: Persistent item keys
-    key        = keys.LIGHTNING_SCROLL,      # Part 8. Exercise 4: Centralise keybindings (keys.*)
+    # Part-8. Exercise 3: Persistent item keys
+    key        = keys.LIGHTNING_SCROLL,      # Part-8. Exercise 4: Centralise keybindings (keys.*)
 )
 ```
 

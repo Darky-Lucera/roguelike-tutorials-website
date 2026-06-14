@@ -568,7 +568,7 @@ Every `Actor` now requires an `Inventory`. Add the component to the existing tem
      color     = colors.ORC,
      name      = "Orc",
      ai        = HostileEnemy(),
-     fighter   = Fighter(hp=16, defense=1, attack=4),
+     fighter   = Fighter(hp=18, defense=1, attack=4),
 +    inventory = Inventory(capacity=0),
  )
 
@@ -1428,7 +1428,7 @@ game/
     KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
     KEY_EXIT        = tcod.event.KeySym.ESCAPE
 
-    # Part 7. Exercise 2: Scroll the message panel
+    # Part-7. Exercise 2: Scroll the message panel
     SCROLL_UP       = tcod.event.KeySym.PAGEUP
     SCROLL_DOWN     = tcod.event.KeySym.PAGEDOWN
 

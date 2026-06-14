@@ -815,7 +815,7 @@ game/
     KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
     KEY_EXIT        = tcod.event.KeySym.ESCAPE
 
-    # Part 7. Exercise 2: Scroll the message panel
+    # Part-7. Exercise 2: Scroll the message panel
     SCROLL_UP       = tcod.event.KeySym.PAGEUP
     SCROLL_DOWN     = tcod.event.KeySym.PAGEDOWN
 

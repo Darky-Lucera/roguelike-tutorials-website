@@ -561,7 +561,7 @@ Every `Actor` now requires an `Inventory`. Add the component to the existing tem
      color     = colors.ORC,
      name      = "Orc",
      ai        = HostileEnemy(),
-     fighter   = Fighter(hp=16, defense=1, attack=4),
+     fighter   = Fighter(hp=18, defense=1, attack=4),
 +    inventory = Inventory(capacity=0),
  )
 

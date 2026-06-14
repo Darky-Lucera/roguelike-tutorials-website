@@ -361,7 +361,7 @@ orc = Actor(
     color           = colors.ORC,
     name            = "Orc",
     ai              = HostileEnemy(),
-    fighter         = Fighter(hp=16, defense=1, attack=4),
+    fighter         = Fighter(hp=18, defense=1, attack=4),
 )
 
 troll = Actor(
@@ -389,13 +389,13 @@ Orcs are harder to kill (more HP, some defense) and hit harder than trolls.
     Then keep these blocks below `troll`:
 
     ```python
-    # Part 5 exercise: weighted monster table.
+    # Part-5. Exercise 2: Weighted monster table
     monster_chances = [
         (orc,   25),
         (troll, 75),
     ]
 
-    # Part 5 exercise: passive blocking entity.
+    # Part-5. Exercise 3: Passive blocking entity
     chest = Entity(
         char            = sprites.CHEST,
         color           = colors.CHEST,

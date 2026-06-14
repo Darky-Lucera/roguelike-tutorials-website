@@ -228,7 +228,7 @@ def new_game() -> Engine:
     """Return a fresh engine for a brand-new game."""
     MessageLog.clear()
 
-    # Part-3. Ex 1: Reproducible dungeons
+    # Part-3. Exercise 1: Reproducible dungeons
     seed = int(os.environ.get("GAME_SEED", secrets.randbits(64)))
     print(f"Game seed: {seed}")
 
@@ -641,9 +641,9 @@ In `game/engine.py`, remove the event-loop and game-state imports (now unused), 
      def __init__(self,
                   game_map: GameMap,
                   player: Actor,
-                  # Part-4. Ex 1: Variable torch radius
+                  # Part-4. Exercise 1: Variable torch radius
                   fov_radius: int = constants.FOV_RADIUS,
-                  # Part-4. Ex 4: Fading memory
+                  # Part-4. Exercise 4: Fading memory
                   fading_memory: bool = False,
                   memory_duration: int = 10) -> None:
          ...
@@ -1242,7 +1242,7 @@ game/
 
     Run the game again and press `C` to load the old save. The crash is the same pattern:
 
-    ```txt
+    ```text
     AttributeError: 'Fighter' object has no attribute '_health'
     ```
 
