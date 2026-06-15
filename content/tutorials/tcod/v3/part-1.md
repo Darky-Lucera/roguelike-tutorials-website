@@ -75,6 +75,13 @@ def main() -> None:
     screen_width  = 80
     screen_height = 50
 
+    tileset = tcod.tileset.load_tilesheet(
+        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
+        32,
+        8,
+        tcod.tileset.CHARMAP_TCOD,
+    )
+
     title   = "Roguelike Tutorial"
     version = "0.1.0"
     app_id  = "com.tutorial.roguelike"
@@ -87,13 +94,6 @@ def main() -> None:
     tcod.lib.SDL_SetHint(
         b"SDL_RENDER_SCALE_QUALITY",
         b"0" # Nearest pixel sampling
-    )
-
-    tileset = tcod.tileset.load_tilesheet(
-        Path(__file__).parent / "res" / "dejavu12x12_gs_tc.png",
-        32,
-        8,
-        tcod.tileset.CHARMAP_TCOD,
     )
 
     with tcod.context.new(
@@ -186,7 +186,7 @@ with tcod.context.new(
 console = tcod.console.Console(screen_width, screen_height, order="F")
 ```
 
-`order="F"` changes the array layout so we can index the console as `console[x, y]` instead of the numpy default `console[y, x]`. This is more natural for a 2D game.
+`order="F"` changes the array layout so we can index the console as `console[x, y]` instead of the row-first order many grid libraries use. This is more natural for a 2D game.
 
 ### The event loop
 
@@ -271,7 +271,7 @@ class MovementAction(Action):
         self.dy = dy
 ```
 
-`Action` is a base class. `EscapeAction` means "the player wants to quit". `MovementAction` carries a direction as `dx` (delta-x) and `dy` (delta-y).
+`Action` is a base class. It is empty for now, but it gives these commands a shared type that later chapters can build on. `EscapeAction` means "the player wants to quit". `MovementAction` carries a direction as `dx` (delta-x) and `dy` (delta-y).
 
 !!! question "Why separate actions from key presses?"
     Later, enemies will also perform actions. An `Orc` moving toward the player will use the same `MovementAction` as the player pressing the arrow key. By decoupling action *type* from action *trigger*, the same logic handles both.
@@ -498,7 +498,7 @@ game/
 
 2. **Keep the player on screen**:
 
-    Right now the player can move beyond the console boundaries. Before applying a `MovementAction`, compute the destination position and only update `player_x` and `player_y` if the destination is inside `0 <= x < screen_width` and `0 <= y < screen_height`. Try holding a movement key at each edge of the window.
+    Right now the player can move beyond the console boundaries. Before applying a `MovementAction`, compute the destination position and only update `player_x` and `player_y` if the destination is inside `0 <= x < screen_width` and `0 <= y < screen_height`. You will need `screen_width` and `screen_height` inside `game_loop`, so pass them in from `main` along with the starting coordinates. Try holding a movement key at each edge of the window.
 
 3. **Add a wait action**:
 

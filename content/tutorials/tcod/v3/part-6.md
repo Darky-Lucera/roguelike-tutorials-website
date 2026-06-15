@@ -547,7 +547,10 @@ class HostileEnemy(BaseAI):
             ).perform(engine, entity)
 ```
 
-`tcod.path.SimpleGraph` creates a weighted graph from the cost array. Cardinal moves cost 2, diagonal moves cost 3 (this approximates real distance without floating point). `pathfinder.path_to` returns the full path including the start; we drop the first element (`[1:]`) since that is the entity's current position.
+`tcod.path.SimpleGraph` creates a weighted graph from the cost array. Cardinal moves cost 2, diagonal moves cost 3 (this approximates real distance without floating point). `pathfinder.path_to` returns the full path including the start; we drop the first element (`[1:]`) since that is the entity's current position. If the entity is already standing on the destination, that leaves an empty list and the caller simply does nothing.
+
+!!! note "Enemies forget you the instant you leave their sight"
+    The opening `if not engine.game_map.visible[entity.x, entity.y]: return` means a monster freezes the moment it loses sight of you, even if it was chasing you a tile ago. This keeps the AI as simple as it can be while you learn the pattern, but it is not very convincing: something that just watched you round a corner should at least walk to where you were. Part 12 fixes this in its Exercise 4, *Monsters that remember*, by giving each enemy a `last_known_position` to head toward. That one change also turns breaking line of sight into a tactic, letting you lure monsters out of a room you would rather not fight in.
 
 ---
 

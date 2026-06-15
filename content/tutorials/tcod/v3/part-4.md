@@ -77,8 +77,8 @@ tile_dtype = np.dtype(
     [
         ("walkable",    np.bool_),
         ("transparent", np.bool_),
-        ("out_of_fov",  graphic_dtype),  # appearance when explored but outside FOV
-        ("in_fov",      graphic_dtype),      # appearance when inside the player's FOV
+        ("out_of_fov",  graphic_dtype), # appearance when explored but outside FOV
+        ("in_fov",      graphic_dtype), # appearance when inside the player's FOV
     ]
 )
 
@@ -205,13 +205,15 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import Any
 
+import tcod.constants
+import tcod.event
 import tcod.map
 from tcod.console import Console
 from tcod.context import Context
 
 from game.entity import Entity
-from game.map.game_map import GameMap
 from game.input_handlers import EventHandler
+from game.map.game_map import GameMap
 
 
 class Engine:
@@ -244,6 +246,11 @@ class Engine:
         console.clear()
         self.game_map.render(console)
         context.present(console)
+
+    def run(self, context: Context, console: Console) -> None:
+        while True:
+            self.render(console=console, context=context)
+            self.handle_events(tcod.event.wait())
 ```
 
 Key points:
@@ -263,6 +270,33 @@ Key points:
 
 !!! example "FOV algorithms"
     tcod ships several FOV algorithms: `FOV_BASIC`, `FOV_DIAMOND`, `FOV_SHADOW`, `FOV_PERMISSIVE_*` (eight variants), and `FOV_RESTRICTIVE`. They differ in how they handle corners, walls, and symmetry (whether A seeing B implies B seeing A). We pick `FOV_SHADOW` because it produces clean, symmetric sight lines and matches what most modern roguelikes use. Try the others to see how they change the feel of corridors and walls.
+
+---
+
+## Reproducible dungeons on the main path
+
+The `main.py` we are about to write picks a **seed** for the dungeon and passes it to `generate_dungeon`. With a fixed seed the generator is reproducible: the same seed rebuilds the same dungeon. From here on, `main.py` always passes a seed, so `generate_dungeon` needs a `seed` parameter on the main path.
+
+This was Part 3's first exercise. If you completed it, you already have this code; otherwise, add it now (from this point it is required, not optional):
+
+```diff
+ def generate_dungeon(
+     max_rooms: int,
+     room_min_size: int,
+     room_max_size: int,
+     map_width: int,
+     map_height: int,
+     player: Entity,
++    seed: int,
+ ) -> GameMap:
+     """Generate a new dungeon map and place the player."""
++    # Part-3. Exercise 1: Reproducible dungeons
++    random.seed(seed)
++
+     dungeon = GameMap(map_width, map_height)
+```
+
+`random.seed(seed)` resets Python's random generator, so every call that follows (room sizes, positions, tunnel bends) replays the same sequence for a given seed.
 
 ---
 
@@ -351,6 +385,12 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 ```
+
+`main.py` decides the seed before anything else:
+
+- `secrets.randbits(64)` produces a fresh 64-bit number, so each run builds a different dungeon.
+- `os.environ.get("GAME_SEED", ...)` lets you override that: set the `GAME_SEED` environment variable and the game uses it instead, so `GAME_SEED=12345 python main.py` always builds the same dungeon. The commented `seed = 12345` line is a quick alternative if you prefer editing the source.
+- `print(f"Game seed: {seed}")` reports the chosen seed, so when you find an interesting (or broken) layout you can reproduce it later.
 
 ---
 

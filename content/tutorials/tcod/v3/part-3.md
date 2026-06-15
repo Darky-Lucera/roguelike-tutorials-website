@@ -65,11 +65,13 @@ Update the import in `game/map/game_map.py`:
 +from game.map import tile_types
 ```
 
-Update the type-checking import in `game/engine.py`:
+Update the `GameMap` import in `game/engine.py`. It moves below the other `game` imports to keep them alphabetical:
 
 ```diff
--    from game.game_map import GameMap
-+    from game.map.game_map import GameMap
+ from game.entity import Entity
+-from game.game_map import GameMap
+ from game.input_handlers import EventHandler
++from game.map.game_map import GameMap
 ```
 
 ---
@@ -286,10 +288,15 @@ The algorithm in plain language:
 The generator digs floors out of a solid wall map. Update `game/map/game_map.py` to start with walls:
 
 ```diff
+-        # Fill the entire map with floor tiles for now.
+-        # Part 3 will change this to walls, which we dig out.
 -        self.tiles = np.full((width, height), fill_value=tile_types.floor, order="F")
 -
--        # A small wall for testing, we will remove it in Part 3.
--        self.tiles[30:33, 22] = tile_types.wall
+-        half_width  = width  // 2
+-        half_height = height // 2
+-
+-        # A small wall for testing: we will remove it in Part 3.
+-        self.tiles[half_width-10:half_width+10+1, half_height] = tile_types.wall
 +        self.tiles = np.full((width, height), fill_value=tile_types.wall, order="F")
 ```
 
@@ -459,4 +466,4 @@ game/
 
 3. **Connect rooms using rough centers**:
 
-    Add a `roughly_center` property to `RectangularRoom` that starts from the exact center and then offsets it by a random amount proportional to the room size: up to one-third of the room's width along `x`, and up to one-third of the room's height along `y`. Use `roughly_center` as the tunnel endpoint instead of `center`, so corridors do not always connect to the exact middle of each room. Keep using `center` to place the player in the first room.
+    Add a `roughly_center` property to `RectangularRoom` that returns a random point inside the room instead of its exact center, keeping a small margin from the walls so the point never lands on one. Use `roughly_center` as the tunnel endpoint instead of `center`, so corridors do not always connect to the exact middle of each room. Keep using `center` to place the player in the first room.

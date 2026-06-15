@@ -628,6 +628,96 @@ game/
 
     The result is a coward that is also treacherous: you think it is easy prey, you break off the chase, and it heals up and comes back; or you corner it and it bites. Tune `regeneration` and `flee_threshold` until the chase feels tense rather than tedious.
 
+4. **Monsters that remember**:
+
+    Back in Part 6, the first thing `HostileEnemy.perform` does is give up:
+
+    ```python
+    if not engine.game_map.visible[entity.x, entity.y]:
+        return
+    ```
+
+    Step out of a monster's sight and it freezes mid-room, forever, as if it had never seen you. It is the simplest rule that works and the right place to start, but a monster that just watched you round a corner should at least walk to where you were.
+
+    Give `HostileEnemy` a `target_position`: update it every turn the player is in sight, and when sight is lost, head for that tile instead of stopping. Think about when the trail should go cold: the monster is standing on the remembered tile and *still* cannot see the player. Detect that, clear the memory, and let the monster idle.
+
+    **The decision it creates.** "Out of sight" stops being an off switch and becomes a tool: let a monster catch a glimpse of you and you can walk it out of a room you would rather not fight in.
+
+    **Extension: a guardian that holds its post.** Make some monsters the exception. Add a `home: tuple[int, int] | None` to the AI. A monster with a `home` chases to your last known position like any other, but once the trail goes cold it walks *back* to `home` instead of idling in the wrong room, so it cannot be lured away for good. The wiring is the part worth thinking about:
+
+    - If you completed the **Stairs guardian** (Exercise 1), that is exactly the monster that wants this: right after spawning the guardian, set the placed copy's `ai.home` to its tile.
+
+    If you added the flee behavior (Part 6, Exercise 3), keep its `should_flee` check inside the in-sight branch: a monster cannot decide to flee from a player it cannot see.
+
+    ??? note "Reference implementation"
+        ```python
+        # Part-12. Exercise 4: Monsters that remember
+        def __init__(self) -> None:
+            super().__init__()
+            self.target_position: tuple[int, int] | None = None
+            self.home: tuple[int, int] | None = None   # set only on monsters that guard a spot
+
+        def perform(self, engine: Engine, entity: Actor) -> None:
+            # Part-12. Exercise 4: Monsters that remember
+            target = engine.player
+
+            if engine.game_map.visible[entity.x, entity.y]:
+                # In sight: remember where the player is, then engage
+                self.target_position = (target.x, target.y)
+
+                # Part-6. Ex 3: Flee behavior
+                if entity.fighter.should_flee():
+                    entity.ai = CowardEnemy(previous_ai=self)
+                    entity.ai.entity = entity
+                    MessageLog.add_message(f"The {entity.name} flees!", colors.ENEMY_FLEE)
+                    entity.ai.perform(engine, entity)
+                    return
+
+                dx = target.x - entity.x
+                dy = target.y - entity.y
+                distance = max(abs(dx), abs(dy))
+                if distance <= 1:
+                    BumpAction(dx, dy).perform(engine, entity)
+                    return
+
+                destination = self.target_position
+
+            else:
+                # Reached the last seen tile without finding the player: the trail goes cold
+                if (entity.x, entity.y) == self.target_position:
+                    self.target_position = None
+
+                if self.target_position is not None:
+                    destination = self.target_position
+
+                elif self.home is not None:
+                    destination = self.home
+
+                else:
+                    return
+
+            path = self.get_path_to(engine, entity, *destination)
+            if path:
+                dest_x, dest_y = path[0]
+                BumpAction(
+                    dx = dest_x - entity.x,
+                    dy = dest_y - entity.y,
+                ).perform(engine, entity)
+        ```
+
+        Set the guardian's `home` right after Exercise 1 places it:
+
+        ```python
+        # Part-12. Exercise 4: Monsters that remember
+        # guardian is a shared template from factories.py: changing it would affect
+        # every monster of this type spawned later, so set home on the clone instead
+        guardian_clone = guardian.spawn(dungeon, *guardian_pos)
+        # confirm spawn() gave us an Actor, so the type checker accepts .ai below
+        assert isinstance(guardian_clone, Actor)
+        if isinstance(guardian_clone.ai, HostileEnemy):
+            guardian_clone.ai.home = guardian_pos
+        ```
+
 ---
 
 ## A cast, not a difficulty curve

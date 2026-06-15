@@ -2,7 +2,7 @@
 
 ## What You Will Build
 
-By the end of this part, the game looks the same on screen, but the code is reorganized into entities, a map, and an engine. Every feature added from Part 3 onward (dungeons, enemies, items, spells) fits into the structure introduced here.
+By the end of this part, the game still looks simple, but the code is reorganized into entities, a map, and an engine. Every feature added from Part 3 onward (dungeons, enemies, items, spells) fits into the structure introduced here.
 
 ## Learning goals
 
@@ -15,7 +15,7 @@ By the end of this part, the game looks the same on screen, but the code is reor
 
 ## From variables to objects
 
-Right now the player is just `player_x` and `player_y`. This works for one character, but the dungeon will have enemies, items, corpses, and stairs, each needing the same data: position, appearance, name.
+Right now the player is just `player_x` and `player_y`. This works for one character, but the dungeon will have enemies, items, corpses, and stairs, each needing the same core data: position and appearance, and soon a name.
 
 Instead of managing separate variables for each, we create a single class that any game object can use.
 
@@ -366,7 +366,7 @@ The engine currently handles movement inside `match action:` by recognizing `Mov
 
 A better pattern: each `Action` knows how to perform itself, given the engine and the acting entity. The engine just calls `action.perform(engine, entity)`.
 
-Update `game/actions.py`:
+This rewrites every class from Part 1, so replace the whole contents of `game/actions.py`:
 
 ```python
 from __future__ import annotations
@@ -421,18 +421,18 @@ class MovementAction(Action):
 
     → [Game Programming Patterns: Command](https://gameprogrammingpatterns.com/command.html)
 
-Now `Engine.handle_events` shrinks to a single line. Apply this diff to `game/engine.py`:
+This means two changes to `game/engine.py`. First, drop the now-unused action import:
 
 ```diff
 -from game.actions import EscapeAction, MovementAction
  from game.entity import Entity
  from game.game_map import GameMap
  from game.input_handlers import EventHandler
+```
 
+Then `handle_events` shrinks to a single line, replacing the whole `match` block:
 
- class Engine:
-     ...
-
+```diff
      def handle_events(self, events: Iterable[Any]) -> None:
          for event in events:
              action = self.event_handler.dispatch(event)
