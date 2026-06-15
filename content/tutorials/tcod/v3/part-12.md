@@ -524,109 +524,160 @@ game/
 
 1. **Stairs guardian**:
 
-    Every floor, post a guardian: spawn the strongest monster available on this floor next to the down stairs, regardless of the RNG roll. The floor's boss guards the exit, and since "strongest" is read from the data, the guardian scales on its own (an orc early, an ogre once they appear, and whatever you add to the roster later).
+    Every floor, post a guardian: spawn the strongest monster available on this floor right next to the down stairs, regardless of the RNG roll. Because "strongest" is read from the data, the guardian scales on its own: an orc early, an ogre once they appear, whatever you add to the roster later. It stands *next to* the stairs, not on them, so a player who cannot win the fight can still slip past and descend; even a tough guardian stays fair.
 
-    Use `xp_given` as the measure of strength: it is the number you already assigned to each monster to rank how dangerous it is. In `generate_dungeon`, after the stairs spawn, gather the monsters with a non-zero weight on this floor and keep the one with the highest `xp_given`:
+    Three things to work out in `generate_dungeon`, after the stairs spawn:
 
-    ```python
-    monsters_available = [
-        monster
-        for monster, table in factories.monster_chances.items()
-        if get_value_for_floor(table, current_floor) > 0
-    ]
-    guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)
-    ```
+    - **How strong is a monster?** You already ranked them: `xp_given` is the number you assigned to say how dangerous each one is.
+    - **Which monsters count on this floor?** Those with a non-zero weight here (`get_value_for_floor`), so the guardian is always something that could legitimately appear on this floor.
+    - **Where does it stand?** A free tile next to the stairs. The `free` list from the stairs placement is the starting point, but it was built before the stairs spawned, so remove the stairs tile first; then keep only the tiles within a tile or two of the stairs, with a fallback for when none are free.
 
-    Then spawn `guardian` on a free tile of the last room. The `free` list built for the stairs placement is a good starting point, but remember it was computed before the stairs spawned: remove the stairs tile from it first. The guardian stands *next to* the stairs, not on them, so a player who cannot win the fight can still slip downward: even a tough guardian stays fair.
+    ??? note "Reference implementation"
+        In `generate_dungeon()` (`game/map/map_generator.py`), after the down stairs spawn:
+
+        ```python
+        # Part-12. Exercise 1: Stairs guardian
+        if stair_pos in free:
+            free.remove(stair_pos)
+
+        monsters_available = [
+            monster
+            for monster, table in factories.monster_chances.items()
+            if get_value_for_floor(table, current_floor) > 0
+        ]
+
+        near_stairs = [
+            (x, y)
+            for x, y in free
+            if max(abs(x - stair_pos[0]), abs(y - stair_pos[1])) <= 2
+        ]
+        guardian_pos = random.choice(near_stairs) if near_stairs else last_room.roughly_center
+
+        guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)
+        guardian_clone = guardian.spawn(dungeon, *guardian_pos)
+        ```
 
 2. **New monster: Ghoul**:
 
-    Add a `ghoul` entry to `monster_chances` for the deep floors. Make it the opposite of the ogre: a frail glass cannon with low HP and low defense, but a hungry **lifesteal** that heals it for most of the damage it lands. Each bite claws back part of the damage you deal, so a slow trade drags on; the lesson is to burst it down or strike from range before it leeches.
+    Add a deep-floor monster that is the **opposite of the ogre**: a frail glass cannon with low HP and low defense, but a hungry **lifesteal** that heals it for most of the damage it lands. A slow trade drags on as it claws back your damage, so the lesson is to burst it down or strike from range before it leeches.
 
-    For the lifesteal, remember that attacks resolve in `Fighter.melee_attack`, not in the AI: give `Fighter` an optional lifesteal amount and heal the attacker there whenever the attack deals damage. The heal is capped by the ghoul's own `max_hp` (the `hp` setter already clamps it), so it cannot snowball its pool; the real threat is the life it drains from *you*, hit after hit.
+    The design question is *where* the lifesteal belongs. Attacks resolve in `Fighter.melee_attack`, not in the AI, so that is where the attacker should heal, and only when the hit actually deals damage. The heal is capped by the ghoul's own `max_hp` (the `hp` setter already clamps it), so it cannot snowball its own pool; the real threat is the life it drains from *you*. Spawn it around the ogre's depth but a little earlier and rarer, so the player meets the drainer and learns to burst it before the heavier wall arrives.
 
-    A concrete starting point, to tune once you know your deep-floor power from levels and equipment:
+    ??? note "Reference implementation"
+        `Fighter` (`game/entities/components/fighter.py`): add a `lifesteal: float = 0.0` parameter, store it as `self.lifesteal`, and heal the attacker at the end of `melee_attack`:
 
-    ```python
-    # Part-12. Exercise 2: New monster: Ghoul
-    ghoul = Actor(
-        char      = sprites.GHOUL,
-        color     = colors.GHOUL,
-        name      = "Ghoul",
-        ai        = HostileEnemy(),
-        fighter   = Fighter(hp=14, defense=0, attack=5, lifesteal=0.75),
-        inventory = Inventory(capacity=0, max_capacity=0),
-        level     = Level(xp_given=75),
-    )
-    ```
+        ```diff
+        if damage > 0:
+            MessageLog.add_message(f"{attack_msg} for {damage} hit points.", attack_color)
+            target.fighter.take_damage(damage, attacker=self.entity)
+        +
+        +    # Part-12. Exercise 2: New monster: Ghoul
+        +    if self.lifesteal > 0:
+        +        drained_life = damage * self.lifesteal
+        +        self.heal(drained_life)
+        ```
 
-    ```diff
-    monster_chances = {
-        troll: [(1, 80), (6, 50), (10, 40)],
-        orc:   [(1, 10), (3, 20), (5, 40), (7, 60), (9, 80)],
-    -    ogre:  [(6,  5), (8, 15), (10, 30)],
-    +    ogre:  [(7,  15), (9,  30)],
-    +    ghoul: [(6,  5), (8, 15), (10, 30)],  # Part-12. Exercise 2: New monster: Ghoul
-    }
-    ```
+        In `game/entities/factories.py`, below `troll`:
 
-    Here is how the monster mix changes across floors with the tables above:
+        ```python
+        # Part-12. Exercise 2: New monster: Ghoul
+        ghoul = Actor(
+            char      = sprites.GHOUL,
+            color     = colors.GHOUL,
+            name      = "Ghoul",
+            ai        = HostileEnemy(),
+            fighter   = Fighter(hp=14, defense=0, attack=5, lifesteal=0.75),
+            inventory = Inventory(capacity=0, max_capacity=0),
+            level     = Level(xp_given=75),
+        )
+        ```
 
-    ![Monster Chances](images/monster_chances_ex.png)
+        ...and in `monster_chances` (same file), make room for it on the deep floors:
 
-    Low HP and zero defense keep it fragile; `attack=5` with `lifesteal=0.75` means each bite heals it for most of the hit, so a slow trade drags on while a quick burst drops it first. Note the spawn order: the ghoul arrives a floor before the ogre (floor 6 versus floor 7) and rare at first, so you meet the frail drainer and learn to burst it before the heavier wall shows up. Its `xp_given` of 75 sits between the orc's and the ogre's, so on floor 6 the ghoul is briefly the floor's strongest, which makes the Exercise 1 guardian a ghoul until the ogre takes over from floor 7.
+        ```diff
+        monster_chances = {
+            troll: [(1, 80), (6, 50), (10, 40)],
+            orc:   [(1, 10), (3, 20), (5, 40), (7, 60), (9, 80)],
+        -    ogre:  [(6,  5), (8, 15), (10, 30)],
+        +    ogre:  [(7,  15), (9,  30)],
+        +    ghoul: [(6,  5), (8, 15), (10, 30)],  # Part-12. Exercise 2: New monster: Ghoul
+        }
+        ```
+
+        Here is how the monster mix changes across floors with these tables:
+
+        ![Monster Chances](images/monster_chances_ex.png)
+
+        Low HP and zero defense keep it fragile; `attack=5` with `lifesteal=0.75` means each bite heals it for most of the hit, so a slow trade drags on while a quick burst drops it first. The ghoul arrives a floor before the ogre (floor 6 versus floor 7) and rare at first. Its `xp_given` of 75 sits between the orc's and the ogre's, so on floor 6 the ghoul is briefly the floor's strongest, which makes the Exercise 1 guardian a ghoul until the ogre takes over from floor 7.
 
 3. **The regenerating troll**:
 
     This builds on the flee behavior from Part 6 Exercise 3. If you skipped it, add `CowardEnemy` and `flee_threshold` first, or skip this exercise.
 
-    In folklore the troll's signature power is regeneration, and it pairs beautifully with cowardice: a troll that flees, heals in a corner, and returns at full strength turns "just chase it down" into a real decision. The catch is *when* it heals. It must not regenerate while fighting (it would never die) nor while fleeing (the chase would be pointless). It heals only when it stands still: cornered against a wall, or out of your sight in another room.
+    In folklore the troll's signature power is regeneration, and it pairs beautifully with cowardice: a troll that flees, heals in a corner, and returns at full strength turns "just chase it down" into a real decision. The catch is *when* it heals. It must not regenerate while fighting (it would never die) nor while fleeing (the chase would be pointless): only when it stands still, cornered against a wall or out of your sight in another room. And it must be able to come back, or the regeneration is wasted, a coward that flees forever never threatens you again.
 
-    **A regeneration trait on `Fighter`.** Add `regeneration: float = 0.0` to `Fighter.__init__`, store it, and add a method:
+    Three problems to solve:
 
-    ```python
-    # Part-12. Exercise 3: The regenerating troll
-    def regenerate(self) -> None:
-        self.heal(self.regeneration)
-    ```
+    - **A regeneration trait.** Give `Fighter` an optional `regeneration` amount (a `float`, not a flag, so a future potion or spell can reuse it) and a small `regenerate()` method, then give the troll `regeneration=1.0`.
+    - **Tick it only when idle.** "Standing still" means the troll neither moved nor attacked this turn, and you need no extra state on the entity: compare its position right before and right after the AI acts. Also require it to be non-adjacent to the player, because attacking does not change position, so "did not move" alone would let it heal mid-melee.
+    - **Let it come back.** Make `CowardEnemy` reversible, the way `ConfusedEnemy` restores the previous AI: store the prior AI when fear takes over, then revert once it is **fully healed**, or once it is **cornered** (player adjacent) and has clawed back above its flee threshold, so it turns and fights instead of taking free hits.
 
-    Give the troll `regeneration=1.0` in its factory. A `float` rather than a flag lets a future healing potion or spell reuse the same field.
+    ??? note "Reference implementation"
+        `Fighter` (`game/entities/components/fighter.py`): add `regeneration: float = 0.0`, store it, and add a method:
 
-    **Tick it only when idle.** "Standing still" means the troll neither moved nor attacked this turn. You need no extra state on the entity: capture its position in `handle_enemy_turns` right before the AI acts, and compare right after.
+        ```python
+        # Part-12. Exercise 3: The regenerating troll
+        def regenerate(self) -> None:
+            self.heal(self.regeneration)
+        ```
 
-    ```python
-    last_position = (actor.x, actor.y)
-    actor.ai.perform(self, actor)
+        Give the troll the trait in `game/entities/factories.py`:
 
-    if actor.fighter.regeneration and actor.is_alive:
-        moved    = (actor.x, actor.y) != last_position
-        distance = max(abs(actor.x - self.player.x), abs(actor.y - self.player.y))
-        if not moved and distance > 1:
-            actor.fighter.regenerate()
-    ```
+        ```diff
+        -    fighter   = Fighter(hp=12, defense=0, attack=3, flee_threshold=0.3),
+        +    fighter   = Fighter(hp=12, defense=0, attack=3, flee_threshold=0.3, regeneration=1.0),
+        ```
 
-    Why `distance > 1`? Attacking does not change position, so "did not move" alone would let the troll heal mid-melee. Requiring it to be non-adjacent excludes exactly the case where it is trading blows with you. A blocked flee (cornered against a wall) also leaves the position unchanged, so this covers the "stuck in a corner" case without relying on the AI to emit a wait.
+        Tick it in `handle_enemy_turns()` (`game/engine.py`), around the AI's turn:
 
-    **Let it come back.** Regeneration is pointless if the troll flees forever. Make `CowardEnemy` reversible, the way `ConfusedEnemy` restores the previous AI. Store the prior AI when fear takes over (`entity.ai = CowardEnemy(previous_ai=self)`), then in `CowardEnemy.perform` revert under either condition:
+        ```diff
+        for actor in set(self.game_map.actors) - {self.player}:
+            if actor.ai:
+        +        last_position = (actor.x, actor.y)  # Part-12. Exercise 3: The regenerating troll
+                actor.ai.perform(self, actor)
+        +
+        +        # Part-12. Exercise 3: The regenerating troll
+        +        if actor.fighter.regeneration and actor.is_alive:
+        +            moved    = (actor.x, actor.y) != last_position
+        +            distance = max(abs(actor.x - self.player.x), abs(actor.y - self.player.y))
+        +            if not moved and distance > 1:
+        +                actor.fighter.regenerate()
+        ```
 
-    - **Fully healed** (`hp >= max_hp`): left alone, it recovers completely, then re-engages.
-    - **Cornered and provoked** (player adjacent and `not should_flee()`): once it has clawed back above the flee threshold and you are right on top of it, it turns and fights this very turn instead of taking free hits.
+        Finally, make `CowardEnemy.perform` (`game/entities/components/ai.py`) reversible by checking, before it flees, whether it should turn back:
 
-    ```python
-    def perform(self, engine, entity):
-        fighter  = entity.fighter
-        adjacent = max(abs(entity.x - engine.player.x),
-                       abs(entity.y - engine.player.y)) <= 1
+        ```diff
+        def perform(self, engine: Engine, entity: Actor) -> None:
+        +    # Part-12. Exercise 3: The regenerating troll
+        +    fighter  = entity.fighter
+        +    adjacent = max(
+        +                abs(entity.x - engine.player.x),
+        +                abs(entity.y - engine.player.y)
+        +               ) <= 1
+        +
+        +    if fighter.hp >= fighter.max_hp or (adjacent and not fighter.should_flee()):
+        +        entity.ai = self.previous_ai
+        +        entity.ai.perform(engine, entity)
+        +        return
+        +
+        +    # Otherwise, keep fleeing
+            if not engine.game_map.visible[entity.x, entity.y]:
+                return  # Out of player FOV; cannot act
 
-        if fighter.hp >= fighter.max_hp or (adjacent and not fighter.should_flee()):
-            entity.ai = self.previous_ai
-            entity.ai.perform(engine, entity)
-            return
+            ...
+        ```
 
-        ...  # otherwise, keep fleeing
-    ```
-
-    The result is a coward that is also treacherous: you think it is easy prey, you break off the chase, and it heals up and comes back; or you corner it and it bites. Tune `regeneration` and `flee_threshold` until the chase feels tense rather than tedious.
+        The result is a coward that is also treacherous: you think it is easy prey, you break off the chase, and it heals up and comes back; or you corner it and it bites. Tune `regeneration` and `flee_threshold` until the chase feels tense rather than tedious.
 
 4. **Monsters that remember**:
 
@@ -650,6 +701,8 @@ game/
     If you added the flee behavior (Part 6, Exercise 3), keep its `should_flee` check inside the in-sight branch: a monster cannot decide to flee from a player it cannot see.
 
     ??? note "Reference implementation"
+        `HostileEnemy` in `game/entities/components/ai.py`:
+
         ```python
         # Part-12. Exercise 4: Monsters that remember
         def __init__(self) -> None:
@@ -705,17 +758,19 @@ game/
                 ).perform(engine, entity)
         ```
 
-        Set the guardian's `home` right after Exercise 1 places it:
+        Then in `generate_dungeon()` (`game/map/map_generator.py`), give the guardian from Exercise 1 a `home`:
 
-        ```python
-        # Part-12. Exercise 4: Monsters that remember
-        # guardian is a shared template from factories.py: changing it would affect
-        # every monster of this type spawned later, so set home on the clone instead
+        ```diff
+        guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)
+        +
+        +# Part-12. Exercise 4: Monsters that remember
+        +# guardian is a shared template from factories.py: changing it would affect
+        +# every monster of this type spawned later, so set home on the clone instead
         guardian_clone = guardian.spawn(dungeon, *guardian_pos)
-        # confirm spawn() gave us an Actor, so the type checker accepts .ai below
-        assert isinstance(guardian_clone, Actor)
-        if isinstance(guardian_clone.ai, HostileEnemy):
-            guardian_clone.ai.home = guardian_pos
+        +# confirm spawn() gave us an Actor, so the type checker accepts .ai below
+        +assert isinstance(guardian_clone, Actor)
+        +if isinstance(guardian_clone.ai, HostileEnemy):
+        +    guardian_clone.ai.home = guardian_pos
         ```
 
 ---
