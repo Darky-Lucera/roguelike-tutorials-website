@@ -1039,53 +1039,61 @@ game/
 
 1. **Scroll of mapping**:
 
-    Add a `MappingConsumable` that reveals the dungeon layout. Rather than setting `explored[:] = True` for every tile (which would include uninitialised map edges), track which tiles were actually carved during generation using a `mapped_tiles` boolean array.
+    Add a `MappingConsumable` that reveals the whole floor's layout. The design catch is *what* to reveal: `explored[:] = True` would also expose the uninitialised tiles at the map edges. Instead, track which tiles were actually **carved** during generation, in a boolean array filled as rooms and tunnels are dug, and reveal only those. Make the reveal persist under Part 4's fading-memory system, so the mapped area does not fade back to black.
 
-    Add `mapped_tiles` to `GameMap.__init__`:
+    ??? note "Reference implementation"
+        A carved-tiles array in `GameMap.__init__` (`game/map/game_map.py`):
 
-    ```python
-    self.mapped_tiles = np.full((width, height), fill_value=False, order="F")
-    ```
+        ```diff
+        self.explored = np.full((width, height), fill_value=False, order="F")
+        +self.mapped_tiles = np.full((width, height), fill_value=False, order="F")
+        ```
 
-    In `map_generator.py`, add an `outer` property to `RectangularRoom` that returns the room's bounding box including its surrounding walls:
+        An `outer` property on `RectangularRoom` (`game/map/map_generator.py`), the room's bounding box including its surrounding walls:
 
-    ```python
-    @property
-    def outer(self) -> tuple[slice, slice]:
-        return slice(self.x1, self.x2 + 1), slice(self.y1, self.y2 + 1)
-    ```
+        ```python
+        @property
+        def outer(self) -> tuple[slice, slice]:
+            """The room's bounding box including surrounding walls as numpy slices."""
+            return slice(self.x1, self.x2 + 1), slice(self.y1, self.y2 + 1)
+        ```
 
-    Then populate `mapped_tiles` as rooms and tunnels are carved:
+        Fill `mapped_tiles` as `generate_dungeon` carves. When a room is dug:
 
-    ```python
-    dungeon.tiles[new_room.inner]        = tile_types.floor
-    dungeon.mapped_tiles[new_room.outer] = True
-    ```
+        ```diff
+        dungeon.tiles[new_room.inner]        = tile_types.floor
+        +dungeon.mapped_tiles[new_room.outer] = True
+        ```
 
-    And inside the tunnel loop:
+        ...and in the tunnel loop:
 
-    ```python
-    dungeon.tiles[x, y] = tile_types.floor
-    dungeon.mapped_tiles[x-1:x+2, y-1:y+2] = True
-    ```
+        ```diff
+        dungeon.tiles[x, y] = tile_types.floor
+        +dungeon.mapped_tiles[x-1:x+2, y-1:y+2] = True
+        ```
 
-    In `MappingConsumable.activate()`, reveal with `|=` and also update `memory` so the reveal persists under the fading-memory system from Part 4:
+        The consumable in `game/entities/components/consumable.py`: reveal with `|=` and refresh `memory` so the reveal survives the fading-memory system. No targeting is needed, so the base `get_action()` works as-is:
 
-    ```python
-    engine.game_map.explored |= engine.game_map.mapped_tiles
-    engine.game_map.memory[engine.game_map.mapped_tiles] = max(1, engine.memory_duration)
-    MessageLog.add_message(
-        "The scroll reveals the layout of this floor!",
-        colors.STATUS_EFFECT_APPLIED,
-    )
-    self.consume()
-    ```
+        ```python
+        # Part-9. Exercise 1: Scroll of mapping
+        class MappingConsumable(Consumable):
 
-    No targeting is needed; the base `get_action()` works directly.
+            def activate(self, _action: ItemAction, engine: Engine, _consumer: Actor) -> None:
+                engine.game_map.explored |= engine.game_map.mapped_tiles
+
+                # Part-4. Exercise 4: Fading memory
+                engine.game_map.memory[engine.game_map.mapped_tiles] = max(1, engine.memory_duration)
+
+                MessageLog.add_message(
+                    "The scroll reveals the layout of this floor!",
+                    colors.STATUS_EFFECT_APPLIED,
+                )
+                self.consume()
+        ```
 
 2. **Drain scroll**:
 
-    Add a `DrainConsumable(damage: float, maximum_range: int)` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a target to drain."`. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left. Show two messages: one for the damage dealt and one for the HP recovered.
+    Add a `DrainConsumable(damage: float, maximum_range: int)` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a target to drain."`. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left: read the target's HP before the hit, and the player recovers `min(damage, that)`. Show two messages: one for the damage dealt and one for the HP recovered.
 
     In `activate()`, combine target validation into a single guard (this also prevents targeting corpses with `ai is None`):
 
@@ -1105,6 +1113,8 @@ game/
     if blocking_entity is not None and blocking_entity is not consumer:
         raise Impossible("You cannot teleport onto another actor.")
     ```
+
+    Once the destination passes every check, move the player there with `consumer.place(x, y, game_map)` and log the teleport.
 
 !!! tip "Auto-collect and teleport"
     `TeleportConsumable` calls `consumer.place()` directly, which bypasses the `on_contact` check in `MovementAction`. A player who teleports onto a chest will not pick it up automatically unless you add the same call after `consumer.place()`:

@@ -554,7 +554,7 @@ game/
         guardian_pos = random.choice(near_stairs) if near_stairs else last_room.roughly_center
 
         guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)
-        guardian_clone = guardian.spawn(dungeon, *guardian_pos)
+        guardian.spawn(dungeon, *guardian_pos)
         ```
 
 2. **New monster: Ghoul**:
@@ -758,15 +758,18 @@ game/
                 ).perform(engine, entity)
         ```
 
-        Then in `generate_dungeon()` (`game/map/map_generator.py`), give the guardian from Exercise 1 a `home`:
+        The `# Part-6. Ex 3: Flee behavior` block above belongs here only if you completed that exercise; omit it otherwise.
+
+        Then in `generate_dungeon()` (`game/map/map_generator.py`), give the guardian from Exercise 1 a `home`. This needs `Actor` and `HostileEnemy` imported in `map_generator.py` (`from game.entities.entity import Actor`, `from game.entities.components.ai import HostileEnemy`):
 
         ```diff
         guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)
+        -guardian.spawn(dungeon, *guardian_pos)
         +
         +# Part-12. Exercise 4: Monsters that remember
         +# guardian is a shared template from factories.py: changing it would affect
         +# every monster of this type spawned later, so set home on the clone instead
-        guardian_clone = guardian.spawn(dungeon, *guardian_pos)
+        +guardian_clone = guardian.spawn(dungeon, *guardian_pos)
         +# confirm spawn() gave us an Actor, so the type checker accepts .ai below
         +assert isinstance(guardian_clone, Actor)
         +if isinstance(guardian_clone.ai, HostileEnemy):

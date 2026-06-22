@@ -716,117 +716,157 @@ game/
 
 1. **Item stacking**:
 
-    When the inventory displays items, group identical items and show a count: `[ h ] Health Potion (x3)`. Items with the same `name` form a stack.
+    When the inventory shows items, group identical ones into a single row with a count, `[ h ] Health Potion (x3)`, instead of three separate lines. Items with the same `name` form a stack. This is a display-layer change: the underlying `Inventory.items` list is untouched, so dropping still removes one instance at a time and the stack just shrinks by one.
 
-    Extract two static helpers on `InventoryState`:
+    ??? note "Reference implementation"
+        Add two static helpers to `InventoryState`. `stack_items(items) -> list[list[Item]]` groups items by name (`dict.setdefault`); each stack is a `list[Item]` whose first element is used for display and selection (after Exercise 3, also sort the stacks here: `stacks.sort(key=lambda s: s[0].key or 0)`). `stack_name(stack) -> str` returns `"Health Potion (x3)"` when `len(stack) > 1`, else just the name.
 
-    - `stack_items(items: list[Item]) -> list[list[Item]]`: groups items by name using `dict.setdefault`. Each stack is a `list[Item]`; its first element is used for display and selection. After completing Exercise 3, also sort the stacks here: `stacks.sort(key=lambda s: s[0].key or 0)`.
-    - `stack_name(stack: list[Item]) -> str`: returns `"Health Potion (x3)"` when `len(stack) > 1`, or just `"Health Potion"` otherwise.
-
-    Update `on_render()` to call `stack_items()` and iterate over stacks. Compute the panel width using `stack_name()` so the frame always fits the longest entry. The alphabetical letter-to-index system is replaced by Exercise 3's key-based selection.
-
-    **Dropping from a stack**: `Inventory.drop_item()` already removes the first matching item from `items`, so dropping always removes exactly one instance and the stack shrinks by one. No extra logic is needed.
+        Then `on_render()` calls `stack_items()` and iterates over stacks, computing the panel width from `stack_name()` so the frame fits the longest entry. The alphabetical letter-to-index system is replaced by Exercise 3's key-based selection. (`Inventory.drop_item()` already removes the first matching item, so dropping needs no extra logic.)
 
 2. **Backpack growing scroll**:
 
-    Add `max_capacity: int` as a **required** parameter to `Inventory.__init__` (no default). Requiring it explicitly forces every `Actor` in `factories.py` to declare its ceiling, including monsters: orc and troll get `max_capacity=0`, which prevents them from ever expanding. Without a default, a forgotten actor fails loudly at startup rather than silently inheriting 26.
+    Add a scroll that permanently grows the player's backpack, up to a ceiling. Make `max_capacity: int` a **required** parameter of `Inventory.__init__` (no default): that forces every `Actor` in `factories.py` to declare its ceiling (monsters get `max_capacity=0`, so they never expand), and a forgotten actor fails loudly at startup instead of silently inheriting 26. Each scroll is a permanent, irreversible upgrade (the player starts at `capacity=10`, gains `+4` per scroll, up to 26), so finding one is meaningful.
 
-    Then create `BackpackConsumable(amount: int)` that increases `consumer.inventory.capacity` by `amount`, capped at `max_capacity`. Use `min()` to compute the actual gain in one expression rather than two branches:
+    ??? note "Reference implementation"
+        `BackpackConsumable(amount: int)` raises `capacity` by `amount`, capped at `max_capacity`. Use `min()` for the actual gain, and raise `Impossible` if already at the cap before touching anything:
 
-    ```python
-    actual = min(self.amount, consumer.inventory.max_capacity - consumer.inventory.capacity)
-    consumer.inventory.capacity += actual
-    ```
+        ```python
+        actual = min(self.amount, consumer.inventory.max_capacity - consumer.inventory.capacity)
+        consumer.inventory.capacity += actual
+        ```
 
-    If the inventory is already at the cap, raise `Impossible` before touching anything.
+        Add the visual constants: `BACKPACK_SCROLL = "?"` in `sprites.py` and a parchment `BACKPACK_SCROLL = Color(255, 224, 160)` in `colors.py`. After growing the capacity, log the gain in that color and `self.consume()`:
 
-    Add the visual constants. In `sprites.py`:
+        ```python
+        MessageLog.add_message(
+            f"Your backpack grows by {actual} slots.",
+            colors.BACKPACK_SCROLL,
+        )
+        self.consume()
+        ```
 
-    ```python
-    BACKPACK_SCROLL = "?"
-    ```
-
-    In `colors.py`, add a parchment color:
-
-    ```python
-    BACKPACK_SCROLL = Color(255, 224, 160)
-    ```
-
-    After increasing the capacity, log a message in this color and call `self.consume()` so the scroll is removed from the inventory:
-
-    ```python
-    MessageLog.add_message(
-        f"Your backpack grows by {actual} slots.",
-        colors.BACKPACK_SCROLL,
-    )
-    self.consume()
-    ```
-
-    Wire up a `backpack_scroll` item in `factories.py` (`sprites.BACKPACK_SCROLL`, `colors.BACKPACK_SCROLL`, name `"Backpack Growing Scroll"`) and add it to `item_chances` alongside the health potion and chest.
-
-    The player starts at `capacity=10` and can use scrolls (`+4` each) up to the ceiling of 26. Each scroll consumed is a permanent, irreversible upgrade, so finding them is meaningful.
+        Finally wire a `backpack_scroll` item in `factories.py` (`sprites.BACKPACK_SCROLL`, `colors.BACKPACK_SCROLL`, name `"Backpack Growing Scroll"`) and add it to `item_chances` alongside the health potion and chest.
 
 3. **Persistent item keys**:
 
-    In the current system the letter for each item shifts whenever a preceding item is used or dropped: after consuming the first potion, what was `b` becomes `a`. Give each item type a fixed hotkey, assigned explicitly by the programmer in `factories.py`, that never changes regardless of inventory order.
+    Right now the inventory letter for each item shifts whenever a preceding item is used or dropped: after consuming the first potion, what was `b` becomes `a`. Give each item type a **fixed hotkey**, assigned by the programmer in `factories.py`, that never changes regardless of inventory order (and `None` for auto-collected items like the chest, which need no shortcut). Because the key lives on the template object, `spawn()` copies it for free: no per-instance bookkeeping on pickup, consume or drop. The wiring touches a handful of places: the `Item` itself, the factories, the inventory render, the inventory's key handling, the main-game key handling (so a hotkey works without opening the inventory), and the pickup message.
 
-    - Add `key: tcod.event.KeySym | None` as a required parameter to `Item.__init__`, alongside `consumable`. The type is `| None` to support items like the chest that are auto-collected and never need a keyboard shortcut. Import `tcod.event` under `TYPE_CHECKING` in `entity.py` (the annotation is a string at runtime thanks to `from __future__ import annotations`, so no runtime import is needed).
-    - Assign a mnemonic key in `factories.py` for items the player interacts with via keyboard; use `None` for auto-collected items. After completing Exercise 4, replace the raw `KeySym` values with `keys.*` constants:
+    ??? note "Reference implementation"
+        `Item.__init__` (`entity.py`): add `key: tcod.event.KeySym | None` as a required parameter, alongside `consumable`. The `| None` supports auto-collected items (the chest) that need no shortcut. Import `tcod.event` under `TYPE_CHECKING` (the annotation is a string at runtime thanks to `from __future__ import annotations`).
 
-      ```python
-      health_potion   = Item(..., key=tcod.event.KeySym.H)   # becomes keys.HEALTH_POTION after Ex 4
-      backpack_scroll = Item(..., key=tcod.event.KeySym.B)   # becomes keys.BACKPACK_SCROLL after Ex 4
-      chest           = Item(..., key=None)
-      ```
+        `factories.py`: assign a mnemonic key per keyboard-interactive item, `None` for auto-collected ones. After Exercise 4 these raw values become `keys.*` constants:
 
-    - In `InventoryState.on_render()`, sort the stacks by key before rendering (`stacks.sort(key=lambda s: s[0].key or 0)`) so items always appear in the same order. Display the assigned letter in the key badge with `chr(item.key) if item.key is not None else "-"`: `KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` yields `'h'`.
-    - In `InventoryState.event_keydown()`, replace the index computation with a loop that checks `stack[0].key is not None and stack[0].key == key`. After the key loop and the escape check, add a fallback for unrecognised letter keys: if `ord("a") <= int(key) <= ord("z")`, log `"Invalid entry."` in `colors.INVALID` and return `None`.
-    - In `MainGameState.event_keydown()`, add a fallback at the end: scan the player's inventory for an item whose `key is not None` and matches `event.sym`, then call `item.consumable.get_action()`. This is identical to opening the inventory and selecting the item; if the consumable requires targeting (Part 9), the targeting UI opens just the same.
-    - In `PickupAction`, surface the new hotkey the moment the player grabs an item. After the `"You picked up the ..."` message, if `item.key is not None`, log a second line. Import the formatting helper with `from game.constants.keys import key_label` and write `MessageLog.add_message(f"Press {key_label(item.key)} to use it.")`. `key_label` turns a `KeySym` into a badge such as `[ H ]`; you add it to `keys.py` in Exercise 4.
+        ```python
+        health_potion   = Item(..., key=tcod.event.KeySym.H)   # becomes keys.HEALTH_POTION after Ex 4
+        backpack_scroll = Item(..., key=tcod.event.KeySym.B)   # becomes keys.BACKPACK_SCROLL after Ex 4
+        chest           = Item(..., key=None)
+        ```
 
-    Because keys are stored on the template object, every copy produced by `spawn()` carries the same key automatically. No assignment or cleanup logic is needed on pickup, consume, or drop. With vi keys removed, `a`–`z` minus `g`, `i`, `d` gives 23 conflict-free hotkey slots.
+        `InventoryState.on_render()`: sort the stacks by key (`stacks.sort(key=lambda s: s[0].key or 0)`) so items keep a stable order, and show the letter in the badge with `chr(item.key) if item.key is not None else "-"` (`KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` is `'h'`).
+
+        `InventoryState.event_keydown()`: replace the index computation with a loop checking `stack[0].key is not None and stack[0].key == key`. After it (and the escape check), add a fallback for stray letters: if `ord("a") <= int(key) <= ord("z")`, log `"Invalid entry."` in `colors.INVALID` and return `None`.
+
+        `MainGameState.event_keydown()`: add a fallback at the end that scans the inventory for an item whose `key` matches `event.sym` and calls `item.consumable.get_action()`. Same effect as opening the inventory and selecting it; if it needs targeting (Part 9), the targeting UI opens just the same.
+
+        `PickupAction`: after the `"You picked up the ..."` message, if `item.key is not None`, log a second line. Import `from game.constants.keys import key_label` and write `MessageLog.add_message(f"Press {key_label(item.key)} to use it.")` (`key_label` makes a badge like `[ H ]`; you add it in Exercise 4).
+
+        With vi keys removed, `a`–`z` minus `g`, `i`, `d` gives 23 conflict-free hotkey slots.
 
 4. **Centralise keybindings in `game/constants/keys.py`**:
 
-    All keybindings are currently spread across `game/game_states.py` (movement, wait, action keys) and `game/entities/factories.py` (item hotkeys). Extract everything to a new `game/constants/keys.py` file:
-
-    ```python
-    from __future__ import annotations
-
-    import tcod.event
-
-
-    _SPECIAL_KEY_NAMES = {
-        tcod.event.KeySym.ESCAPE: "Esc",
-    }
-
-    def key_label(sym: tcod.event.KeySym) -> str:
-        v    = int(sym)
-        name = _SPECIAL_KEY_NAMES.get(sym) or (chr(v).upper() if 32 <= v <= 126 else sym.name)
-        return f"[ {name} ]"
-
-
-    MOVE_KEYS = { ... }   # arrow keys + numpad
-    WAIT_KEYS = { ... }   # period, KP_5, CLEAR
-
-    KEY_PICKUP      = tcod.event.KeySym.G
-    KEY_INVENTORY   = tcod.event.KeySym.I
-    KEY_DROP        = tcod.event.KeySym.D
-    KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
-    KEY_EXIT        = tcod.event.KeySym.ESCAPE
-
-    # Part-7. Exercise 2: Scroll the message panel
-    SCROLL_UP       = tcod.event.KeySym.PAGEUP
-    SCROLL_DOWN     = tcod.event.KeySym.PAGEDOWN
-
-    # Item hotkeys (also used in factories.py)
-    HEALTH_POTION   = tcod.event.KeySym.H
-    BACKPACK_SCROLL = tcod.event.KeySym.B
-    ```
-
-    The `key_label` helper formats a `KeySym` as a display badge like `[ H ]` or `[ Esc ]`. The pickup hint from Exercise 3 and the main menu in Part 10 both render their keys through it.
+    Right now your keybindings are scattered, and as raw `tcod.event.KeySym` values: movement, wait and action keys in `game/game_states.py`, item hotkeys in `game/entities/factories.py`. Centralize them into one new `game/constants/keys.py`: the `MOVE_KEYS` / `WAIT_KEYS` dictionaries, every `KEY_*` constant, and a small `key_label` helper that formats a key as a badge like `[ H ]` or `[ Esc ]` (the pickup hint from Exercise 3 and the Part 10 main menu both render through it). Then make every file reference `keys.*` instead of a raw `KeySym`. The payoff is real: a player can remap every control by editing one file, without touching any state or factory.
 
     !!! tip "How `key_label` picks a name"
         Three rules, in order: an entry in `_SPECIAL_KEY_NAMES` wins first (`ESCAPE` becomes `Esc`); otherwise, a printable ASCII code (32 to 126) becomes `chr(v).upper()`, so the period key reads `.` instead of the verbose `"PERIOD"`; everything else falls back to `sym.name` (`"F1"`, `"KP_8"`, `"UP"`).
 
-    `KEY_QUIT_GAME` and `KEY_EXIT` both map to `ESCAPE` but carry different names to express intent: one quits the game, the other closes an overlay. Update `game_states.py` to `from game.constants import colors, keys` and replace every raw `tcod.event.KeySym.*` reference with the corresponding constant. Update `factories.py` the same way: `keys.HEALTH_POTION` and `keys.BACKPACK_SCROLL` instead of hardcoded `KeySym` values, and remove the `import tcod.event` that is no longer needed there. A player can now remap all controls by editing one file without touching any state or factory.
+    ??? note "Reference implementation"
+        The whole file, `game/constants/keys.py`. `KEY_QUIT_GAME` and `KEY_EXIT` both map to `ESCAPE` but carry different names to express intent (quit the game vs close an overlay):
+
+        ```python
+        from __future__ import annotations
+
+        import tcod.event
+
+
+        _SPECIAL_KEY_NAMES = {
+            tcod.event.KeySym.ESCAPE: "Esc",
+        }
+
+        def key_label(sym: tcod.event.KeySym) -> str:
+            v    = int(sym)
+            name = _SPECIAL_KEY_NAMES.get(sym) or (chr(v).upper() if 32 <= v <= 126 else sym.name)
+            return f"[ {name} ]"
+
+
+        # Part-8. Exercise 4: Centralise keybindings in game/constants/keys.py
+        MOVE_KEYS = {
+            # Arrow keys
+            tcod.event.KeySym.UP:    ( 0, -1),
+            tcod.event.KeySym.DOWN:  ( 0,  1),
+            tcod.event.KeySym.LEFT:  (-1,  0),
+            tcod.event.KeySym.RIGHT: ( 1,  0),
+
+            # Numpad
+            tcod.event.KeySym.KP_8:  ( 0, -1),
+            tcod.event.KeySym.KP_2:  ( 0,  1),
+            tcod.event.KeySym.KP_4:  (-1,  0),
+            tcod.event.KeySym.KP_6:  ( 1,  0),
+            # Part-1. Ex 1: Add diagonal movement
+            tcod.event.KeySym.KP_7:  (-1, -1),
+            tcod.event.KeySym.KP_9:  ( 1, -1),
+            tcod.event.KeySym.KP_1:  (-1,  1),
+            tcod.event.KeySym.KP_3:  ( 1,  1),
+        }
+
+        WAIT_KEYS = {
+            tcod.event.KeySym.PERIOD,
+            tcod.event.KeySym.KP_5,
+            tcod.event.KeySym.CLEAR,
+        }
+
+        KEY_PICKUP    = tcod.event.KeySym.G
+        KEY_INVENTORY = tcod.event.KeySym.I
+        KEY_DROP      = tcod.event.KeySym.D
+        KEY_QUIT_GAME = tcod.event.KeySym.ESCAPE
+        KEY_EXIT      = tcod.event.KeySym.ESCAPE
+
+        # Part-7. Exercise 2: Scroll the message panel
+        SCROLL_UP   = tcod.event.KeySym.PAGEUP
+        SCROLL_DOWN = tcod.event.KeySym.PAGEDOWN
+
+        # Part-8. Exercise 3: Persistent item keys
+        HEALTH_POTION   = tcod.event.KeySym.H
+        BACKPACK_SCROLL = tcod.event.KeySym.B
+        ```
+
+        In `game/entities/factories.py`, import `keys`, drop the now-unused `import tcod.event`, and point the item hotkeys at the constants:
+
+        ```diff
+        -from game.constants import colors, sprites
+        +from game.constants import colors, keys, sprites
+        -import tcod.event
+        ```
+
+        ```diff
+        -    key        = tcod.event.KeySym.H,
+        +    key        = keys.HEALTH_POTION,
+        ...
+        -    key        = tcod.event.KeySym.B,
+        +    key        = keys.BACKPACK_SCROLL,
+        ```
+
+        In `game/game_states.py`, move the `MOVE_KEYS` and `WAIT_KEYS` dicts out to `keys.py`, import `keys`, and reference everything through it:
+
+        ```diff
+        -from game.constants import colors
+        +from game.constants import colors, keys
+        ```
+
+        ```diff
+        -if key in MOVE_KEYS:
+        -    dx, dy = MOVE_KEYS[key]
+        +if key in keys.MOVE_KEYS:
+        +    dx, dy = keys.MOVE_KEYS[key]
+        ```
+
+        Then do the same for `keys.WAIT_KEYS` and every `keys.KEY_*` / `keys.SCROLL_*` check through the file.

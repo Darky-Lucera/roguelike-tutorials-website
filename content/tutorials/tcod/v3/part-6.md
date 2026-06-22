@@ -793,7 +793,7 @@ game/
         damage = base_damage
     ```
 
-    Import the function with `from random import random`, and print `"critical hit!"` when the critical hit triggers and deals damage.
+    You will want a small `critical_hit` bool alongside `damage`: once the calculation is done, the number alone no longer tells you whether it was a crit. Import the function with `from random import random`, and print `"critical hit!"` only when the crit triggers and deals damage (a crit fully absorbed by the target's defense does 0 damage and should stay silent).
 
 3. **Flee behavior**:
 

@@ -1166,107 +1166,104 @@ game/
 
 2. **XP from exploration**:
 
-    Reward the player for exploring each floor, scaling with dungeon depth so the reward stays relevant at every level.
+    Reward the player for exploring each floor, scaled by depth so the reward stays relevant at every level. There are two sources, and the design is in how they balance:
 
-    First, append these groups to `game/constants/config.py`:
+    - **Milestones** at 25%, 50%, 75% and 100% of a floor revealed. Make the payoff *escalate* (later milestones worth more) and *scale with the current floor*, so deep, thorough exploration pays best. Track which milestones a floor has already paid, and store that on the **map**, not the engine: floors now persist (Part 11), and a return visit must not re-award them.
+    - A **descent** reward when the player takes the down stairs, scaled by the floor being left. Guard it the same way, so walking up and down one staircase cannot farm XP.
 
-    ```python
-    # Exploration rewards
-    EXPLORATION_MILESTONES = (0.25, 0.50, 0.75, 1.00)
-    EXPLORATION_MESSAGES = (
-        "You have explored 25% of this floor. You gain {xp} XP.",
-        "You have explored half of this floor. You gain {xp} XP.",
-        "You have explored 75% of this floor. You gain {xp} XP.",
-        "You have fully explored this floor! You gain {xp} XP.",
-    )
-    EXPLORATION_XP_BASE  = 26
-    EXPLORATION_XP_TIER  = 16
-    DESCENT_XP_PER_FLOOR = 100
-    ```
+    Aim for exploration being clearly worth more than rushing. With the numbers below, exploration alone gives double the descent reward at every depth, and fully exploring a floor before descending gives triple the XP of descending immediately.
 
-    `{xp}` is a named `.format()` placeholder substituted at the call site with `.format(xp=xp_reward)`. `EXPLORATION_XP_BASE` and `EXPLORATION_XP_TIER` name the two numbers inside the formula below.
+    ??? note "Reference implementation"
+        Constants in `game/constants/config.py`:
 
-    **Step 1: precompute explorable tiles.**
-    Add exploration fields to `GameMap.__init__`. The actual tile count is set later, in `generate_dungeon`, once all rooms and corridors are carved. The milestone and descent flags live on the map because floors now persist:
-
-    ```python
-    self.explorable_tiles: int = 0
-    self.exploration_milestones = [False, False, False, False]
-    self.descent_xp_awarded = False
-    ```
-
-    At the end of `generate_dungeon`, after all tiles are placed:
-
-    ```python
-    dungeon.explorable_tiles = int(dungeon.tiles["walkable"].sum())
-    ```
-
-    **Step 2: milestone rewards.**
-    After each FOV update, calculate the exploration ratio and check for newly crossed milestones.
-    Guard against division by zero first, since `explorable_tiles` is 0 until `generate_dungeon` fills it in:
-
-    ```python
-    if game_map.explorable_tiles == 0:
-        return
-    revealed = int((game_map.explored & game_map.tiles["walkable"]).sum())
-    ratio    = revealed / game_map.explorable_tiles
-    ```
-
-    In `game/engine.py`, use the exploration constants through `constants`. The `constants` import was added to `engine.py` in Part 10:
-
-    ```python
-    for index, milestone in enumerate(constants.EXPLORATION_MILESTONES):
-        ...
-        xp_reward = (
-            constants.EXPLORATION_XP_BASE
-            + index * constants.EXPLORATION_XP_TIER
-        ) * self.game_world.current_floor
-        MessageLog.add_message(
-            constants.EXPLORATION_MESSAGES[index].format(xp=xp_reward),
-            message_color,
+        ```python
+        # Exploration rewards
+        EXPLORATION_MILESTONES = (0.25, 0.50, 0.75, 1.00)
+        EXPLORATION_MESSAGES = (
+            "You have explored 25% of this floor. You gain {xp} XP.",
+            "You have explored half of this floor. You gain {xp} XP.",
+            "You have explored 75% of this floor. You gain {xp} XP.",
+            "You have fully explored this floor! You gain {xp} XP.",
         )
-    ```
+        EXPLORATION_XP_BASE  = 26
+        EXPLORATION_XP_TIER  = 16
+        DESCENT_XP_PER_FLOOR = 100
+        ```
 
-    Award XP at 25%, 50%, 75%, and 100% using an escalating formula so later milestones feel increasingly rewarding:
+        Per-floor state in `GameMap.__init__` (`game/map/game_map.py`); the count is filled in later, once the map is carved:
 
-    ```text
-    xp_at_milestone_i = (EXPLORATION_XP_BASE + i * EXPLORATION_XP_TIER) * current_floor   (i = 0, 1, 2, 3)
-    ```
+        ```python
+        self.explorable_tiles: int = 0
+        self.exploration_milestones = [False, False, False, False]
+        self.descent_xp_awarded = False
+        ```
 
-    | Milestone | Floor 1 | Floor 5 | Floor 10 |
-    |---|---|---|---|
-    | 25% | 26 XP | 130 XP | 260 XP |
-    | 50% | 42 XP | 210 XP | 420 XP |
-    | 75% | 58 XP | 290 XP | 580 XP |
-    | 100% | 74 XP | 370 XP | 740 XP |
-    | **Total** | **200 XP** | **1 000 XP** | **2 000 XP** |
+        At the end of `generate_dungeon`, after all tiles are placed:
 
-    Track which milestones have already fired per floor (a list of four booleans, reset when a new floor is generated) to avoid awarding the same milestone twice.
+        ```python
+        dungeon.explorable_tiles = int(dungeon.tiles["walkable"].sum())
+        ```
 
-    **Step 3: descending reward.**
-    `TakeStairsAction` already triggers a new floor. Add an XP award there too, scaled by the floor the player is *leaving*. Because floors persist, guard the reward so walking up and down the same staircase cannot farm infinite XP:
+        Award the milestones in `Engine` (`game/engine.py`), called after each FOV update. The escalating, depth-scaled payoff is `(EXPLORATION_XP_BASE + index * EXPLORATION_XP_TIER) * current_floor`, and the per-floor `exploration_milestones` flags stop a milestone paying twice:
 
-    Add the config import to `game/actions.py`:
+        ```python
+        # Part-11. Exercise 2: XP from exploration
+        def award_exploration_xp(self) -> None:
+            game_map = self.game_map
+            if game_map.explorable_tiles == 0:
+                return
 
-    ```python
-    from game.constants import config as constants
-    ```
+            revealed = int((game_map.explored & game_map.tiles["walkable"]).sum())
+            ratio = revealed / game_map.explorable_tiles
 
-    ```python
-    if not engine.game_map.descent_xp_awarded:
-        xp_reward = constants.DESCENT_XP_PER_FLOOR * engine.game_world.current_floor
-        entity.level.add_xp(xp_reward)
-        engine.game_map.descent_xp_awarded = True
-    ```
+            for index, milestone in enumerate(constants.EXPLORATION_MILESTONES):
+                if ratio < milestone or game_map.exploration_milestones[index]:
+                    continue
 
-    At every depth, exploration alone gives exactly double the descent reward. Fully exploring a floor before descending gives triple the XP of descending immediately.
+                xp_reward = (
+                    constants.EXPLORATION_XP_BASE
+                    + index * constants.EXPLORATION_XP_TIER
+                ) * self.game_world.current_floor
+                self.player.level.add_xp(xp_reward)
+                game_map.exploration_milestones[index] = True
 
-    **Suggested messages** (use `colors.LEVEL_UP` for the 100% line):
+                message_color = colors.LEVEL_UP if milestone == 1.0 else colors.WHITE
+                MessageLog.add_message(
+                    constants.EXPLORATION_MESSAGES[index].format(xp=xp_reward),
+                    message_color,
+                )
+        ```
 
-    ```text
-    "You have explored 25% of this floor. You gain {xp} XP."
-    "You have explored half of this floor. You gain {xp} XP."
-    "You have explored 75% of this floor. You gain {xp} XP."
-    "You have fully explored this floor! You gain {xp} XP."
-    "You descend deeper into the dungeon. You gain {xp} XP."
-    ```
+        `award_exploration_xp` does nothing until it is called. Invoke it at the end of `Engine.update_fov()`, so the milestones are checked every time the player's view refreshes:
+
+        ```python
+        # at the end of Engine.update_fov()
+        self.award_exploration_xp()
+        ```
+
+        The descent reward goes in `TakeStairsAction` (`game/actions.py`), which needs `from game.constants import config as constants`. Add it to the "down" branch, guarded so it pays once per floor:
+
+        ```diff
+        if stairs.direction == StairsDirection.DOWN:
+        +    # Part-11. Exercise 2: XP from exploration
+        +    if not engine.game_map.descent_xp_awarded:
+        +        xp_reward = constants.DESCENT_XP_PER_FLOOR * engine.game_world.current_floor
+        +        entity.level.add_xp(xp_reward)
+        +        engine.game_map.descent_xp_awarded = True
+        +        MessageLog.add_message(
+        +            f"You descend deeper into the dungeon. You gain {xp_reward} XP.",
+        +            colors.DESCEND,
+        +        )
+        +
+            engine.game_world.descend_floor()
+        ```
+
+        The reward, in XP, escalating per milestone and scaling with depth:
+
+        | Milestone | Floor 1 | Floor 5 | Floor 10 |
+        |---|---|---|---|
+        | 25% | 26 | 130 | 260 |
+        | 50% | 42 | 210 | 420 |
+        | 75% | 58 | 290 | 580 |
+        | 100% | 74 | 370 | 740 |
+        | **Total** | **200** | **1 000** | **2 000** |

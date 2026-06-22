@@ -1097,98 +1097,139 @@ game/
 
 1. **Return to main menu on death**:
 
-    Change `GameOverState.event_keydown` so `Escape` returns `MainMenuState()` instead of quitting. The player can start a new run without restarting the program.
+    On death the game currently quits on `Escape`. Make it return to the main menu instead, so the player can start a fresh run without relaunching the program, and update the on-screen hint so it tells the truth about what `Escape` now does. Draw the hint as a key **badge** (dark text on an accent background, the same style as the Part 8 inventory rows) followed by its description, which means building it from two pieces so the badge and the text can be styled and positioned independently.
 
-    Update the hint in `on_render()` too, so the screen tells the truth about what `Escape` now does. Draw the key as a badge (dark text over an accent color, the same style as the inventory rows from Part 8) followed by the description. Add the accent color to `colors.py`:
+    ??? note "Reference implementation"
+        The handler change is in `GameOverState.event_keydown` (`game/game_states.py`): return `MainMenuState()` where it used to quit.
 
-    ```python
-    GAME_OVER_ACCENT = Color(160,  32,  32)
-    ```
+        Add the accent color in `game/constants/colors.py`:
 
-    Build the hint from two pieces so the badge and the description can be styled independently (the combined string is still useful for the width calculation):
+        ```python
+        GAME_OVER_ACCENT = Color(160,  32,  32)
+        ```
 
-    ```python
-    hint_key  = key_label(keys.KEY_QUIT_GAME)
-    hint_text = "Return to menu"
-    hint      = f"{hint_key} {hint_text}"
-    ```
+        Build the hint from two pieces in `GameOverState.on_render` (`game/game_states.py`); the combined string is still handy for the width calculation:
 
-    ```python
-    # Draw the hint for returning to the main menu.
-    hint_x = (console.width - len(hint)) // 2
-    hint_y = y + height - 2
-    # Draw the key that returns to the main menu.
-    console.print(
-        x    = hint_x,
-        y    = hint_y,
-        text = hint_key,
-        fg   = colors.BLACK,
-        bg   = colors.GAME_OVER_ACCENT,
-    )
+        ```python
+        hint_key  = key_label(keys.KEY_QUIT_GAME)
+        hint_text = "Return to menu"
+        hint      = f"{hint_key} {hint_text}"
+        ```
 
-    # Draw the description for the return-to-menu action.
-    console.print(
-        x    = hint_x + len(hint_key) + 1,
-        y    = hint_y,
-        text = hint_text,
-        fg   = colors.GAME_OVER_DIM,
-    )
-    ```
+        ...then draw the badge and its description separately:
+
+        ```python
+        # Draw the hint for returning to the main menu.
+        hint_x = (console.width - len(hint)) // 2
+        hint_y = y + height - 2
+        # Draw the key that returns to the main menu.
+        console.print(
+            x    = hint_x,
+            y    = hint_y,
+            text = hint_key,
+            fg   = colors.BLACK,
+            bg   = colors.GAME_OVER_ACCENT,
+        )
+
+        # Draw the description for the return-to-menu action.
+        console.print(
+            x    = hint_x + len(hint_key) + 1,
+            y    = hint_y,
+            text = hint_text,
+            fg   = colors.GAME_OVER_DIM,
+        )
+        ```
 
 2. **Record a graveyard file**:
 
-    Add a small run history that is written when the player dies. This is not part of the saved game state, so use JSON instead of pickle.
+    Add a small run history, written when the player dies. Two counters feed it: `turn_count` on `Engine` and `kill_count` on `Fighter`. The thinking is in *when* each one increments:
 
-    Add `turn_count` to `Engine` and `kill_count` to `Fighter`. Increment `turn_count` only after a successful player action that consumes a turn. Opening the inventory, cancelling targeting, scrolling the message log, or trying an impossible action should not count.
+    - `turn_count` only after an action that actually consumes a turn. Opening the inventory, cancelling targeting, scrolling the message log, or an impossible action should not count.
+    - `kill_count` on the actor that *caused* a death, threaded through the damage code so melee attacks and damaging scrolls both attribute correctly. Self-inflicted deaths (caught in your own fireball) must not count.
 
-    Increment `kill_count` on the actor that caused another actor to die. Pass the attacker through damage-dealing code so melee attacks and damaging consumables can attribute the kill correctly. Self-inflicted deaths should not count as kills. For example, if the player is caught in their own fireball, that death should not increase the player's `kill_count`.
+    Show the tally on the game-over screen, then on death append one record to a `graveyard.json`. Use JSON, not pickle: it is a small, stable record that should stay readable even if the game's classes change later.
 
-    Once the counters exist, show them on the game-over panel itself: the screen has the space, and a final tally makes death feel like the end of a run instead of a dead end. Add a row background color to `colors.py`:
+    ??? note "Reference implementation"
+        Add both counters as `int = 0`: `turn_count` in `Engine.__init__` (`game/engine.py`) and `kill_count` in `Fighter.__init__` (`game/entities/components/fighter.py`).
 
-    ```python
-    GAME_OVER_ROW_BG = Color( 64,  12,  16)
-    ```
+        Increment `turn_count` only on the successful-action path, right before enemy turns (`game/game_states.py`):
 
-    In `GameOverState.on_render()`, grow the panel (`height = 10`) and draw a centered stats box between the message and the hint, starting at `y + 4`: one row per stat (`Turns`, `Kills`, `Gold`), each over its own `GAME_OVER_ROW_BG` row, the same row pattern the inventory overlay uses. Align labels left and values right with f-string field widths (`f"{label:<{label_width}}{value:>{value_width}}"`), and include the stat lines in the `width` calculation so long values never overflow. Read the values from `self.engine.turn_count`, `player.fighter.kill_count`, and `player.inventory.gold`.
+        ```diff
+        +# Part-10. Ex 2: Record a graveyard file
+        +self.engine.turn_count += 1
+        +
+        if self.engine.player.is_alive:
+            self.engine.handle_enemy_turns()
+        ```
 
-    *The finished game over screen with stats*:
+        Attribute the kill in `Fighter.take_damage` (`game/entities/components/fighter.py`); the `attacker` is threaded in from `melee_attack` and the damaging consumables:
 
-    ![Game Over](images/window_gameover_stats.png)
+        ```diff
+        def take_damage(self, amount: float, attacker: Actor) -> None:
+            self.hp -= amount
+        +    if self.hp <= 0 and attacker is not self.entity:
+        +        # Part-10. Ex 2: Record a graveyard file
+        +        # Self-inflicted deaths do not count as kills.
+        +        attacker.fighter.kill_count += 1
+        ```
 
-    When `GameOverState.on_enter()` runs, append one record to `constants.SAVE_DIR / "graveyard.json"`:
+        Show the tally. Add the row color in `game/constants/colors.py`:
 
-    ```json
-    {
-      "date": "2026-06-02T18:42:00",
-      "turns": 183,
-      "kills":  12,
-      "gold":   42
-    }
-    ```
+        ```python
+        GAME_OVER_ROW_BG = Color( 64,  12,  16)
+        ```
 
-    You can produce that date string with `datetime.now().isoformat(timespec="seconds")` after importing `datetime` from Python's standard library:
+        Then in `GameOverState.on_render` (`game/game_states.py`), grow the panel (`height = 10`) and build a centered stats box between the message and the hint, one row per stat over its own `GAME_OVER_ROW_BG` background (the same row pattern as the inventory overlay), including the stat lines in the panel `width` so values never overflow:
 
-    ```python
-    from datetime import datetime
+        ```python
+        stats = [
+            ("Turns:", str(self.engine.turn_count)),
+            ("Kills:", str(self.engine.player.fighter.kill_count)),
+            ("Gold:",  str(self.engine.player.inventory.gold)),
+        ]
+        stat_label_width = max(len(label) for label, _ in stats)
+        stat_value_width = max(len(value) for _, value in stats) + 2
+        stat_lines = [
+            f"{label:<{stat_label_width}}{value:>{stat_value_width}}"
+            for label, value in stats
+        ]
+        ```
 
-    date = datetime.now().isoformat(timespec="seconds")
-    ```
+        ![Game Over](images/window_gameover_stats.png)
 
-    `game_states.py` already imports `config` as `constants`. Read `kills` from `self.engine.player.fighter.kill_count`. Read `gold` from `self.engine.player.inventory.gold`; do not keep a second gold counter in `Engine`. If `graveyard.json` does not exist yet, start with an empty list. As an extra constraint, keep only the latest 10 runs.
+        Write the record on death in `GameOverState.on_enter` (`game/game_states.py`); this needs `import json` and `from datetime import datetime`:
 
-    This exercise is about separating two kinds of persistence: pickle is convenient for the live game state, while JSON is better for small, stable records that should remain readable even if the game's classes change.
+        ```python
+        # Part-10. Ex 2: Record a graveyard file
+        graveyard_path = constants.SAVE_DIR / "graveyard.json"
+        if graveyard_path.exists():
+            graveyard = json.loads(graveyard_path.read_text(encoding="utf-8"))
+        else:
+            graveyard = []
+
+        graveyard.append(
+            {
+                "date": datetime.now().isoformat(timespec="seconds"),
+                "turns": self.engine.turn_count,
+                "kills": self.engine.player.fighter.kill_count,
+                "gold": self.engine.player.inventory.gold,
+            }
+        )
+        graveyard = graveyard[-10:]   # keep only the latest 10 runs
+
+        constants.SAVE_DIR.mkdir(parents=True, exist_ok=True)
+        graveyard_path.write_text(json.dumps(graveyard, indent=2), encoding="utf-8")
+        ```
+
+        JSON, not pickle: a graveyard entry is a small, stable record that should stay readable even if the game's classes change.
 
 3. **Break and fix an old save file**:
 
-    This exercise makes the warning above concrete by demonstrating the two main tools for save compatibility: `__getattr__` for new fields and `__setstate__` for renamed ones.
+    Saves are pickled, so they break when `Fighter`'s shape changes underneath them. This exercise reproduces that on purpose and shows the two tools that fix it: `__getattr__` for a **new** field, `__setstate__` for a **renamed** one. Each part starts from the normal Part 10 code, and the order matters: first create the save, then change the code, so you reproduce the real problem of a player carrying a save across versions.
 
-    Start each part from the normal Part 10 code. The order matters: first create the save, then change the code. That reproduces the real compatibility problem, a player keeps a save from an older version of the game and then runs newer code.
+    **Part A: a new field (`__getattr__`)**
 
-    **Part A: adding a new field with `__getattr__`**
-
-    Run the game, start a new run, play a turn or two, then press `Escape` to save. This is now an old save: its `Fighter` objects do not have `_armor`.
-
-    Now pretend the next version of the game adds armor to `Fighter`. Add an `_armor` attribute to `Fighter.__init__`:
+    Run the game, play a turn or two, and press `Escape` to save. That save's `Fighter` objects have no `_armor`. Now pretend the next version adds armor. Add an `_armor` attribute to `Fighter.__init__`:
 
     ```python
     self._armor: int = 0
@@ -1202,63 +1243,49 @@ game/
         return self._armor
     ```
 
-    Then make the damage calculation use it. If your local code is slightly different, the important part is that combat reads `target.fighter.armor`:
+    Then make damage use it (the important part is that combat reads `target.fighter.armor`):
 
     ```diff
     -base_damage = self.attack - target.fighter.defense
     +base_damage = self.attack - (target.fighter.defense + target.fighter.armor)
     ```
 
-    Run the game again and press `C` to load the old save. The load itself succeeds, but the game crashes with `AttributeError: 'Fighter' object has no attribute '_armor'` the first time damage code reads armor.
+    Load the old save (`C`): the load succeeds, but the first time damage reads armor the game crashes with `AttributeError: 'Fighter' object has no attribute '_armor'`, because the pickled object predates the field. Try to make old saves repair themselves before you peek.
 
-    Fix it with `__getattr__`. Add `Any` near the imports:
+    ??? note "The fix: `__getattr__`"
+        `__getattr__` runs only when normal attribute lookup fails, so fresh objects (which already have `_armor`) never reach it; old ones get the field created on first access, and the next save stores it normally. Add `from typing import Any` near the imports, then add this to `Fighter`:
 
-    ```python
-    from typing import Any
-    ```
+        ```python
+        def __getattr__(self, name: str) -> Any:
+            if name == "_armor":
+                self._armor = 0
+                return self._armor
 
-    Then add this method inside `Fighter`:
+            raise AttributeError(name)
+        ```
 
-    ```python
-    def __getattr__(self, name: str) -> Any:
-        if name == "_armor":
-            self._armor = 0
-            return self._armor
-
-        raise AttributeError(name)
-    ```
-
-    `__getattr__` is called only when normal attribute lookup fails. Fresh objects already have `_armor`, so they use the normal path. Old saves are repaired lazily: the first access creates `_armor`, and the next save will store it normally.
-
-    Revert the exercise changes when done if you want to continue the tutorial from the exact reference code.
+    Revert the exercise changes when done if you want to continue from the exact reference code.
 
     ---
 
-    **Part B: renaming an existing field with `__setstate__`**
+    **Part B: a renamed field (`__setstate__`)**
 
-    Return to the normal Part 10 code and delete the save from Part A. Run the game, start a new run, play a turn or two, then press `Escape` to save. This old save contains `Fighter._hp`.
+    Return to the normal Part 10 code, delete the Part A save, and save again. This save contains `Fighter._hp`. Now pretend the next version renames the stored field: rename `_hp` to `_health` throughout `game/entities/components/fighter.py` (the `__init__` assignment, the `hp` getter and setter, and `die()`). The public `hp` property keeps its name; only the stored attribute changes.
 
-    Now pretend the next version of the game renames the internal field. Rename `_hp` to `_health` throughout `game/entities/components/fighter.py`: the `__init__` assignment, the `hp` property getter and setter, and `die()`. The public property can still be named `hp`; only the stored instance attribute changes.
+    Load the old save: the same kind of crash, `AttributeError: 'Fighter' object has no attribute '_health'`. `__getattr__` could paper over it, but a rename is better fixed once, at load time. Try it before you peek.
 
-    Run the game again and press `C` to load the old save. The crash is the same pattern:
+    ??? note "The fix: `__setstate__`"
+        Pickle calls `__setstate__` once on load with the saved `__dict__`; rewrite the old key to the new one before updating the object, so afterwards `_health` is present as normal and later saves store it correctly:
 
-    ```text
-    AttributeError: 'Fighter' object has no attribute '_health'
-    ```
+        ```python
+        def __setstate__(self, state: dict) -> None:
+            if "_hp" in state and "_health" not in state:
+                state["_health"] = state.pop("_hp")
 
-    This time `__getattr__` could provide a fallback, but a rename is better handled once at load time. The right tool is `__setstate__`, which pickle calls once on load with the saved `__dict__`. Rewrite the old key to the new one before updating the object:
+            self.__dict__.update(state)
+        ```
 
-    ```python
-    def __setstate__(self, state: dict) -> None:
-        if "_hp" in state and "_health" not in state:
-            state["_health"] = state.pop("_hp")
-
-        self.__dict__.update(state)
-    ```
-
-    After `__setstate__` runs, `_health` is in `__dict__` as normal. Subsequent accesses cost nothing extra, and the next save will store `_health` correctly.
-
-    Revert the exercise changes when done if you want to continue the tutorial from the exact reference code.
+    Revert the exercise changes when done if you want to continue from the exact reference code.
 
     ---
 
