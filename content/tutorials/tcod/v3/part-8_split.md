@@ -1002,7 +1002,7 @@ Remove the vi keys block from `MOVE_KEYS` in `game/game_states.py`:
 ```
 
 !!! info "Numpad vs. regular number keys"
-    `tcod.event.KeySym.KP_1`–`KP_9` are distinct key codes from `tcod.event.KeySym.K_1`–`K_9`. Numpad keys continue to work for movement. Regular number keys (`1`–`9`, `0`) remain free for future use, such as equipment slots in Part 13.
+    `tcod.event.KeySym.KP_1`–`KP_9` are distinct key codes from `tcod.event.KeySym.N1`–`N9`. Numpad keys continue to work for movement. Regular number keys (`1`–`9`, `0`) remain free for future use, such as equipment slots in Part 13.
 
 ---
 
@@ -1404,7 +1404,7 @@ game/
       chest           = Item(..., key=None)
       ```
 
-    - In `InventoryState.on_render()`, sort the stacks by key before rendering (`stacks.sort(key=lambda s: s[0].key or 0)`) so items always appear in the same order. Display the assigned letter with `chr(item.key) if item.key is not None else " "`: `KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` yields `'h'`.
+    - In `InventoryState.on_render()`, display the assigned letter with `chr(item.key) if item.key is not None else " "`: `KeySym` is an `IntEnum` whose letter values equal their ASCII codes, so `chr(KeySym.H)` yields `'h'`. Add the key-based sort (`stacks.sort(key=lambda s: s[0].key or 0)`) inside `stack_items`, not here, so items always appear in the same order.
     - In `InventoryState.event_keydown()`, replace the index computation with a loop that checks `stack[0].key is not None and stack[0].key == key`. After the key loop and the escape check, add a fallback for unrecognised letter keys: if `ord("a") <= int(key) <= ord("z")`, log `"Invalid entry."` in `colors.INVALID` and return `None`.
     - In `MainGameState.event_keydown()`, add a fallback at the end: scan the player's inventory for an item whose `key is not None` and matches `event.sym`, then call `item.consumable.get_action()`. This is identical to opening the inventory and selecting the item; if the consumable requires targeting (Part 9), the targeting UI opens just the same.
 
