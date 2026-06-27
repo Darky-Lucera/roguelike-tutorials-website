@@ -1155,7 +1155,7 @@ game/
         Increment `turn_count` only on the successful-action path, right before enemy turns (`game/game_states.py`):
 
         ```diff
-        +# Part-10. Ex 2: Record a graveyard file
+        +# Part-10. Exercise 2: Record a graveyard file
         +self.engine.turn_count += 1
         +
         if self.engine.player.is_alive:
@@ -1168,7 +1168,7 @@ game/
         def take_damage(self, amount: float, attacker: Actor) -> None:
             self.hp -= amount
         +    if self.hp <= 0 and attacker is not self.entity:
-        +        # Part-10. Ex 2: Record a graveyard file
+        +        # Part-10. Exercise 2: Record a graveyard file
         +        # Self-inflicted deaths do not count as kills.
         +        attacker.fighter.kill_count += 1
         ```
@@ -1200,7 +1200,7 @@ game/
         Write the record on death in `GameOverState.on_enter` (`game/game_states.py`); this needs `import json` and `from datetime import datetime`:
 
         ```python
-        # Part-10. Ex 2: Record a graveyard file
+        # Part-10. Exercise 2: Record a graveyard file
         graveyard_path = constants.SAVE_DIR / "graveyard.json"
         if graveyard_path.exists():
             graveyard = json.loads(graveyard_path.read_text(encoding="utf-8"))

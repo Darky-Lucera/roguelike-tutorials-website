@@ -82,11 +82,11 @@ class Level(ActorComponent):
 
     def __init__(
         self,
-        current_level  : int = 1,
-        current_xp     : int = 0,
-        level_up_base  : int = constants.DEFAULT_LEVEL_UP_BASE,
+        current_level: int   = 1,
+        current_xp: int      = 0,
+        level_up_base: int   = constants.DEFAULT_LEVEL_UP_BASE,
         level_up_factor: int = constants.DEFAULT_LEVEL_UP_FACTOR,
-        xp_given       : int = 0,
+        xp_given: int        = 0,
     ) -> None:
         self.current_level    = current_level
         self.current_xp       = current_xp
@@ -470,19 +470,26 @@ class Stairs(Entity):
         self,
         *,
         direction: StairsDirection,
-        x: int = 0,
-        y: int = 0,
-        char: str = sprites.UNKNOWN,
+        x: int       = 0,
+        y: int       = 0,
+        char: str    = sprites.UNKNOWN,
         color: Color = colors.DEFAULT_FG,
-        name: str = "Stairs",
+        name: str    = "Stairs",
     ) -> None:
         super().__init__(
-            x=x, y=y, char=char, color=color, name=name,
-            blocks_movement=False,
-            render_order=RenderOrder.ITEM,
+            x               = x,
+            y               = y,
+            char            = char,
+            color           = color,
+            name            = name,
+            blocks_movement = False,
+            render_order    = RenderOrder.ITEM,
         )
         self.direction = direction
 ```
+
+!!! tip "Keep the stairs on the map (optional)"
+    If you completed Part 4's Exercise 3, stairs are an ideal use of `stays_visible`: pass `stays_visible=True` to the `super().__init__()` call in `Stairs` and they will remain drawn once discovered, even outside your FOV, a small but real quality-of-life improvement. If you skipped that exercise, this is a good reason to go back and add the flag.
 
 Add to `game/constants/sprites.py`:
 
@@ -902,13 +909,18 @@ def _print_bar_text(
     for offset, character in enumerate(text):
         text_x = x + offset
         bg = _bar_background_at(
-            x=text_x, bar_x=bar_x, bar_width=bar_width,
-            filled_color=filled_color, empty_color=empty_color,
+            x            = text_x,
+            bar_x        = bar_x,
+            bar_width    = bar_width,
+            filled_color = filled_color,
+            empty_color  = empty_color,
         )
         console.print(
-            x=text_x, y=y, text=character,
-            fg=_contrast_text_color(bg, light_text_color, dark_text_color),
-            bg=bg,
+            x    = text_x,
+            y    = y,
+            text = character,
+            fg   = _contrast_text_color(bg, light_text_color, dark_text_color),
+            bg   = bg,
         )
 ```
 
@@ -916,12 +928,12 @@ Also give `render_bar` a default width:
 
 ```diff
  def render_bar(
-     console      : Console,
+     console: Console,
      current_value: float,
      maximum_value: int,
--    total_width  : int,
-+    total_width  : int = constants.BAR_WIDTH,
-     y            : int = 45,
+-    total_width: int,
++    total_width: int     = constants.BAR_WIDTH,
+     y: int               = 45,
  ) -> None:
 ```
 
@@ -943,11 +955,15 @@ Replace the final `console.print` in `render_bar`:
 -    )
 +    hp_text = f"HP: {int(current_value)}/{maximum_value}"
 +    _print_bar_text(
-+        console=console, text=hp_text,
-+        x=(total_width - len(hp_text)) // 2, y=y,
-+        bar_width=bar_width,
-+        filled_color=bar_color_fg, empty_color=bar_color_bg,
-+        light_text_color=colors.BAR_TEXT, dark_text_color=colors.BAR_TEXT_DARK,
++        console          = console,
++        text             = hp_text,
++        x                = (total_width - len(hp_text)) // 2,
++        y                = y,
++        bar_width        = bar_width,
++        filled_color     = bar_color_fg,
++        empty_color      = bar_color_bg,
++        light_text_color = colors.BAR_TEXT,
++        dark_text_color  = colors.BAR_TEXT_DARK,
 +    )
 ```
 
@@ -961,19 +977,19 @@ FLOOR = Color(0x00, 0xD7, 0xFF)
 
 ```python
 def render_gold(
-    console    : Console,
-    gold       : int,
+    console: Console,
+    gold: int,
     total_width: int = constants.BAR_WIDTH,
-    y          : int = 44,
+    y: int           = 44,
 ) -> None:
     text = f"$ {gold}"
     console.print(x=total_width - len(text), y=y, text=text, fg=colors.GOLD)
 
 
 def render_dungeon_level(
-    console      : Console,
+    console: Console,
     dungeon_floor: int,
-    y            : int = 44,
+    y: int = 44,
 ) -> None:
     console.print(x=0, y=y, text=f"Floor: {dungeon_floor}", fg=colors.FLOOR)
 ```
@@ -982,11 +998,11 @@ def render_dungeon_level(
 
 ```python
 def render_xp_bar(
-    console         : Console,
-    current_xp      : int,
+    console: Console,
+    current_xp: int,
     xp_to_next_level: int,
-    total_width     : int = constants.BAR_WIDTH,
-    y               : int = 46,
+    total_width: int      = constants.BAR_WIDTH,
+    y: int                = 46,
 ) -> None:
     xp_ratio  = min(1.0, float(current_xp) / xp_to_next_level)
     bar_width = int(xp_ratio * total_width)
@@ -997,7 +1013,7 @@ def render_xp_bar(
         width  = total_width,
         height = 1,
         ch     = ord(" "),
-        bg     = colors.HP_BAR_EMPTY
+        bg     = colors.HP_BAR_EMPTY,
     )
 
     if bar_width > 0:
@@ -1007,13 +1023,15 @@ def render_xp_bar(
             width  = bar_width,
             height = 1,
             ch     = ord(" "),
-            bg     = colors.HP_BAR_FILLED
+            bg     = colors.HP_BAR_FILLED,
         )
 
     xp_text = f"XP: {current_xp}/{xp_to_next_level}"
     console.print(
-        x=(total_width - len(xp_text)) // 2, y=y,
-        text=xp_text, fg=colors.BAR_TEXT,
+        x    = (total_width - len(xp_text)) // 2,
+        y    = y,
+        text = xp_text,
+        fg   = colors.BAR_TEXT,
     )
 ```
 

@@ -1545,7 +1545,8 @@ game/
             tcod.event.KeySym.KP_2:  ( 0,  1),
             tcod.event.KeySym.KP_4:  (-1,  0),
             tcod.event.KeySym.KP_6:  ( 1,  0),
-            # Part-1. Ex 1: Add diagonal movement
+
+            # Part-1. Exercise 1: Add diagonal movement
             tcod.event.KeySym.KP_7:  (-1, -1),
             tcod.event.KeySym.KP_9:  ( 1, -1),
             tcod.event.KeySym.KP_1:  (-1,  1),

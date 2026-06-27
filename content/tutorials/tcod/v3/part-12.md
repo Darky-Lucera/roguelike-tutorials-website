@@ -718,7 +718,7 @@ game/
                 # In sight: remember where the player is, then engage
                 self.target_position = (target.x, target.y)
 
-                # Part-6. Ex 3: Flee behavior
+                # Part-6. Exercise 3: Flee behavior
                 if entity.fighter.should_flee():
                     entity.ai = CowardEnemy(previous_ai=self)
                     entity.ai.entity = entity
@@ -758,7 +758,7 @@ game/
                 ).perform(engine, entity)
         ```
 
-        The `# Part-6. Ex 3: Flee behavior` block above belongs here only if you completed that exercise; omit it otherwise.
+        The `# Part-6. Exercise 3: Flee behavior` block above belongs here only if you completed that exercise; omit it otherwise.
 
         Then in `generate_dungeon()` (`game/map/map_generator.py`), give the guardian from Exercise 1 a `home`. This needs `Actor` and `HostileEnemy` imported in `map_generator.py` (`from game.entities.entity import Actor`, `from game.entities.components.ai import HostileEnemy`):
 
