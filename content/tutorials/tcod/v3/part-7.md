@@ -46,21 +46,21 @@ Extend `game/constants/colors.py`:
 
 ```python
 # Generic colors
-WHITE         = Color(0xFF, 0xFF, 0xFF)
-BLACK         = Color(0x00, 0x00, 0x00)
+WHITE         = Color(255, 255, 255)
+BLACK         = Color(  0,   0,   0)
 
 # Combat message colors
-PLAYER_ATTACK = Color(0xE0, 0xE0, 0xE0)
-ENEMY_ATTACK  = Color(0xFF, 0xC0, 0xC0)
-PLAYER_DEATH  = Color(0xFF, 0x30, 0x30)
-ENEMY_DEATH   = Color(0xFF, 0xA0, 0x30)
+PLAYER_ATTACK = Color(224, 224, 224)
+ENEMY_ATTACK  = Color(255, 192, 192)
+PLAYER_DEATH  = Color(255,  48,  48)
+ENEMY_DEATH   = Color(255, 160,  48)
 
 # UI colors
-HUD_BG        = Color(0x0F, 0x0F, 0x3F)
-WELCOME_TEXT  = Color(0x20, 0xA0, 0xFF)
+HUD_BG        = Color( 15,  15,  63)
+WELCOME_TEXT  = Color( 32, 160, 255)
 BAR_TEXT      = WHITE
-HP_BAR_FILLED = Color(0x00, 0x60, 0x00)
-HP_BAR_EMPTY  = Color(0x40, 0x10, 0x10)
+HP_BAR_FILLED = Color(  0,  96,   0)
+HP_BAR_EMPTY  = Color( 64,  16,  16)
 
 # Game over screen colors
 GAME_OVER_FRAME    = Color(255,  72,  72)
@@ -82,7 +82,7 @@ We split the new constants into three sections (`Generic colors`, `Combat messag
 
 ## message_log.py
 
-The message log stores recent events and renders them in the panel. Two features make it feel polished: **color** (attacks are different from deaths) and **stacking** (if the same message repeats, it shows `(×3)` instead of three identical lines).
+The message log stores recent events and renders them in the panel. Two features make it feel polished: **color** (attacks are different from deaths) and **stacking** (if the same message repeats, it shows `(x3)` instead of three identical lines).
 
 Create `game/message_log.py`:
 
@@ -182,10 +182,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from game.constants import colors
-from game.entities.entity import Actor
 
 if TYPE_CHECKING:
-    from tcod import Console
+    from tcod.console import Console
     from game.map.game_map import GameMap
 
 
@@ -209,18 +208,30 @@ def render_bar(
 ) -> None:
     bar_width = int(float(current_value) / maximum_value * total_width)
 
-    console.draw_rect(x=0, y=y, width=total_width, height=1, ch=1, bg=colors.HP_BAR_EMPTY)
+    console.draw_rect(
+        x      = 0,
+        y      = y,
+        width  = total_width,
+        height = 1,
+        ch     = ord(' '),
+        bg     = colors.HP_BAR_EMPTY
+    )
 
     if bar_width > 0:
         console.draw_rect(
-            x=0, y=y, width=bar_width, height=1, ch=1, bg=colors.HP_BAR_FILLED
+            x      = 0,
+            y      = y,
+            width  = bar_width,
+            height = 1,
+            ch     = ord(' '),
+            bg     = colors.HP_BAR_FILLED
         )
 
     console.print(
-        x=1,
-        y=y,
-        text=f"HP: {int(current_value)}/{maximum_value}",
-        fg=colors.BAR_TEXT,
+        x    = 1,
+        y    = y,
+        text = f"HP: {int(current_value)}/{maximum_value}",
+        fg   = colors.BAR_TEXT,
     )
 
 
@@ -243,113 +254,6 @@ def render_names_at_mouse_location(
 ```
 
 `render_panel` fills the six-row HUD area with `HUD_BG` before anything else is drawn on top of it. `render_bar` draws a filled rectangle for the filled portion and an empty rectangle for the background, then overlays the text `"HP: N/M"`. `render_names_at_mouse_location` collects all entity names at the cursor position and joins them with commas. All three functions take only what they need: no `Engine` reference, no hidden dependencies.
-
----
-
-## Update engine.py
-
-Five changes: new imports, updated `__init__`, updated `handle_events`, updated `render()`, and updated `run()`. All come from switching to the new `GameState` API (next section) and adding the UI.
-
-Add the imports at the top of `game/engine.py`:
-
-```diff
-+from game.message_log import MessageLog
-+from game import hud
--from game.input_handlers import EventHandler, GameOverEventHandler
-+from game.game_states import (
-+    GameState,
-+    GameOverState,
-+    MainGameState
-+)
-```
-
-Update `__init__` to use the new state class and track mouse position:
-
-```diff
-     self.game_map = game_map
-+    self.mouse_location: tuple[int, int] = (0, 0)
-     self.player = player
--    self.event_handler = EventHandler()
-+    self.game_state: GameState = MainGameState(self)
-```
-
-Update `handle_events` to call the new `handle_events()` method (replacing the old `dispatch()`), guard enemy turns so they only run while the player is alive, and pass `self` to `GameOverState`:
-
-```diff
-    def handle_events(self, events: Iterable[Any]) -> None:
-        for event in events:
--            action = self.event_handler.dispatch(event)
-+            action = self.game_state.handle_events(event)
-            if action is None:
-                continue
-
-            action.perform(self, self.player)
--            self.handle_enemy_turns()
--            self.update_fov()  # recompute after every action
--
--            if not self.player.is_alive:
--                self.event_handler = GameOverEventHandler()
-+
-+            if self.player.is_alive:
-+                self.handle_enemy_turns()
-+
-+            if not self.player.is_alive:
-+                self.game_state = GameOverState(self)
-+
-+            self.update_fov()  # recompute after every action
-```
-
-Replace the existing `render()` method. It no longer receives `context` or controls the frame cycle; `run()` owns those steps now.
-
-```python
-    def render(self, console: Console) -> None:
-        self.game_map.render(console)
-
-        hud.render_panel(console=console)
-
-        MessageLog.render(
-            console = console,
-            x       = 21,
-            y       = 45,
-            width   = 40,
-            height  = 5
-        )
-
-        hud.render_bar(
-            console       = console,
-            current_value = self.player.fighter.hp,
-            maximum_value = self.player.fighter.max_hp,
-            total_width   = 20,
-        )
-
-        hud.render_names_at_mouse_location(
-            console        = console,
-            x              = 21,
-            y              = 44,
-            mouse_location = self.mouse_location,
-            game_map       = self.game_map,
-        )
-```
-
-Update `run()` to delegate rendering to the active game state and to capture the result of `context.convert_event`:
-
-```diff
-    def run(self, context: Context, console: Console) -> None:
-         while True:
--            self.render(console=console, context=context)
--            self.handle_events(tcod.event.wait())
-+            console.clear()
-+            self.game_state.on_render(console=console)
-+            context.present(console)
-+            for event in tcod.event.wait():
-+                event = context.convert_event(event)
-+                self.handle_events([event])
-```
-
-`context.convert_event(event)` returns a new event object with tile-space coordinates set. The return value must be captured; the original event object is not modified in place.
-
-!!! info "render() vs game_map.render()"
-    `GameMap.render()` draws tiles and entity sprites. `Engine.render()` composes the full frame: map first, then the UI panel on top. Keeping these separate means the map never needs to know about the UI layout.
 
 ---
 
@@ -389,7 +293,6 @@ from game.actions import (
 )
 from game.constants import colors
 from game.constants.colors import Color
-from game.message_log import MessageLog
 
 if TYPE_CHECKING:
     from game.engine import Engine
@@ -594,6 +497,115 @@ The `MouseMotion` case stores the cursor tile position in `engine.mouse_location
 
 ---
 
+## Update engine.py
+
+Five changes: new imports, updated `__init__`, updated `handle_events`, updated `render()`, and updated `run()`. All come from switching to the new `GameState` API (the `game_states.py` refactor above) and adding the UI.
+
+Add the imports at the top of `game/engine.py`:
+
+```diff
++from game.message_log import MessageLog
++from game import hud
+-from game.input_handlers import EventHandler, GameOverEventHandler
++from game.game_states import (
++    GameState,
++    GameOverState,
++    MainGameState
++)
+```
+
+Update `__init__` to use the new state class and track mouse position:
+
+```diff
+     self.game_map = game_map
++    self.mouse_location: tuple[int, int] = (0, 0)
+     self.player = player
+-    self.event_handler = EventHandler()
++    self.game_state: GameState = MainGameState(self)
+```
+
+Update `handle_events` to call the new `handle_events()` method (replacing the old `dispatch()`), guard enemy turns so they only run while the player is alive, and pass `self` to `GameOverState`:
+
+```diff
+    def handle_events(self, events: Iterable[Any]) -> None:
+        for event in events:
+-            action = self.event_handler.dispatch(event)
++            action = self.game_state.handle_events(event)
+            if action is None:
+                continue
+
+            action.perform(self, self.player)
+-            self.handle_enemy_turns()
+-            self.update_fov()  # recompute after every action
+-
+-            if not self.player.is_alive:
+-                self.event_handler = GameOverEventHandler()
++
++            if self.player.is_alive:
++                self.handle_enemy_turns()
++
++            if not self.player.is_alive:
++                self.game_state = GameOverState(self)
++
++            self.update_fov()  # recompute after every action
+```
+
+Replace the existing `render()` method. It no longer receives `context` or controls the frame cycle; `run()` owns those steps now.
+
+```python
+    def render(self, console: Console) -> None:
+        self.game_map.render(console)
+
+        hud.render_panel(console=console)
+
+        MessageLog.render(
+            console = console,
+            x       = 21,
+            y       = 45,
+            width   = 40,
+            height  = 5
+        )
+
+        hud.render_bar(
+            console       = console,
+            current_value = self.player.fighter.hp,
+            maximum_value = self.player.fighter.max_hp,
+            total_width   = 20,
+        )
+
+        hud.render_names_at_mouse_location(
+            console        = console,
+            x              = 21,
+            y              = 44,
+            mouse_location = self.mouse_location,
+            game_map       = self.game_map,
+        )
+```
+
+These coordinates map directly onto the panel layout from the start of the chapter. The HP bar fills columns `0-19` of row `45` (`total_width=20`), so the message log and the hover names start one column past it, at `x=21`. Row `44` (the panel's top row) holds the names under the cursor; rows `45-49` hold the five wrapped message lines (`y=45`, `height=5`).
+
+Update `run()` to delegate rendering to the active game state and to capture the result of `context.convert_event`:
+
+```diff
+    def run(self, context: Context, console: Console) -> None:
+         while True:
+-            self.render(console=console, context=context)
+-            self.handle_events(tcod.event.wait())
++            console.clear()
++            self.game_state.on_render(console=console)
++            context.present(console)
++            for event in tcod.event.wait():
++                event = context.convert_event(event)
++                self.handle_events([event])
+```
+
+`context.convert_event(event)` returns a new event object with tile-space coordinates set. The return value must be captured; the original event object is not modified in place.
+
+!!! info "render() vs game_map.render()"
+    `GameMap.render()` draws tiles and entity sprites. `Engine.render()` composes the full frame: map first, then the UI panel on top. Keeping these separate means the map never needs to know about the UI layout.
+
+---
+
 ## Update main.py
 
 Four small changes: two new imports, reducing the map height to leave room for the hover text, posting the welcome message, and renaming `console` to `root_console` for clarity now that the engine owns the frame loop.
@@ -647,6 +659,27 @@ Add the import at the top of `game/entities/components/fighter.py`:
 +from game.message_log import MessageLog
 ```
 
+First, add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/fighter.py`. Defining them now means `melee_attack()` can call `take_damage()` right after:
+
+```python
+    def heal(self, amount: float) -> int:
+        if self.hp == self.max_hp:
+            return 0
+
+        new_hp_value = self._hp + amount
+        new_hp_value = min(new_hp_value, float(self.max_hp))
+
+        recovered = new_hp_value - self._hp
+        self.hp = new_hp_value
+
+        return int(recovered)
+
+    def take_damage(self, amount: float) -> None:
+        self.hp -= amount
+```
+
+`take_damage()` is a thin wrapper over `self.hp -= amount` that gives call sites a readable name; `melee_attack()` will use it next, and later damage sources reuse the same method. It still delegates to the `hp` setter, so death is triggered exactly as before. `heal()` returns the amount actually recovered; the `hp` setter clamps to `max_hp`, so you cannot overheal. `heal()` has no caller yet in this part: the healing potions in Part 8 will be its first user, but it belongs here next to the other HP methods.
+
 Update `Fighter.melee_attack()` in `game/entities/components/fighter.py`:
 
 ```diff
@@ -657,7 +690,7 @@ Update `Fighter.melee_attack()` in `game/entities/components/fighter.py`:
 +
      if damage > 0:
 -        print(f"{attack_msg} for {damage} hit points.")
-+        MessageLog.add_message(f"{attack_msg} for {damage} hit points.", attack_color)
++        MessageLog.add_message(f"{attack_msg} for {damage:.1f} hit points.", attack_color)
 -        target.fighter.hp -= damage
 +        target.fighter.take_damage(damage)
      else:
@@ -665,9 +698,7 @@ Update `Fighter.melee_attack()` in `game/entities/components/fighter.py`:
 +        MessageLog.add_message(f"{attack_msg} but does no damage.", attack_color)
 ```
 
-`self.entity.ai is None` identifies the player: the player never has an AI component, enemies always do. Player attacks use a lighter color (`PLAYER_ATTACK`) and enemy attacks a red tint (`ENEMY_ATTACK`), so the player can scan the log quickly.
-
-Damage now goes through `target.fighter.take_damage(damage)` instead of assigning to `target.fighter.hp` directly. We add `take_damage()` below. For now, it still delegates to the `hp` setter, so death is triggered exactly as before. The benefit is that every damage source can use the same readable method.
+`self.entity.ai is None` identifies the player: the player never has an AI component, enemies always do. Player attacks use a lighter color (`PLAYER_ATTACK`) and enemy attacks a red tint (`ENEMY_ATTACK`), so the player can scan the log quickly. Damage now goes through `target.fighter.take_damage(damage)`, the method you just added, instead of assigning to `target.fighter.hp` directly.
 
 Update `Fighter.die()` in `game/entities/components/fighter.py` to write to the message log:
 
@@ -691,27 +722,6 @@ Update `Fighter.die()` in `game/entities/components/fighter.py` to write to the 
 +    MessageLog.add_message(death_message, death_message_color)
 ```
 
-Also add `heal()` and `take_damage()` to `Fighter` in `game/entities/components/fighter.py`:
-
-```python
-    def heal(self, amount: float) -> int:
-        if self.hp == self.max_hp:
-            return 0
-
-        new_hp_value = self._hp + amount
-        new_hp_value = min(new_hp_value, float(self.max_hp))
-
-        recovered = new_hp_value - self._hp
-        self.hp = new_hp_value
-
-        return int(recovered)
-
-    def take_damage(self, amount: float) -> None:
-        self.hp -= amount
-```
-
-`heal()` returns the amount actually recovered; the `hp` setter clamps to `max_hp`, so you cannot overheal. It is used in Part 8 by healing potions. `take_damage()` is a thin wrapper over `self.hp -= amount` that gives call sites a readable name. `melee_attack()` now uses it, and later damage sources will reuse the same method.
-
 !!! note "If you kept Part 5/6 exercise code"
     Convert those messages to `MessageLog.add_message(...)` too. For example, non-combat blockers in `actions.py` should log instead of printing, and optional flee/critical-hit logic in `fighter.py` should keep the same behavior while routing its feedback through the message log.
 
@@ -729,7 +739,7 @@ Run `python main.py`:
 - [ ] Hovering the mouse over a visible entity shows its name on the panel's top row
 - [ ] On death, `"You died!"` appears in the log and the bar shows 0 HP
 - [ ] On death, the screen dims and a framed game-over panel with a drop shadow appears centered
-- [ ] Repeated identical messages stack: `"Orc attacks Player for 2 hit points. (x3)"`
+- [ ] Repeated identical messages stack: `"Orc attacks Player for 2.0 hit points. (x3)"`
 
 ---
 
@@ -805,7 +815,7 @@ game/
     HP_BAR_CRITICAL_EMPTY  = Color(0x3A, 0x10, 0x10)
     ```
 
-    In `draw_bar`, compute the HP ratio and select the pair before calling `draw_rect`:
+    In `render_bar`, compute the HP ratio and select the pair before calling `draw_rect`:
 
     - HP > 70% → healthy colors
     - HP > 30% → injured colors
@@ -817,4 +827,4 @@ game/
 
 3. **Entity details**:
 
-    When hovering over an entity, show full combat stats if it is an `Actor`: `"Player (HP: 30.0/30.0, ATK: 5.0, DEF: 2.0)"` (one decimal place). Plain entities (items, corpses) still show just their name. Modify `hud.render_names_at_mouse_location` to iterate with an explicit loop, check `isinstance(entity, Actor)`, and format the stats line accordingly.
+    When hovering over an entity, show full combat stats if it is an `Actor`: `"Player (HP: 30.0/30.0, ATK: 5.0, DEF: 2.0)"` (one decimal place). Plain entities (items, corpses) still show just their name. Modify `hud.render_names_at_mouse_location` to iterate with an explicit loop, check `isinstance(entity, Actor)`, and format the stats line accordingly. Remember to import `Actor` in `hud.py`: `from game.entities.entity import Actor`.

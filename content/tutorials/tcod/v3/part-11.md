@@ -991,9 +991,24 @@ def render_xp_bar(
     xp_ratio  = min(1.0, float(current_xp) / xp_to_next_level)
     bar_width = int(xp_ratio * total_width)
 
-    console.draw_rect(x=0, y=y, width=total_width, height=1, ch=1, bg=colors.HP_BAR_EMPTY)
+    console.draw_rect(
+        x      = 0,
+        y      = y,
+        width  = total_width,
+        height = 1,
+        ch     = ord(" "),
+        bg     = colors.HP_BAR_EMPTY
+    )
+
     if bar_width > 0:
-        console.draw_rect(x=0, y=y, width=bar_width, height=1, ch=1, bg=colors.HP_BAR_FILLED)
+        console.draw_rect(
+            x      = 0,
+            y      = y,
+            width  = bar_width,
+            height = 1,
+            ch     = ord(" "),
+            bg     = colors.HP_BAR_FILLED
+        )
 
     xp_text = f"XP: {current_xp}/{xp_to_next_level}"
     console.print(

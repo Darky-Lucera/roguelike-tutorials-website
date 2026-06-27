@@ -261,12 +261,12 @@ class Fighter(BaseComponent):
             death_message = "You died!"
         print(death_message)
 
-        self.entity.char  = sprites.CORPSE
+        self.entity.char = sprites.CORPSE
         self.entity.color = colors.CORPSE
-        self.entity.ai    = None
-        self.entity.name  = f"remains of {self.entity.name}"
         self.entity.blocks_movement = False
-        self.entity.render_order    = RenderOrder.CORPSE
+        self.entity.ai = None
+        self.entity.name = f"remains of {self.entity.name}"
+        self.entity.render_order = RenderOrder.CORPSE
 ```
 
 !!! question "What does `@hp.setter` do?"
@@ -342,9 +342,9 @@ We wire both back-references the same way: `self.fighter.entity = self` and `sel
 ```python
 from __future__ import annotations
 
+from game.constants import colors, sprites
 from game.entities.components.ai import HostileEnemy
 from game.entities.components.fighter import Fighter
-from game.constants import colors, sprites
 from game.entities.entity import Actor, Entity
 from game.entities.render_order import RenderOrder
 
@@ -373,7 +373,7 @@ troll = Actor(
 )
 ```
 
-Orcs are harder to kill (more HP, some defense) and hit harder than trolls.
+Orcs are harder to kill (more HP, some defense) and hit harder than trolls. These starting numbers are deliberately simple so we can verify the combat system works; Part 12 rebalances them alongside the procedural difficulty tables.
 
 `blocks_movement=True` disappeared from `player`, `orc`, and `troll` because `Actor.__init__` now passes it to `Entity` internally. Anything that can fight blocks movement by default.
 
@@ -434,7 +434,7 @@ Add a TYPE_CHECKING import for `Actor` to `game/entities/components/fighter.py` 
         attack_msg = f"{self.entity.name.capitalize()} attacks {target.name}"
 
         if damage > 0:
-            print(f"{attack_msg} for {damage} hit points.")
+            print(f"{attack_msg} for {damage:.1f} hit points.")
             target.fighter.hp -= damage
 
         else:
@@ -445,7 +445,20 @@ Add a TYPE_CHECKING import for `Actor` to `game/entities/components/fighter.py` 
 
 The damage formula is classic roguelike: `attack - defense`. If the attacker's `attack` does not exceed the defender's defense, the attack deals 0 damage. Simple and predictable.
 
-`MeleeAction` now only resolves who is fighting and delegates:
+`MeleeAction` now only resolves who is fighting and delegates. It needs the `Actor` class to check that both sides can fight, so import it at the top of `game/actions.py`:
+
+```diff
+ from abc import ABC, abstractmethod
+ from typing import TYPE_CHECKING
+
++from game.entities.entity import Actor
+
+ if TYPE_CHECKING:
+     from game.engine import Engine
+     from game.entities.entity import Entity
+```
+
+Then rewrite `MeleeAction`:
 
 ```python
 class MeleeAction(ActionWithDirection):
@@ -458,7 +471,6 @@ class MeleeAction(ActionWithDirection):
         if not target:
             return
 
-        from game.entities.entity import Actor
         if not isinstance(entity, Actor) or not isinstance(target, Actor):
             return  # Both attacker and defender must be Actors to fight.
 
@@ -468,6 +480,39 @@ class MeleeAction(ActionWithDirection):
 We check `isinstance` for **both** sides. In practice today only `Actor` instances can fight, so bumping into a blocking-but-not-fighting entity (a chest, a door) does nothing instead of crashing. If you kept the Part 5 chest exercise, this changes its behavior: the chest still blocks movement, but it no longer triggers a melee attack because it is not combat-capable. Later, those entities can get their own interaction action.
 
 ---
+
+## GameMap: the actors property
+
+Before adding the pathfinding, `GameMap` needs to expose which tiles are taken by living actors, so the pathfinder can route around them. Add an `actors` property that yields every living `Actor`.
+
+Update `game/map/game_map.py`:
+
+```diff
+-from collections.abc import Iterable
++from collections.abc import Iterable, Iterator
+
++from game.entities.entity import Actor
+ from game.map import tile_types
+
+ if TYPE_CHECKING:
+     from game.entities.entity import Entity
+
+
+ class GameMap:
+     ...
+
++    @property
++    def actors(self) -> Iterator[Actor]:
++        yield from (
++            entity for entity in self.entities
++            if isinstance(entity, Actor) and entity.is_alive
++        )
+```
+
+`actors` filters `self.entities` down to the `Actor` instances that are still alive (`is_alive` comes from the `Actor` class). The AI uses it next for pathfinding, and the engine will use it to run enemy turns.
+
+!!! tip "Run it now"
+    This is a good moment to run the game. Combat already works: bumping into an enemy deals real damage (watch the messages in the terminal) and an enemy reduced to 0 HP turns into a red `%`. The enemies chase you, but they still move in a greedy straight line and get stuck on corners. The next section replaces that greedy step with proper A* pathfinding.
 
 ## Proper pathfinding for enemies
 
@@ -547,38 +592,20 @@ class HostileEnemy(BaseAI):
             ).perform(engine, entity)
 ```
 
-`tcod.path.SimpleGraph` creates a weighted graph from the cost array. Cardinal moves cost 2, diagonal moves cost 3 (this approximates real distance without floating point). `pathfinder.path_to` returns the full path including the start; we drop the first element (`[1:]`) since that is the entity's current position. If the entity is already standing on the destination, that leaves an empty list and the caller simply does nothing.
+Adding `10` to the cost of an occupied tile is high enough that the pathfinder prefers to route around another entity, yet it still passes through when there is truly no other way. `tcod.path.SimpleGraph` creates a weighted graph from the cost array. Cardinal moves cost 2, diagonal moves cost 3 (this approximates real distance without floating point). `pathfinder.path_to` returns the full path including the start; we drop the first element (`[1:]`) since that is the entity's current position. If the entity is already standing on the destination, that leaves an empty list and the caller simply does nothing.
 
 !!! note "Enemies forget you the instant you leave their sight"
     The opening `if not engine.game_map.visible[entity.x, entity.y]: return` means a monster freezes the moment it loses sight of you, even if it was chasing you a tile ago. This keeps the AI as simple as it can be while you learn the pattern, but it is not very convincing: something that just watched you round a corner should at least walk to where you were. Part 12 fixes this in its Exercise 4, *Monsters that remember*, by giving each enemy a `last_known_position` to head toward. That one change also turns breaking line of sight into a tactic, letting you lure monsters out of a room you would rather not fight in.
 
 ---
 
-## GameMap: actors property and sorted rendering
+## GameMap: actor lookup and sorted rendering
 
-`GameMap` needs a way to iterate only living actors (for pathfinding cost and enemy turns). We also add a small location lookup for later targeting code. Finally, entities with higher `render_order` should appear on top.
+Two more changes to `GameMap`. First, a small location lookup that later targeting code will use. Second, rendering should draw entities with a higher `render_order` last, so they appear on top.
 
 Update `game/map/game_map.py`:
 
 ```diff
--from collections.abc import Iterable
-+from collections.abc import Iterable, Iterator
-
-if TYPE_CHECKING:
--    from game.entities.entity import Entity
-+    from game.entities.entity import Entity, Actor
-
- class GameMap:
-     ...
-
-+    @property
-+    def actors(self) -> Iterator[Actor]:
-+        from game.entities.entity import Actor
-+        yield from (
-+            entity for entity in self.entities
-+            if isinstance(entity, Actor) and entity.is_alive
-+        )
-
 +    def get_actor_at_location(self, x: int, y: int) -> Actor | None:
 +        for actor in self.actors:
 +            if actor.x == x and actor.y == y:
@@ -593,13 +620,17 @@ if TYPE_CHECKING:
              default=tile_types.UNSEEN,
          )
 -        for entity in self.entities:
+-            if self.visible[entity.x, entity.y]:
 +        for entity in sorted(self.entities, key=lambda e: e.render_order.value):
 +            stays_visible = entity.stays_visible and self.explored[entity.x, entity.y]
 +            if self.visible[entity.x, entity.y] or stays_visible:
                  console.print(entity.x, entity.y, entity.char, fg=entity.color)
 ```
 
-Sorting by `render_order.value` ensures corpses (`CORPSE=1`) render before items (`ITEM=2`), items render before living actors (`ACTOR=3`), and uncategorized entities (`UNKNOWN=4`) render on top of all. If an orc dies on the same tile as another orc, the living orc appears on top; if an entity accidentally keeps the default `UNKNOWN`, it remains visible so the mistake is easy to spot. The `stays_visible` check from earlier parts is preserved, so any discovered passive markers or objects keep rendering outside FOV if you enabled that behavior.
+Sorting by `render_order.value` ensures corpses (`CORPSE=1`) render before items (`ITEM=2`), items render before living actors (`ACTOR=3`), and uncategorized entities (`UNKNOWN=4`) render on top of all. If an orc dies on the same tile as another orc, the living orc appears on top; if an entity accidentally keeps the default `UNKNOWN`, it remains visible so the mistake is easy to spot.
+
+!!! note "If you skipped Part 4 Exercise 3 (`stays_visible`)"
+    The render loop now includes `stays_visible` handling in the main path. The `stays_visible` field has been part of `Entity` since Part 5, so this compiles for everyone; if you never set `stays_visible=True` on an entity, the flag stays `False` and the extra check simply has no effect.
 
 ---
 
@@ -607,41 +638,9 @@ Sorting by `render_order.value` ensures corpses (`CORPSE=1`) render before items
 
 When the player's HP hits zero, `Fighter.die()` already runs: the player turns into a red `%` and the message `"You died!"` is printed. What we still need is to **stop accepting movement input** so the player cannot keep walking around as a corpse.
 
-Update `game/input_handlers.py`, add a `GameOverEventHandler`:
+Update `game/input_handlers.py`. `EventHandler` stays exactly as it is; we only add a `GameOverEventHandler` subclass below it that ignores every key except `Escape`:
 
 ```python
-class EventHandler:
-
-    def dispatch(self, event: tcod.event.Event) -> Action | None:
-        match event:
-            case tcod.event.Quit():
-                return self.event_quit(event)
-
-            case tcod.event.KeyDown():
-                return self.event_keydown(event)
-
-            case _:
-                return None
-
-    def event_quit(self, _event: tcod.event.Quit) -> Action | None:
-        return EscapeAction()
-
-    def event_keydown(self, event: tcod.event.KeyDown) -> Action | None:
-        key = event.sym
-
-        if key in MOVE_KEYS:
-            dx, dy = MOVE_KEYS[key]
-            return BumpAction(dx, dy)
-
-        if key in WAIT_KEYS:
-            return WaitAction()
-
-        if key == tcod.event.KeySym.ESCAPE:
-            return EscapeAction()
-
-        return None
-
-
 class GameOverEventHandler(EventHandler):
     """Handles input after the player has died."""
 
@@ -701,8 +700,8 @@ We check `is_alive` **after** `handle_enemy_turns`, so a player killed by an ene
 
 Run `python main.py`:
 
-- [ ] Walking into an orc prints: `"Player attacks Orc for X hit points."`
-- [ ] Orcs attack back when adjacent: `"Orc attacks Player for X hit points."`
+- [ ] Walking into an orc prints: `"Player attacks Orc for 4.0 hit points."` (the damage shows a decimal because attack and defense are stored as floats)
+- [ ] Orcs attack back when adjacent: `"Orc attacks Player for 2.0 hit points."`
 - [ ] When an enemy's HP reaches zero, it prints `"The Orc is dead!"` and its tile changes to a red `%`
 - [ ] Dead enemies no longer block movement: you can walk through corpses
 - [ ] Enemies navigate around corners and other entities (A* pathfinding)

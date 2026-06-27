@@ -171,47 +171,11 @@ This keeps all visual choices in `game/constants/`: entity sprites, terrain spri
 
 ---
 
-## Entity templates
-
-So far we create entities inline: `Entity(0, 0, "@", (255, 255, 255))`. Once we have multiple entity types (player, orcs, trolls, items...), we want reusable templates that can be copied and placed anywhere in the dungeon.
-
-Create `game/entity_factories.py`:
-
-```python
-from __future__ import annotations
-
-from game.constants import colors, sprites
-from game.entity import Entity
-
-player = Entity(
-    char  = sprites.PLAYER,
-    color = colors.PLAYER,
-    name  = "Player",
-    blocks_movement = True,
-)
-
-orc = Entity(
-    char  = sprites.ORC,
-    color = colors.ORC,
-    name  = "Orc",
-    blocks_movement = True,
-)
-
-troll = Entity(
-    char  = sprites.TROLL,
-    color = colors.TROLL,
-    name  = "Troll",
-    blocks_movement = True,
-)
-```
-
-These are *prototypes*: for dungeon entities, we call `spawn()` on them to create positioned copies. The player is a small startup special case (covered in the `main.py` section below) because they need to exist before any map does.
-
----
-
 ## Updating Entity
 
-The `Entity` class needs two new fields, `name` and `blocks_movement`, and a `spawn()` method. If you completed the `stays_visible` exercise in Part 4, keep that field; it remains useful for entities that should stay visible after being discovered.
+So far we create entities inline, like `Entity(0, 0, "@", (255, 255, 255))`. To turn entity types into reusable templates that we can copy into the dungeon, the `Entity` class needs to grow first. We add two new fields, `name` and `blocks_movement`, and a `spawn()` method that copies a template onto a map at a chosen position. The next section uses all three to define our monster prototypes.
+
+If you completed the `stays_visible` exercise in Part 4, keep that field; it remains useful for entities that should stay visible after being discovered.
 
 Update `game/entity.py`:
 
@@ -267,12 +231,51 @@ class Entity:
         self.y += dy
 ```
 
-`copy.deepcopy` creates an independent copy of the object and all its attributes. The original template is untouched; each spawned enemy is its own object.
-
 Position defaults to `(0, 0)` so templates can be defined without coordinates.
+
+!!! tip "`copy.deepcopy`: shallow vs deep copies"
+    A *shallow* copy (`copy.copy`) duplicates the outer object but shares its inner attributes with the original. A *deep* copy (`copy.deepcopy`) walks the object recursively and duplicates everything, so the clone shares nothing with the template. We want deep copies here: each spawned enemy must be fully independent, so updating one orc never affects the template or any other orc.
 
 !!! info "Design decision: templates vs subclasses"
     We could create `class Orc(Entity): ...` for each monster type. But once we add components (Fighter, AI), the difference between an Orc and a Troll is just their stats: same code, different numbers. Templates let us define that difference as data, not code. Adding a new monster type is then a one-liner in `game/entity_factories.py`.
+
+---
+
+## Entity templates
+
+Now that `Entity` carries a `name`, a `blocks_movement` flag, and a `spawn()` method, we can define reusable *templates*: one `Entity` per type, created once and copied into the dungeon wherever we need it.
+
+Create `game/entity_factories.py`:
+
+```python
+from __future__ import annotations
+
+from game.constants import colors, sprites
+from game.entity import Entity
+
+player = Entity(
+    char            = sprites.PLAYER,
+    color           = colors.PLAYER,
+    name            = "Player",
+    blocks_movement = True,
+)
+
+orc = Entity(
+    char            = sprites.ORC,
+    color           = colors.ORC,
+    name            = "Orc",
+    blocks_movement = True,
+)
+
+troll = Entity(
+    char            = sprites.TROLL,
+    color           = colors.TROLL,
+    name            = "Troll",
+    blocks_movement = True,
+)
+```
+
+These are *prototypes*: for dungeon entities, we call `spawn()` on them to create positioned copies. The player is a small startup special case (covered in the `main.py` section below) because they need to exist before any map does.
 
 ---
 
@@ -407,7 +410,7 @@ class BumpAction(ActionWithDirection):
 
 ## Updating the input handler
 
-Replace the individual key checks with a lookup dictionary and add support for wait, numpad, and vi keys. Update `game/input_handlers.py`:
+Replace the individual key checks with two module-level lookups and add support for wait, numpad, and vi keys. `MOVE_KEYS` is a dictionary that maps each movement key to a `(dx, dy)` offset; `WAIT_KEYS` is a `set`, because for a wait key we only need to check membership, not retrieve a value. Update `game/input_handlers.py`:
 
 ```python
 from __future__ import annotations
@@ -419,30 +422,30 @@ from game.actions import Action, BumpAction, EscapeAction, WaitAction
 
 MOVE_KEYS = {
     # Arrow keys
-    tcod.event.KeySym.UP:    ( 0, -1),
-    tcod.event.KeySym.DOWN:  ( 0,  1),
-    tcod.event.KeySym.LEFT:  (-1,  0),
-    tcod.event.KeySym.RIGHT: ( 1,  0),
+    tcod.event.KeySym.UP:       ( 0, -1),
+    tcod.event.KeySym.DOWN:     ( 0,  1),
+    tcod.event.KeySym.LEFT:     (-1,  0),
+    tcod.event.KeySym.RIGHT:    ( 1,  0),
 
     # Numpad
-    tcod.event.KeySym.KP_8:  ( 0, -1),
-    tcod.event.KeySym.KP_2:  ( 0,  1),
-    tcod.event.KeySym.KP_4:  (-1,  0),
-    tcod.event.KeySym.KP_6:  ( 1,  0),
-    tcod.event.KeySym.KP_7:  (-1, -1),
-    tcod.event.KeySym.KP_9:  ( 1, -1),
-    tcod.event.KeySym.KP_1:  (-1,  1),
-    tcod.event.KeySym.KP_3:  ( 1,  1),
+    tcod.event.KeySym.KP_1:     (-1,  1), # LEFT  - DOWN
+    tcod.event.KeySym.KP_2:     ( 0,  1), #         DOWN
+    tcod.event.KeySym.KP_3:     ( 1,  1), # RIGHT - DOWN
+    tcod.event.KeySym.KP_4:     (-1,  0), # LEFT
+    tcod.event.KeySym.KP_6:     ( 1,  0), # RIGHT
+    tcod.event.KeySym.KP_7:     (-1, -1), # LEFT  - UP
+    tcod.event.KeySym.KP_8:     ( 0, -1), #         UP
+    tcod.event.KeySym.KP_9:     ( 1, -1), # RIGHT - UP
 
     # Vi keys
-    tcod.event.KeySym.K:     ( 0, -1),
-    tcod.event.KeySym.J:     ( 0,  1),
-    tcod.event.KeySym.H:     (-1,  0),
-    tcod.event.KeySym.L:     ( 1,  0),
-    tcod.event.KeySym.Y:     (-1, -1),
-    tcod.event.KeySym.U:     ( 1, -1),
-    tcod.event.KeySym.B:     (-1,  1),
-    tcod.event.KeySym.N:     ( 1,  1),
+    tcod.event.KeySym.B:        (-1,  1), # LEFT  - DOWN
+    tcod.event.KeySym.J:        ( 0,  1), #         DOWN
+    tcod.event.KeySym.N:        ( 1,  1), # RIGHT - DOWN
+    tcod.event.KeySym.H:        (-1,  0), # LEFT
+    tcod.event.KeySym.L:        ( 1,  0), # RIGHT
+    tcod.event.KeySym.Y:        (-1, -1), # LEFT  - UP
+    tcod.event.KeySym.K:        ( 0, -1), #         UP
+    tcod.event.KeySym.U:        ( 1, -1), # RIGHT - UP
 }
 
 WAIT_KEYS = {
@@ -490,7 +493,10 @@ class EventHandler:
 
 Enemies need to act on their turn. We model this with an `AI` component: a class with a `perform()` method that the engine calls each enemy turn.
 
-Create `game/components/__init__.py` (empty file, makes `components` a Python package).
+Create `game/components/__init__.py` (empty file, makes `components` a Python package):
+
+```python
+```
 
 Create `game/components/ai.py`:
 
@@ -530,6 +536,9 @@ class HostileEnemy(BaseAI):
             dy = max(-1, min(1, dy)),
         ).perform(engine, entity)
 ```
+
+!!! info "`BaseAI` uses an informal contract, not `ABC`"
+    `Action` used `ABC` and `@abstractmethod` because it is a public contract: the engine creates many action types through it, so enforcing the contract at construction time pays off. `BaseAI` instead starts as an informal hook: `perform` just raises `NotImplementedError`, which documents that subclasses must override it without the extra machinery. In Part 6, `BaseAI` joins the component pattern (it inherits from `BaseComponent`), but it keeps this informal `NotImplementedError` style rather than becoming an `ABC`.
 
 !!! question "Why reuse `BumpAction`?"
     The enemy faces the same problem the player does: at the destination tile there might be a wall, an empty floor, or another entity. `BumpAction` already resolves all three cases (no-op, move, attack). Reusing it here means enemies cannot walk through walls or through each other, and the same `MeleeAction` stub fires when they hit the player.
@@ -582,26 +591,26 @@ from game.constants import colors, sprites
 from game.entity import Entity
 
 player = Entity(
-    char=sprites.PLAYER,
-    color=colors.PLAYER,
-    name="Player",
-    blocks_movement=True,
+    char            = sprites.PLAYER,
+    color           = colors.PLAYER,
+    name            = "Player",
+    blocks_movement = True,
 )
 
 orc = Entity(
-    char=sprites.ORC,
-    color=colors.ORC,
-    name="Orc",
-    blocks_movement=True,
-    ai=HostileEnemy(),
+    char            = sprites.ORC,
+    color           = colors.ORC,
+    name            = "Orc",
+    blocks_movement = True,
+    ai              = HostileEnemy(),
 )
 
 troll = Entity(
-    char=sprites.TROLL,
-    color=colors.TROLL,
-    name="Troll",
-    blocks_movement=True,
-    ai=HostileEnemy(),
+    char            = sprites.TROLL,
+    color           = colors.TROLL,
+    name            = "Troll",
+    blocks_movement = True,
+    ai              = HostileEnemy(),
 )
 ```
 
@@ -611,33 +620,21 @@ troll = Entity(
 
 If you added the debug marker entities from the Part 4 exercises, remove them now. They were useful to test FOV behavior, but Part 5 starts placing real enemies in rooms, and those markers would make the test output harder to read.
 
-Add a `place_entities` function to `game/map/map_generator.py`:
+Add a `place_entities` function to the existing `game/map/map_generator.py`. The `RectangularRoom` class and the `tunnel_between` function from Part 3 stay unchanged. The function spawns monsters from the templates we just defined, so first add `entity_factories` to the imports at the top of the file:
 
 ```python
-import random
-from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from game import entity_factories
+```
 
-import tcod
+Then add the function itself:
 
-from game.map.game_map import GameMap
-from game.map import tile_types
-
-if TYPE_CHECKING:
-    from game.entity import Entity
-
-
+```python
 def place_entities(
     room: RectangularRoom,
     dungeon: GameMap,
     max_monsters: int,
 ) -> None:
     number_of_monsters = random.randint(0, max_monsters)
-
-    # Local import to break a circular dependency at module level:
-    # map_generator → entity_factories → Fighter, AI → engine → game_map → map_generator.
-    # Moving this import to the top of the file would trigger that cycle on startup.
-    from game import entity_factories
 
     for _ in range(number_of_monsters):
         x = random.randint(room.x1 + 1, room.x2 - 1)
@@ -673,16 +670,9 @@ Update `generate_dungeon` to call `place_entities` and accept the new parameter:
          if not rooms:
              player.set_position(*new_room.center)
          else:
-             nearest_room = min(
-                 rooms,
-                 key=lambda room: (
-                     (room.center[0] - new_room.center[0]) ** 2
-                     + (room.center[1] - new_room.center[1]) ** 2
-                 ),
-             )
              for x, y in tunnel_between(
-                 nearest_room.roughly_center,
-                 new_room.roughly_center,
+                rooms[-1].center,
+                new_room.center
              ):
                  dungeon.tiles[x, y] = tile_types.floor
 +
@@ -694,6 +684,27 @@ Update `generate_dungeon` to call `place_entities` and accept the new parameter:
 
      return dungeon
 ```
+
+!!! note "If you did the Part 3 exercises"
+    The tunnel line above is the main-path version (connect to the previous room with `tunnel_between(rooms[-1].center, new_room.center)`). If you connected to the nearest room (Exercise 2) or used `roughly_center` as the tunnel endpoints (Exercise 3), keep your own version of that line. The only additions Part 5 needs are the `max_monsters_per_room` parameter and the `place_entities(new_room, dungeon, max_monsters_per_room)` call inside the `else` branch.
+
+    ```diff
+         else:
+             nearest_room = min(
+                 rooms,
+                 key=lambda room: (
+                     (room.center[0] - new_room.center[0]) ** 2 +
+                     (room.center[1] - new_room.center[1]) ** 2
+                 ),
+             )
+             for x, y in tunnel_between(
+                 nearest_room.roughly_center,
+                 new_room.roughly_center,
+             ):
+                 dungeon.tiles[x, y] = tile_types.floor
+    +
+    +            place_entities(new_room, dungeon, max_monsters_per_room)
+    ```
 
 !!! tip "Why not place enemies in the first room?"
     The player starts in the first room. Spawning enemies there would mean instant combat before the player can even look around. Skipping the `place_entities` call for `rooms[0]` gives the player a safe starting area.
@@ -725,7 +736,7 @@ The `Iterable` and `Any` imports are already in `game/engine.py` from Part 4. We
 +                entity.ai.perform(self, entity)
 ```
 
-`set(...) - {self.player}` creates a copy of the entity set minus the player, so enemies take turns without the player acting twice.
+Two things happen in `set(self.game_map.entities) - {self.player}`. First, `set(...)` takes a snapshot of the entities so we can iterate safely: from Part 6 on, enemies can die and be removed from the set during their turn, and Python raises a `RuntimeError` if a set changes size while you iterate over it. Second, `- {self.player}` removes the player from that snapshot, so the loop steps through enemies only.
 
 !!! info "Invalid actions still consume a turn"
     `MovementAction.perform()` returns silently when the destination is a wall or a blocking entity, but `handle_events` already accepted the action and runs `handle_enemy_turns()` afterwards. So bumping into a wall costs you a turn just like a real move would. This is the most common roguelike convention (Brogue, NetHack, DCSS) and the simplest to teach. If you later want to free the player from the wall-bump tax, the usual approach is to have `perform()` raise a small `Impossible("...")` exception and have the engine skip enemy turns when it catches one. We introduce that mechanism in Part 8.
@@ -835,6 +846,9 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 ```
+
+!!! note "Part 4 exercise carry-overs"
+    If you completed the variable torch radius or fading memory exercises in Part 4, keep passing those arguments when you build the engine here, for example `Engine(game_map=game_map, player=player, fading_memory=True)`. The listing above shows the main path without them.
 
 ---
 
