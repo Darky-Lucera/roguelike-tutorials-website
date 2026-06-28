@@ -254,7 +254,7 @@ class Fighter(BaseComponent):
             self.die()
 
     def die(self) -> None:
-        # Differentiate the message: the player gets a second-person line, enemies the third-person one.
+        # Differentiate the message: the player gets a second-person line, enemies the third-person one
         if self.entity.ai:
             death_message = f"The {self.entity.name} is dead!"
         else:
@@ -472,7 +472,7 @@ class MeleeAction(ActionWithDirection):
             return
 
         if not isinstance(entity, Actor) or not isinstance(target, Actor):
-            return  # Both attacker and defender must be Actors to fight.
+            return  # Both attacker and defender must be Actors to fight
 
         entity.fighter.melee_attack(target)
 ```
@@ -553,7 +553,7 @@ class BaseAI(BaseComponent):
         cost = np.array(engine.game_map.tiles["walkable"], dtype=np.int8)
 
         # Increase cost of tiles occupied by other entities so the pathfinder
-        # routes around them rather than through them.
+        # routes around them rather than through them
         for other in engine.game_map.actors:
             if other is not entity and cost[other.x, other.y]:
                 cost[other.x, other.y] += 10
@@ -562,7 +562,7 @@ class BaseAI(BaseComponent):
         pathfinder = tcod.path.Pathfinder(graph)
         pathfinder.add_root((entity.x, entity.y))
 
-        # [1:] drops the starting position (current tile).
+        # [1:] drops the starting position (current tile)
         path: list[list[int]] = pathfinder.path_to((dest_x, dest_y))[1:].tolist()
 
         return [(x, y) for x, y in path]
@@ -572,7 +572,7 @@ class HostileEnemy(BaseAI):
 
     def perform(self, engine: Engine, entity: Actor) -> None:
         if not engine.game_map.visible[entity.x, entity.y]:
-            return  # Out of player FOV; cannot act.
+            return  # Out of player FOV; cannot act
 
         target = engine.player
         dx = target.x - entity.x
@@ -648,7 +648,7 @@ class GameOverEventHandler(EventHandler):
         if event.sym == tcod.event.KeySym.ESCAPE:
             return EscapeAction()
 
-        return None  # All other keys are ignored.
+        return None  # All other keys are ignored
 ```
 
 Now update `Engine` to swap the handler after each turn if the player is no longer alive, and at the same time switch `handle_enemy_turns` to iterate `actors` (which already filters out corpses):

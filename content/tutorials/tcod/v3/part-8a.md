@@ -181,7 +181,7 @@ The two new components introduced in this chapter (`Inventory` and `Consumable`)
 
 `entity.py` changes in several steps. Each step introduces one concept before the next one depends on it.
 
-## Step 1: Remove `ai` from `Entity` and expand TYPE_CHECKING imports
+### Step 1: Remove `ai` from `Entity` and expand TYPE_CHECKING imports
 
 `ai` is an `Actor` concern, not an `Entity` concern. Plain entities (passive blockers, map decorations) never have AI. Keeping it on the base class was a holdover from before `Actor` existed.
 
@@ -210,7 +210,7 @@ At the same time, add the imports that the new classes and annotations in this c
 -        self.ai              = ai
 ```
 
-## Step 2: Add the `owner` field
+### Step 2: Add the `owner` field
 
 Add `owner` as the first parameter of `__init__`, and auto-register the entity when an owner is provided:
 
@@ -254,7 +254,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 
         `Inventory` is only set later, on pickup, so accepting it at construction time would be misleading.
 
-## Step 3: Update `spawn()`
+### Step 3: Update `spawn()`
 
 `spawn()` existed since Part 5. It creates a deep copy and adds it to the map's entity set. Now it also sets `owner` on the clone:
 
@@ -268,7 +268,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
          return clone
 ```
 
-## Step 4: Add `place()`
+### Step 4: Add `place()`
 
 `place()` moves an entity to a new position and optionally transfers it to a new owner. The inventory `drop()` method calls it to return an item to the dungeon floor:
 
@@ -291,7 +291,7 @@ The constructor parameter is `GameMap | None`: entities start on the map or unow
 
 The local import makes `GameMap` available at runtime without introducing a module-level circular import. `self.owner is not None` guards against placing a fresh template entity for the first time. Once that check passes, `isinstance(self.owner, GameMap)` determines whether the entity is registered directly with the map and needs to be removed from it: items being dropped from inventory have `owner = Inventory`, so the isinstance check is `False` and the discard is skipped correctly.
 
-## Step 5: Add `inventory` to `Actor` and fix the `ai` annotation
+### Step 5: Add `inventory` to `Actor` and fix the `ai` annotation
 
 `Actor` now requires an `Inventory` component. This step also cleans up the `ai` wiring: since `Entity` no longer accepts `ai`, `Actor` must own the attribute directly.
 
@@ -335,7 +335,7 @@ Update `Actor.__init__`:
 
 `ai=ai` is no longer passed to `super().__init__()` because `Entity` no longer accepts it.
 
-## Step 6: Add the `Item` class
+### Step 6: Add the `Item` class
 
 `Item` is parallel to `Actor`: a specialised entity with its own required component. Replace the stub with the full class:
 
@@ -503,10 +503,6 @@ class TreasureConsumable(Consumable):
 
     def __init__(self, value: int) -> None:
         self.value = value
-
-    def on_contact(self, engine: Engine, consumer: Actor) -> None:
-        if consumer is engine.player:
-            super().on_contact(engine, consumer)
 
     def activate(self, _action: Action, engine: Engine, consumer: Actor) -> None:
         consumer.inventory.gold += self.value
@@ -677,6 +673,7 @@ Also expand the signature of `generate_dungeon` itself to accept the item parame
 +    min_items_per_room: int,
 +    max_items_per_room: int,
      player: Entity,
+     seed: int,
  ) -> GameMap:
 ```
 
@@ -726,6 +723,7 @@ Pass them to `generate_dungeon`:
 +        min_items_per_room    = min_items_per_room,
 +        max_items_per_room    = max_items_per_room,
          player                = player,
+         seed                  = seed,
      )
 ```
 

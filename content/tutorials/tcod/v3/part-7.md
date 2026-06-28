@@ -348,7 +348,7 @@ def _draw_panel(
     shadow: bool = True,
 ) -> None:
     if shadow:
-        # Draw the panel shadow one tile down and to the right.
+        # Draw the panel shadow one tile down and to the right
         console.draw_rect(
             x      = x + 1,
             y      = y + 1,
@@ -358,7 +358,7 @@ def _draw_panel(
             bg     = colors.BLACK,
         )
 
-    # Fill the panel interior with the selected background color.
+    # Fill the panel interior with the selected background color
     console.draw_rect(
         x        = x,
         y        = y,
@@ -370,7 +370,7 @@ def _draw_panel(
         bg_blend = tcod.constants.BKGND_SET,
     )
 
-    # Draw the panel frame over the filled background.
+    # Draw the panel frame over the filled background
     console.draw_frame(
         x      = x,
         y      = y,
@@ -433,7 +433,7 @@ class GameOverState(GameState):
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
-        # Dim the map background to highlight the game-over screen.
+        # Dim the map background to highlight the game-over screen
         console.fg[:] = console.fg // 2
         console.bg[:] = console.bg // 2
 
@@ -445,10 +445,10 @@ class GameOverState(GameState):
         x = (console.width  - width)  // 2
         y = (console.height - height) // 2
 
-        # Draw the game-over box.
+        # Draw the game-over box
         _draw_panel(console, x, y, width, height, self.FG_COLOR, self.BG_COLOR)
 
-        # Draw the centered game-over title over the frame.
+        # Draw the centered game-over title over the frame
         console.print(
             x    = x + (width - len(title)) // 2,
             y    = y,
@@ -457,7 +457,7 @@ class GameOverState(GameState):
             bg   = self.BG_COLOR,
         )
 
-        # Draw the main game-over line.
+        # Draw the main game-over line
         console.print(
             x         = console.width // 2,
             y         = y + 2,
@@ -466,7 +466,7 @@ class GameOverState(GameState):
             alignment = tcod.constants.CENTER,
         )
 
-        # Draw the quit hint at the bottom of the panel.
+        # Draw the quit hint at the bottom of the panel
         console.print(
             x         = console.width // 2,
             y         = y + height - 2,

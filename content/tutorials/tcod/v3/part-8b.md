@@ -338,7 +338,7 @@ class InventoryState(GameState):
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)  # draws the map behind the overlay
 
-        # Dim the map background to highlight the inventory.
+        # Dim the map background to highlight the inventory
         console.fg[:] = console.fg // 2
         console.bg[:] = console.bg // 2
 
@@ -365,11 +365,11 @@ class InventoryState(GameState):
         x = (console.width  - width)  // 2
         y = (console.height - height) // 2
 
-        # Draw the inventory box.
+        # Draw the inventory box
         _draw_panel(console, x, y, width, height, self.FG_COLOR, self.BG_COLOR)
 
         title = f" {self.TITLE} "
-        # Draw the inventory title over the frame.
+        # Draw the inventory title over the frame
         console.print(
             x    = x + (width - len(title)) // 2,
             y    = y,
@@ -378,7 +378,7 @@ class InventoryState(GameState):
             bg   = self.BG_COLOR,
         )
 
-        # Draw the main help text.
+        # Draw the main help text
         console.print(
             x         = console.width // 2,
             y         = y + 2,
@@ -395,7 +395,7 @@ class InventoryState(GameState):
                 item_key = chr(ord("a") + i)
                 row_y = y + 4 + i
 
-                # Draw the background for one item row.
+                # Draw the background for one item row
                 console.draw_rect(
                     x      = row_x,
                     y      = row_y,
@@ -405,7 +405,7 @@ class InventoryState(GameState):
                     bg     = self.ROW_BG_COLOR,
                 )
 
-                # Draw the key that selects this item.
+                # Draw the key that selects this item
                 console.print(
                     row_x + 2,
                     row_y,
@@ -414,7 +414,7 @@ class InventoryState(GameState):
                     bg = self.ACCENT_COLOR,
                 )
 
-                # Draw the item glyph using its own color.
+                # Draw the item glyph using its own color
                 console.print(
                     row_x + 8,
                     row_y,
@@ -423,7 +423,7 @@ class InventoryState(GameState):
                     bg = self.ROW_BG_COLOR,
                 )
 
-                # Draw the item name, trimmed if it does not fit.
+                # Draw the item name, trimmed if it does not fit
                 console.print(
                     row_x + 10,
                     row_y,
@@ -435,7 +435,7 @@ class InventoryState(GameState):
         else:
             row_y = y + 4
 
-            # Draw the empty row when there are no items.
+            # Draw the empty row when there are no items
             console.draw_rect(
                 x      = row_x,
                 y      = row_y,
@@ -445,7 +445,7 @@ class InventoryState(GameState):
                 bg     = self.ROW_BG_COLOR,
             )
 
-            # Draw the empty-inventory message.
+            # Draw the empty-inventory message
             console.print(
                 x         = console.width // 2,
                 y         = row_y,
@@ -455,7 +455,7 @@ class InventoryState(GameState):
                 alignment = tcod.constants.CENTER,
             )
 
-        # Draw the used-slots counter after the item list.
+        # Draw the used-slots counter after the item list
         console.print(
             x         = console.width // 2,
             y         = y + height - 2,
@@ -505,7 +505,6 @@ class InventoryUseState(InventoryState):
 **The use inventory overlay looks like this**:
 
 ![Inventory: Use Item](images/window_inventory_use1.png)
-
 
 ```python
 class InventoryDropState(InventoryState):
@@ -561,7 +560,7 @@ Also add `Item` to the imports at the top of `game_states.py` so that `on_item_s
 
 Part 8a defined both consumable types and spawned chests on the floor. The chest template and `auto_activate = True` are already in place. This section adds the three pieces that make chests actually work: the `GameMap` helper, the contact method on `Consumable`, and the HUD element that shows the accumulated gold.
 
-## Auto-collect in `MovementAction`
+### Auto-collect in `MovementAction`
 
 `PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. This requires three additions.
 
@@ -580,8 +579,26 @@ Second, add an `on_contact` method to `Consumable`. It activates the item if `au
      auto_activate: bool = False
 
 +    def on_contact(self, engine: Engine, consumer: Actor) -> None:
++        from game.actions import ItemAction
++
 +        if self.auto_activate:
 +            ItemAction(item=self.entity).perform(engine, consumer)
+```
+
+`TreasureConsumable` overrides `on_contact` so that only the player collects a chest; a wandering monster that steps on it leaves it untouched. Add the override in `game/entities/components/consumable.py`:
+
+```diff
+ class TreasureConsumable(Consumable):
+     auto_activate = True
+
+     def __init__(self, value: int) -> None:
+         self.value = value
+
++    def on_contact(self, engine: Engine, consumer: Actor) -> None:
++        if consumer is engine.player:
++            super().on_contact(engine, consumer)
++
+     def activate(self, _action: ItemAction, engine: Engine, consumer: Actor) -> None:
 ```
 
 Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for every item on the new tile:
@@ -596,9 +613,9 @@ Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for 
 
 The `isinstance(entity, Actor)` check satisfies the type checker: `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
 
-`items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. There is no player-only guard here: every actor that steps on a tile triggers contact. Whether the consumable reacts depends on the consumable itself.
+`items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. The `MovementAction` wiring has no player check: it fires `on_contact` for every actor that steps on the tile. The decision to react lives in the consumable: `TreasureConsumable` only acts when the consumer is the player (so a wandering monster cannot scoop up a chest), while a different consumable could choose to react to anyone.
 
-## `render_gold` in `hud.py`
+### `render_gold` in `hud.py`
 
 Add a one-line gold display below the HP bar:
 

@@ -113,20 +113,14 @@ Before writing the class, add the cursor navigation constants to `game/constants
 
 ```diff
  KEY_QUIT_GAME   = tcod.event.KeySym.ESCAPE
--KEY_EXIT_MENU   = tcod.event.KeySym.ESCAPE
-+KEY_EXIT        = tcod.event.KeySym.ESCAPE
+ KEY_EXIT        = tcod.event.KeySym.ESCAPE
 +KEY_SELECT      = {tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER}
 +
 +CURSOR_FAST     = tcod.event.Modifier.LSHIFT | tcod.event.Modifier.RSHIFT  # ×5
 +CURSOR_FASTER   = tcod.event.Modifier.LCTRL  | tcod.event.Modifier.RCTRL   # ×10
 ```
 
-`KEY_EXIT` replaces `KEY_EXIT_MENU`: both were `ESCAPE`, but the new name fits any modal overlay (menus, cursors, dialogs), not just inventory screens. Update the `InventoryState` usage accordingly:
-
-```diff
--if key == keys.KEY_EXIT_MENU:
-+if key == keys.KEY_EXIT:
-```
+`KEY_EXIT` already exists from Part 8 Exercise 4 and covers any modal overlay (menus, cursors, dialogs), so there is nothing to rename here; we only add the cursor-navigation keys `KEY_SELECT`, `CURSOR_FAST`, and `CURSOR_FASTER`.
 
 Now add to `game/game_states.py`. This class uses the centralised key bindings from Part 8 Exercise 4, so make sure the imports at the top include `keys`:
 
@@ -226,8 +220,10 @@ The `callback` is a function that accepts `(x, y)` and returns an `Action`. The 
 The state does not hardcode a color. Different spells may want different highlight colors, so `color` is passed as a parameter alongside `radius`. The calling consumable decides which color to use. Add `FIREBALL_AOE` to `game/constants/colors.py`:
 
 ```python
-FIREBALL_AOE = Color(0xFF, 0x00, 0x00)
+FIREBALL_AOE = Color(255, 0, 0)
 ```
+
+Keep it as its own constant rather than reusing the scroll's item color, so the blast highlight can diverge from the glyph later.
 
 Add the class to `game/game_states.py`:
 
@@ -311,7 +307,7 @@ Now add two straight-line checks. They share the same shape, but answer differen
 - **`has_line_of_sight`** asks whether vision can pass along the line, so it uses `is_opaque`.
 - **`has_line_of_movement`** asks whether a straight-line path can be traversed, so it uses `is_blocking`.
 
-The fireball AoE will use `has_line_of_sight`. That keeps this targeting rule tied to what the map currently knows about visibility: opaque tiles stop the blast preview, transparent tiles do not. `has_line_of_movement` is still useful for straight-line movement rules that should be blocked by non-walkable tiles.
+The fireball AoE will use `has_line_of_sight`. That keeps this targeting rule tied to what the map currently knows about visibility: opaque tiles stop the blast preview, transparent tiles do not. We add `has_line_of_movement` now as its deliberate companion: the same Bresenham shape, but answering the *traversal* question (is the straight path blocked by a non-walkable tile?) rather than the *vision* one. Part 9 never calls it, yet it is exactly what a later straight-line movement effect needs, such as a charge or dash spell that must stop at the first wall. Writing the pair together keeps the two questions, vision via `is_opaque` and traversal via `is_blocking`, side by side.
 
 ```python
 import math
@@ -361,7 +357,7 @@ def has_line_of_movement(self, origin_x: int, origin_y: int, target_x: int, targ
 
 ```python
 def get_aoe_tiles_in_radius(self, center_x: int, center_y: int, radius: float):
-    area = np.zeros((self.width, self.height), dtype=bool, order='F')
+    area = np.zeros((self.width, self.height), dtype=bool, order="F")
 
     if not self.in_bounds(center_x, center_y):
         return area
@@ -416,11 +412,13 @@ def on_render(self, console: tcod.console.Console) -> None:
 
 The circle above has a hard edge: each tile is either fully highlighted or not. Tiles right at the boundary look jagged. We can soften this by giving edge tiles a fractional weight.
 
+`get_aoe_weights_in_radius` is the antialiased upgrade of `get_aoe_tiles_in_radius`: the same circle-and-line-of-sight logic, but it returns graded weights instead of a hard yes/no mask. We keep both on purpose. The boolean version stays as the cheaper primitive for any code that only needs to know *whether* a tile is in the blast (no float weights to carry); the weighted version is what the fireball uses, because it drives the smooth preview and the damage falloff from the same numbers.
+
 Add `get_aoe_weights_in_radius` to `GameMap`. It returns a `float32` array where interior tiles carry `1.0` and edge tiles carry a value between `0.0` and `1.0`:
 
 ```python
 def get_aoe_weights_in_radius(self, center_x: int, center_y: int, radius: float):
-    weights = np.zeros((self.width, self.height), dtype=np.float32, order='F')
+    weights = np.zeros((self.width, self.height), dtype=np.float32, order="F")
 
     if not self.in_bounds(center_x, center_y):
         return weights
@@ -458,7 +456,7 @@ def get_aoe_weights_in_radius(self, center_x: int, center_y: int, radius: float)
     return weights
 ```
 
-Here we need the actual distance, not just a comparison, so `math.hypot(dx, dy)` is the right tool, as we saw in `Entity.distance`. Tiles within `radius` get `alpha = 1.0`. Tiles in the one-unit border zone get a linear fade down to `0.0`. Tiles beyond `radius + 1` are skipped.
+Unlike Step 2's `get_aoe_tiles_in_radius`, which only needed a yes/no threshold and so compared squared distances to avoid `math.sqrt`, here we need the *actual* fractional distance to compute the edge fade, so `math.hypot(dx, dy)` is the right tool (the same one we used in `Entity.distance`). Tiles within `radius` get `alpha = 1.0`. Tiles in the one-unit border zone get a linear fade down to `0.0`. Tiles beyond `radius + 1` are skipped.
 
 Update `on_render` to scale the highlight color by each tile's weight. Add this import to `game/game_states.py`:
 
@@ -594,6 +592,59 @@ Note that `callback` uses `ItemAction(item=item, target_pos=pos)`. The `target_p
 
 ---
 
+## ConfusedEnemy AI
+
+Add to `game/entities/components/ai.py`:
+
+```python
+import random
+
+from game.message_log import MessageLog
+```
+
+```python
+class ConfusedEnemy(BaseAI):
+
+    def __init__(
+        self,
+        entity: Actor,
+        previous_ai: BaseAI | None,
+        turns_remaining: int,
+    ) -> None:
+        super().__init__()
+        self.entity = entity
+        self.previous_ai = previous_ai
+        self.turns_remaining = turns_remaining
+
+    def perform(self, engine: Engine, entity: Actor) -> None:
+        if self.turns_remaining <= 0:
+            MessageLog.add_message(
+                f"The {entity.name} is no longer confused."
+            )
+            entity.ai = self.previous_ai
+
+        else:
+            direction_x, direction_y = random.choice(
+                [
+                    (-1, -1), (0, -1), (1, -1),
+                    (-1,  0),          (1,  0),
+                    (-1,  1), (0,  1), (1,  1),
+                ]
+            )
+            self.turns_remaining -= 1
+            BumpAction(direction_x, direction_y).perform(engine, entity)
+```
+
+A confused enemy picks a random direction each turn. It can still accidentally attack the player if it bumps into them; this is a feature, not a bug. When the confusion expires it restores its previous AI.
+
+!!! info "Why does `ConfusedEnemy` receive `entity` in `__init__`?"
+    Every other component gets its `entity` set externally after creation (`component.entity = self` in `Actor.__init__`). `ConfusedEnemy` is different because it is created at runtime during gameplay, not at game initialisation. The target actor is already known at construction time, so passing `entity` directly and assigning `self.entity = entity` in `__init__` is the right approach here.
+
+!!! tip "Part 6 Exercise 3: update CowardEnemy to use this pattern"
+    If you implemented the flee behavior from Part 6 Exercise 3, `CowardEnemy` currently has no way to revert when the enemy recovers HP. Apply the same `previous_ai` pattern here: give `CowardEnemy` a `previous_ai` parameter in `__init__`, and at the start of `perform()` check `entity.fighter.should_flee()`. If it returns `False`, restore `previous_ai` and act normally. Pass `previous_ai=entity.ai` when constructing `CowardEnemy` in `HostileEnemy.perform()`.
+
+---
+
 ## Three new consumables
 
 ### LightningDamageConsumable (auto-target nearest)
@@ -644,6 +695,13 @@ Update the imports at the top of `consumable.py`. The targeting classes now come
 +from game.entities.components.ai import ConfusedEnemy
 ```
 
+Add the targeting colors to `game/constants/colors.py` (used by the confusion message below and, shortly, by the targeting prompt in `handle_events`):
+
+```python
+NEEDS_TARGET          = Color(63, 255, 255)
+STATUS_EFFECT_APPLIED = Color(63, 255, 63)
+```
+
 ```python
 class ConfusionConsumable(Consumable):
 
@@ -653,10 +711,13 @@ class ConfusionConsumable(Consumable):
     def get_action(self, _consumer: Actor, _engine: Engine) -> Action:
         return SingleRangedTargetingAction(
             item   = self.entity,
-            prompt = "Select a target location.",
+            prompt = "Select an enemy.",
         )
 
-    def activate(self, action, engine: Engine, consumer: Actor) -> None:
+    def activate(self, action: ItemAction, engine: Engine, consumer: Actor) -> None:
+        if action.target_pos is None:
+            raise Impossible("You need to select a target")
+
         target = engine.game_map.get_actor_at_location(*action.target_pos)
 
         if not target:
@@ -681,13 +742,6 @@ class ConfusionConsumable(Consumable):
 ```
 
 `get_action()` now returns a value. `_engine` becomes genuinely unused and is underscored. `GameState.handle_events()` reads the returned `SingleRangedTargetingAction`, installs the state, and shows the prompt; the consumable does none of that work.
-
-Add colors to `game/constants/colors.py`:
-
-```python
-NEEDS_TARGET          = Color(0x3F, 0xFF, 0xFF)
-STATUS_EFFECT_APPLIED = Color(0x3F, 0xFF, 0x3F)
-```
 
 `ItemAction` needs a `target_pos` parameter. Add it to `__init__` in `game/actions.py`:
 
@@ -757,60 +811,10 @@ class FireballDamageConsumable(Consumable):
 
 ---
 
-## ConfusedEnemy AI
-
-Add to `game/entities/components/ai.py`:
-
-```python
-import random
-
-from game.message_log import MessageLog
-```
-
-```python
-class ConfusedEnemy(BaseAI):
-
-    def __init__(
-        self,
-        entity: Actor,
-        previous_ai: BaseAI | None,
-        turns_remaining: int,
-    ) -> None:
-        super().__init__()
-        self.entity = entity
-        self.previous_ai = previous_ai
-        self.turns_remaining = turns_remaining
-
-    def perform(self, engine: Engine, entity: Actor) -> None:
-        if self.turns_remaining <= 0:
-            MessageLog.add_message(
-                f"The {entity.name} is no longer confused."
-            )
-            entity.ai = self.previous_ai
-
-        else:
-            direction_x, direction_y = random.choice(
-                [
-                    (-1, -1), (0, -1), (1, -1),
-                    (-1,  0),          (1,  0),
-                    (-1,  1), (0,  1), (1,  1),
-                ]
-            )
-            self.turns_remaining -= 1
-            BumpAction(direction_x, direction_y).perform(engine, entity)
-```
-
-A confused enemy picks a random direction each turn. It can still accidentally attack the player if it bumps into them; this is a feature, not a bug. When the confusion expires it restores its previous AI.
-
-!!! info "Why does `ConfusedEnemy` receive `entity` in `__init__`?"
-    Every other component gets its `entity` set externally after creation (`component.entity = self` in `Actor.__init__`). `ConfusedEnemy` is different because it is created at runtime during gameplay, not at game initialisation. The target actor is already known at construction time, so passing `entity` directly and assigning `self.entity = entity` in `__init__` is the right approach here.
-
-!!! tip "Exercise 6.3: update CowardEnemy to use this pattern"
-    If you implemented the flee behavior from Exercise 6.3, `CowardEnemy` currently has no way to revert when the enemy recovers HP. Apply the same `previous_ai` pattern here: give `CowardEnemy` a `previous_ai` parameter in `__init__`, and at the start of `perform()` check `entity.fighter.should_flee()`. If it returns `False`, restore `previous_ai` and act normally. Pass `previous_ai=entity.ai` when constructing `CowardEnemy` in `HostileEnemy.perform()`.
-
----
-
 ## game/entities/factories.py: add scrolls
+
+!!! note "If you skipped Part 8 Exercises 2 or 3"
+    This section reuses two optional Part 8 exercises. **Exercise 2** added `BackpackConsumable` and the `backpack_scroll` template: if you skipped it, omit the `BackpackConsumable` import and the `backpack_scroll` line in `item_chances`. **Exercise 3** added the `key` parameter to `Item`: if you skipped it, omit the `key=` lines on each scroll. (Exercise 4, the declared prerequisite, normally implies Exercise 3.)
 
 Add the scroll hotkeys to `keys.py`:
 
@@ -825,7 +829,7 @@ Add the scroll hotkeys to `keys.py`:
 ```python
 from game.constants import colors, keys, sprites
 from game.entities.components.consumable import (
-    BackpackConsumable,
+    BackpackConsumable,  # Part-8. Exercise 2: Backpack growing scroll
     ConfusionConsumable,
     FireballDamageConsumable,
     HealingConsumable,
@@ -1097,7 +1101,7 @@ game/
 
 2. **Drain scroll**:
 
-    Add a `DrainConsumable(damage: float, maximum_range: int)` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a target to drain."`. The scroll drains `damage` HP from the target using `fighter.take_damage()` and transfers the same amount to the player using `fighter.heal()`, capped at max HP. If the enemy dies before all the drain is applied, heal only what it had left: read the target's HP before the hit, and the player recovers `min(damage, that)`. Show two messages: one for the damage dealt and one for the HP recovered.
+    Add a `DrainConsumable(damage: float, maximum_range: int)` that returns a `SingleRangedTargetingAction` from `get_action()` with prompt `"Select a target to drain."`. The scroll drains HP from the target and transfers the same amount to the player. Compute the actual amount once, capped at what the target has left so a dying enemy cannot over-heal you, and reuse it on both sides: read the target's HP before the hit and set `amount_drained = min(self.damage, target.fighter.hp)`. Apply it with `target.fighter.take_damage(amount_drained)` and `consumer.fighter.heal(amount_drained)` (heal is itself capped at max HP). Show two messages: one for the damage dealt and one for the HP recovered.
 
     In `activate()`, combine target validation into a single guard (this also prevents targeting corpses with `ai is None`):
 

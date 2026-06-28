@@ -131,6 +131,9 @@ ogre = Actor(
 )
 ```
 
+!!! note "`max_capacity` is from Part 8 Exercise 2"
+    `max_capacity` is the parameter the Part 8 backpack-scroll exercise added to `Inventory` (required, no default). If you did that exercise, keep `max_capacity=0`; if you skipped it, drop it and write `inventory = Inventory(capacity=0)`. The same choice applies to every new `Inventory(...)` in this chapter, including the ghoul exercise below.
+
 The ogre is the brave, dim opposite of the troll: no flee, no regeneration, just bulk and a heavy swing. Its defense stays at 1 on purpose, so the threat is hit points and damage, not an armor wall that would punish a low-attack character. Note what adding a whole new monster did *not* require: the generator, `place_entities`, and the helpers are all untouched. A new template plus one line in the weight table is the entire change, which is exactly the payoff this chapter is building toward.
 
 ---
@@ -551,7 +554,7 @@ game/
             for x, y in free
             if max(abs(x - stair_pos[0]), abs(y - stair_pos[1])) <= 2
         ]
-        guardian_pos = random.choice(near_stairs) if near_stairs else last_room.roughly_center
+        guardian_pos = random.choice(near_stairs) if near_stairs else last_room.center
 
         guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)
         guardian.spawn(dungeon, *guardian_pos)
@@ -561,7 +564,7 @@ game/
 
     Add a deep-floor monster that is the **opposite of the ogre**: a frail glass cannon with low HP and low defense, but a hungry **lifesteal** that heals it for most of the damage it lands. A slow trade drags on as it claws back your damage, so the lesson is to burst it down or strike from range before it leeches.
 
-    The design question is *where* the lifesteal belongs. Attacks resolve in `Fighter.melee_attack`, not in the AI, so that is where the attacker should heal, and only when the hit actually deals damage. The heal is capped by the ghoul's own `max_hp` (the `hp` setter already clamps it), so it cannot snowball its own pool; the real threat is the life it drains from *you*. Spawn it around the ogre's depth but a little earlier and rarer, so the player meets the drainer and learns to burst it before the heavier wall arrives.
+    The design question is *where* the lifesteal belongs. Attacks resolve in `Fighter.melee_attack`, not in the AI, so that is where the attacker should heal, and only when the hit actually deals damage. The heal is capped by the ghoul's own `max_hp` (`heal()` already clamps the result to `max_hp`), so it cannot snowball its own pool; the real threat is the life it drains from *you*. Spawn it around the ogre's depth but a little earlier and rarer, so the player meets the drainer and learns to burst it before the heavier wall arrives.
 
     ??? note "Reference implementation"
         `Fighter` (`game/entities/components/fighter.py`): add a `lifesteal: float = 0.0` parameter, store it as `self.lifesteal`, and heal the attacker at the end of `melee_attack`:
@@ -575,6 +578,18 @@ game/
         +    if self.lifesteal > 0:
         +        drained_life = damage * self.lifesteal
         +        self.heal(drained_life)
+        ```
+
+        Add the ghoul's glyph and color first, mirroring the ogre. In `game/constants/sprites.py`:
+
+        ```python
+        GHOUL = "g"
+        ```
+
+        In `game/constants/colors.py`:
+
+        ```python
+        GHOUL = Color(127, 191, 127)
         ```
 
         In `game/entities/factories.py`, below `troll`:
@@ -771,7 +786,7 @@ game/
 
         The `# Part-6. Exercise 3: Flee behavior` block above belongs here only if you completed that exercise; omit it otherwise.
 
-        Then in `generate_dungeon()` (`game/map/map_generator.py`), give the guardian from Exercise 1 a `home`. This needs `Actor` and `HostileEnemy` imported in `map_generator.py` (`from game.entities.entity import Actor`, `from game.entities.components.ai import HostileEnemy`):
+        Then in `generate_dungeon()` (`game/map/map_generator.py`), give the guardian from Exercise 1 a `home`. This only applies if you did Exercise 1: the `guardian` and `guardian_pos` variables come from its code, and the diff below replaces its `guardian.spawn(...)` line. It also needs `Actor` and `HostileEnemy` imported in `map_generator.py` (`from game.entities.entity import Actor`, `from game.entities.components.ai import HostileEnemy`):
 
         ```diff
         guardian = max(monsters_available, key=lambda monster: monster.level.xp_given)

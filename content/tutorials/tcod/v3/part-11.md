@@ -186,7 +186,7 @@ Update `game/entities/components/fighter.py`. Remove the `hp` setter entirely, t
 
         if self.hp == 0:
             # Part-10. Exercise 2: Record a graveyard file
-            # Self-inflicted deaths do not count as kills.
+            # Self-inflicted deaths do not count as kills
             if attacker is not self.entity:
                 attacker.fighter.kill_count += 1
             self.die(attacker)
@@ -196,6 +196,8 @@ Because `take_damage()` now requires an attacker, update every damage call site 
 
 !!! note "Part 10 Exercise 2: graveyard file"
     If you completed that exercise, `take_damage` already has the `attacker` parameter and the call-site updates below are already in place. The only new changes for you are the body of `take_damage` shown above: the `_hp` cleanup and the `self.die(attacker)` call.
+
+    **If you skipped that exercise**, your `Fighter` has no `kill_count` attribute, so omit the two `# Part-10. Exercise 2` lines above (`if attacker is not self.entity:` and `attacker.fighter.kill_count += 1`). The body then reads simply `if self.hp == 0: self.die(attacker)`. The `attacker` parameter and the call-site updates below are still required either way.
 
 In `Fighter.melee_attack()`, pass the actor that is making the attack:
 
@@ -712,7 +714,7 @@ class LevelUpState(GameState):
     def on_render(self, console: tcod.console.Console) -> None:
         super().on_render(console)
 
-        # Dim the map background to highlight the level-up menu.
+        # Dim the map background to highlight the level-up menu
         console.fg[:] = console.fg // 2
         console.bg[:] = console.bg // 2
 
@@ -728,7 +730,7 @@ class LevelUpState(GameState):
         x = (console.width  - width)  // 2
         y = (console.height - height) // 2
 
-        # Draw the level-up menu box.
+        # Draw the level-up menu box
         _draw_panel(
             console,
             x,
@@ -740,7 +742,7 @@ class LevelUpState(GameState):
         )
 
         title = f" {self.TITLE} "
-        # Draw the title over the top frame.
+        # Draw the title over the top frame
         console.print(
             x    = x + (width - len(title)) // 2,
             y    = y,
@@ -749,7 +751,7 @@ class LevelUpState(GameState):
             bg   = colors.LEVEL_UP_MENU_BG,
         )
 
-        # Draw the congratulations message.
+        # Draw the congratulations message
         console.print(
             x         = console.width // 2,
             y         = y + 2,
@@ -758,7 +760,7 @@ class LevelUpState(GameState):
             alignment = tcod.constants.CENTER,
         )
 
-        # Draw the instruction for choosing an attribute.
+        # Draw the instruction for choosing an attribute
         console.print(
             x         = console.width // 2,
             y         = y + 3,
@@ -772,7 +774,7 @@ class LevelUpState(GameState):
         for index, (key, name, bonus, current) in enumerate(options):
             row_y = y + 6 + index * 2
 
-            # Draw the background for one attribute option.
+            # Draw the background for one attribute option
             console.draw_rect(
                 x      = row_x,
                 y      = row_y,
@@ -782,7 +784,7 @@ class LevelUpState(GameState):
                 bg     = colors.LEVEL_UP_MENU_ROW_BG,
             )
 
-            # Draw the key that selects this option.
+            # Draw the key that selects this option
             console.print(
                 row_x + 2,
                 row_y,
@@ -791,7 +793,7 @@ class LevelUpState(GameState):
                 bg = colors.LEVEL_UP_MENU_ACCENT,
             )
 
-            # Draw the attribute name.
+            # Draw the attribute name
             console.print(
                 row_x + 8,
                 row_y,
@@ -800,7 +802,7 @@ class LevelUpState(GameState):
                 bg = colors.LEVEL_UP_MENU_ROW_BG,
             )
 
-            # Draw the bonus that will be applied.
+            # Draw the bonus that will be applied
             console.print(
                 row_x + 22,
                 row_y,
@@ -809,7 +811,7 @@ class LevelUpState(GameState):
                 bg = colors.LEVEL_UP_MENU_ROW_BG,
             )
 
-            # Draw the current attribute value.
+            # Draw the current attribute value
             console.print(
                 row_x + 35,
                 row_y,
@@ -821,11 +823,11 @@ class LevelUpState(GameState):
 
 *The finished Level Up stats overlay looks like this*:
 
-![Level Up](images/window_gameover_stats.png)
+![Level Up](images/window_level_up.png)
 
 The dimming and the drop shadow come straight from Part 7: `// 2` halves every color channel of the frame already rendered, and `_draw_panel` draws the shadow, fill, and frame in one call. The key badges (`[ a ]`, dark text over the accent color) match the style of the inventory rows from Part 8, so every selectable option in the game now looks the same.
 
-### event_keydown and handle_events
+### event_keydown
 
 ```python
     def event_keydown(self, event: tcod.event.KeyDown) -> BaseGameState | None:
@@ -846,13 +848,6 @@ The dimming and the drop shadow come straight from Part 7: `// 2` halves every c
             return None
 
         return MainGameState(self.engine)
-
-    def handle_events(self, event: tcod.event.Event) -> BaseGameState:
-        result = super().handle_events(event)
-        if result is not self:
-            return result
-
-        return self
 ```
 
 ### Triggering the modal

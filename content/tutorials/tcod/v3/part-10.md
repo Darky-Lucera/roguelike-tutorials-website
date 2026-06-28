@@ -128,11 +128,13 @@ Loading is the inverse:
 
 The active state is now the root of the saved object graph. Any state that inherits from `GameState` stores the engine on `self.engine`, so code that needs the engine can access it through the current state after checking that the state is engine-backed.
 
+`load()` returns the saved state without a type annotation, and `save_as` (above) types its `active_state` as the loose `object`, on purpose: `engine.py` must not import the `GameState` classes, since that would recreate the very `engine → game_states` circular import this part is dismantling. The state stays deliberately untyped at this boundary.
+
 ---
 
 ## game/constants/config.py
 
-The `game/constants/` package already holds `colors.py`, `sprites.py`, and `keys.py`. This is a good moment to add a fourth member: a home for numeric and text constants that are currently scattered across `main.py`, `hud.py`, and component defaults.
+The `game/constants/` package already holds `colors.py`, `sprites.py`, and `keys.py`. This is a good moment to add a fourth member: a home for numeric and text constants that are currently scattered across `main.py` and component defaults (plus a couple staged here for later chapters).
 
 Create `game/constants/config.py`:
 
@@ -181,7 +183,10 @@ DEFAULT_CRITICAL_MULTIPLIER = 2.0
 
 `RES_DIR` lives here rather than in `setup_game.py` because two unrelated modules need it: `main.py` for the tileset and `MainMenuState` for the background image. A single definition prevents drift.
 
-`DEFAULT_CRITICAL_CHANCE` and `DEFAULT_CRITICAL_MULTIPLIER` name the values that were previously anonymous `0.1` and `2.0` literals in `Fighter.__init__`. `BAR_WIDTH` and `XP_LEVEL_WIDTH` move here from `hud.py`, and `FOV_RADIUS` replaces the hardcoded `8` in `Engine.__init__`.
+`FOV_RADIUS` replaces the hardcoded `8` in `Engine.__init__`. `BAR_WIDTH` (widened from the old `20` to `24`) and `XP_LEVEL_WIDTH` are staged here for the Part 11 HUD rework; nothing in Part 10 reads them yet. `DEFAULT_CRITICAL_CHANCE` and `DEFAULT_CRITICAL_MULTIPLIER` name the `0.1` and `2.0` values that the Part 6 critical-hit exercise added to `Fighter.__init__`.
+
+!!! note "Exercise-derived constants in `config.py`"
+    Two of these only matter if you did the matching exercise. `DEFAULT_CRITICAL_CHANCE` / `DEFAULT_CRITICAL_MULTIPLIER` belong to the Part 6 critical-hit exercise; if you skipped it your `Fighter` has no `critical_chance` / `critical_multiplier`, so leave these defined (they are harmless) and ignore the `fighter.py` change below. `MIN_MONSTERS_PER_ROOM` reflects the Part 5 Exercise 1 minimum; at `0` it is harmless either way.
 
 !!! note "The name `config.py` inside `game/constants/`"
     `game.constants.config` is slightly redundant: the package name already says "constants". A cleaner package name (`game.data`) would remove the redundancy, but that rename is a separate step. The name `config.py` at least avoids the worse `game.constants.constants`.
@@ -198,7 +203,7 @@ The files that gain an import and lose or avoid local definitions:
 
 - `game/hud.py`: later HUD changes will read `constants.BAR_WIDTH` and `constants.XP_LEVEL_WIDTH` instead of defining local layout constants.
 - `game/engine.py`: `fov_radius: int = 8` becomes `fov_radius: int = constants.FOV_RADIUS`.
-- `game/entities/components/fighter.py`: `critical_chance: float = 0.1` becomes `critical_chance: float = constants.DEFAULT_CRITICAL_CHANCE`, and similarly for `critical_multiplier`.
+- `game/entities/components/fighter.py` (Part 6 critical-hit exercise only): if your `Fighter` has them, `critical_chance: float = 0.1` becomes `critical_chance: float = constants.DEFAULT_CRITICAL_CHANCE`, and similarly for `critical_multiplier`. Skip this line if you did not do that exercise.
 
 ---
 
@@ -273,7 +278,7 @@ def load_game(filename: str | Path):
         raise RuntimeError(f"Save file could not be loaded and was moved to {backup_path}.") from ex
 ```
 
-The map dimensions and spawn counts are now read from `constants` rather than defined here. `Path` is still imported because `load_game` uses it in its type annotation and for the backup path.
+The map dimensions and spawn counts are now read from `constants` rather than defined here. The seed line (`# Part-3. Exercise 1: Reproducible dungeons`) and the `seed = seed` argument are the Part 3 Exercise 1 carry-over: if you skipped that exercise your `generate_dungeon` has no `seed` parameter, so drop the seed computation and the `seed = seed` line. `Path` is still imported because `load_game` uses it in its type annotation and for the backup path.
 
 `load_game()` handles one practical edge case: the save file might exist but fail to load because it is corrupt or incompatible with the current code. Instead of leaving the player stuck with a broken Continue option, the failed save is moved aside to `savegame.sav.bak` and the menu can show a clear message.
 
@@ -296,6 +301,27 @@ BaseGameState
   ├── MainMenuState  (no engine yet)
   └── PopupMessageState (renders a message overlay over the parent state)
 ```
+
+`PopupMessageState` wraps long lines with `textwrap`, so add the import at the top of `game/game_states.py`:
+
+```diff
++import textwrap
+
+ import tcod
+```
+
+It also needs its own small palette. Add to `game/constants/colors.py`:
+
+```python
+# Popup colors
+POPUP_FRAME = Color(255, 245, 160)
+POPUP_BG    = Color( 14,  18,  26)
+POPUP_TITLE = Color(255, 245, 160)
+POPUP_TEXT  = Color(232, 240, 255)
+POPUP_DIM   = Color(160, 176, 200)
+```
+
+`POPUP_FRAME` and `POPUP_TITLE` hold the same value on purpose: the frame and the title share a color for now, but stay separate constants so they can diverge later.
 
 Add to `game/game_states.py`, immediately before `GameState`:
 
@@ -342,7 +368,7 @@ class PopupMessageState(BaseGameState):
     def on_render(self, console: tcod.console.Console) -> None:
         self.parent.on_render(console)
 
-        # Dim the screen behind the popup.
+        # Dim the screen behind the popup
         console.fg[:] = console.fg // 2
         console.bg[:] = console.bg // 2
 
@@ -352,7 +378,7 @@ class PopupMessageState(BaseGameState):
         max_width = console.width - 10
         lines: list[str] = []
         for raw_line in self.text.split("\n"):
-            # Wrap long lines instead of cutting them, like the message log.
+            # Wrap long lines instead of cutting them, like the message log
             lines.extend(textwrap.wrap(raw_line, max_width) or [""])
         lines = lines[:max_lines]
         width = min(
@@ -363,10 +389,10 @@ class PopupMessageState(BaseGameState):
         x      = (console.width  - width)  // 2
         y      = (console.height - height) // 2
 
-        # Draw the popup box.
+        # Draw the popup box
         _draw_panel(console, x, y, width, height, colors.POPUP_FRAME, colors.POPUP_BG)
 
-        # Draw the popup title over the frame.
+        # Draw the popup title over the frame
         console.print(
             x    = x + (width - len(title)) // 2,
             y    = y,
@@ -376,7 +402,7 @@ class PopupMessageState(BaseGameState):
         )
 
         for i, line in enumerate(lines):
-            # Draw each message line centered inside the popup.
+            # Draw each message line centered inside the popup
             console.print(
                 console.width // 2,
                 y + 2 + i,
@@ -386,7 +412,7 @@ class PopupMessageState(BaseGameState):
                 alignment = tcod.constants.CENTER,
             )
 
-        # Draw the close hint at the bottom of the popup.
+        # Draw the close hint at the bottom of the popup
         console.print(
             x         = console.width // 2,
             y         = y + height - 2,
@@ -400,18 +426,7 @@ class PopupMessageState(BaseGameState):
         return self.parent
 ```
 
-The popup needs its own small palette. Add to `game/constants/colors.py`:
-
-```python
-# Popup colors
-POPUP_FRAME = Color(255, 245, 160)
-POPUP_BG    = Color( 14,  18,  26)
-POPUP_TITLE = Color(255, 245, 160)
-POPUP_TEXT  = Color(232, 240, 255)
-POPUP_DIM   = Color(160, 176, 200)
-```
-
-`PopupMessageState` renders its parent state first, then dims the whole console by halving every color channel (the `// 2` trick from Part 7) and draws the box with `_draw_panel()`. The body is defensive about size: long lines are wrapped with `textwrap.wrap` (the same module the message log uses; add `import textwrap` at the top of `game_states.py`), `max_lines` caps how many wrapped lines fit on screen, and `width` is clamped to `console.width - 4`. The `or [""]` keeps intentional blank lines: `textwrap.wrap("")` returns an empty list, which would otherwise swallow them. The box carries a `" Message "` title on the top frame row and a dim "Press any key" hint above the bottom border. Any keypress dismisses it and returns to the parent state.
+`PopupMessageState` renders its parent state first, then dims the whole console by halving every color channel (the `// 2` trick from Part 7) and draws the box with `_draw_panel()`. The body is defensive about size: long lines are wrapped with `textwrap.wrap` (the same module the message log uses), `max_lines` caps how many wrapped lines fit on screen, and `width` is clamped to `console.width - 4`. The `or [""]` keeps intentional blank lines: `textwrap.wrap("")` returns an empty list, which would otherwise swallow them. The box carries a `" Message "` title on the top frame row and a dim "Press any key" hint above the bottom border. Any keypress dismisses it and returns to the parent state.
 
 ![Popup](images/window_popup.png)
 
@@ -463,6 +478,18 @@ The menu renders each option's key as a badge with `key_label`, the helper you a
 - `keys.KEY_CONTINUE` (`C`): calls `load_game()` when a save exists. If no save file exists it falls back to a `PopupMessageState`; if the file is corrupt or incompatible, `load_game()` moves it to `.bak` and the menu shows the exception message.
 - `keys.KEY_QUIT_GAME` (`Esc`): raises `SystemExit`.
 
+The menu needs its own palette. Add to `game/constants/colors.py`:
+
+```python
+MENU_TITLE             = Color(255, 255, 63)
+MENU_TEXT              = WHITE
+MENU_TEXT_DISABLED     = Color(128, 128, 128)
+MENU_BG                = Color(  0,   0,   0)
+MENU_ACCENT            = Color(192, 168,  32)
+MENU_ROW_BG            = Color( 34,  30,  12)
+MENU_DIM               = Color(184, 176, 112)
+```
+
 Add to `game/game_states.py` after `PopupMessageState`:
 
 ```python
@@ -474,7 +501,7 @@ class MainMenuState(BaseGameState):
         self._bg = Image.from_file(constants.RES_DIR / "menu_background.png")
 
     def on_render(self, console: tcod.console.Console) -> None:
-        # Draw the main menu background image.
+        # Draw the main menu background image
         console.draw_semigraphics(self._bg, 0, 0)
 
         title_text = "ROGUELIKE TUTORIAL"
@@ -483,7 +510,7 @@ class MainMenuState(BaseGameState):
         x          = (console.width  - width)  // 2
         y          = console.height // 3 - 5
 
-        # Draw the main box containing the title and options.
+        # Draw the main box containing the title and options
         _draw_panel(
             console,
             x,
@@ -496,7 +523,7 @@ class MainMenuState(BaseGameState):
         )
 
         title = f" {title_text} "
-        # Draw the centered title over the top frame.
+        # Draw the centered title over the top frame
         console.print(
             x    = x + (width - len(title)) // 2,
             y    = y,
@@ -517,7 +544,7 @@ class MainMenuState(BaseGameState):
         for i, (label, (_, desc, enabled)) in enumerate(zip(key_labels, menu_options)):
             row = y + 3 + i
             fg = colors.MENU_TEXT if enabled else colors.MENU_TEXT_DISABLED
-            # Draw the key bound to this option.
+            # Draw the key bound to this option
             console.print(
                 row_x + 2,
                 row,
@@ -526,7 +553,7 @@ class MainMenuState(BaseGameState):
                 bg = colors.MENU_ACCENT if enabled else colors.MENU_BG,
             )
 
-            # Draw the option description.
+            # Draw the option description
             console.print(
                 row_x + key_width + 2,
                 row,
@@ -534,7 +561,7 @@ class MainMenuState(BaseGameState):
                 fg = fg,
             )
 
-        # Draw the author credit in the bottom-right corner.
+        # Draw the author credit in the bottom-right corner
         console.print(
             console.width - 2,
             console.height - 2,
@@ -591,18 +618,6 @@ class MainMenuState(BaseGameState):
 The first `except FileNotFoundError` is a TOCTOU guard (Time-Of-Check/Time-Of-Use): the file could be deleted between the `constants.SAVE_PATH.exists()` check above and the actual `load_game()` call, so we handle that race rather than letting it crash.
 
 The `except Exception` that catches load failures is intentionally broad at the menu boundary: a corrupt or incompatible save file should show a user-facing popup, not crash the program.
-
-Add to `game/constants/colors.py`:
-
-```python
-MENU_TITLE             = Color(255, 255, 63)
-MENU_TEXT              = WHITE
-MENU_TEXT_DISABLED     = Color(128, 128, 128)
-MENU_BG                = Color(  0,   0,   0)
-MENU_ACCENT            = Color(192, 168,  32)
-MENU_ROW_BG            = Color( 34,  30,  12)
-MENU_DIM               = Color(184, 176, 112)
-```
 
 ---
 
@@ -667,6 +682,9 @@ In `game/engine.py`, remove the event-loop and game-state imports (now unused), 
 ```
 
 Removing `from game.game_states import GameState, MainGameState` breaks the direct circular import `engine → game_states → engine`. It also prevents a larger cycle that would form later, once `game_states.py` imports from `setup_game.py`: without this removal, the chain `game_states → setup_game → engine → game_states` would be circular.
+
+!!! note "Constructor parameters shown as context"
+    `fov_radius`, `fading_memory`, and `memory_duration` are Part 4 exercise carry-overs (Variable torch radius and Fading memory), shown here as unchanged context. The one edit inside the signature is the `fov_radius` default: the literal `8` becomes `constants.FOV_RADIUS`. If you skipped those exercises and your `Engine` has no `fov_radius` parameter, swap the hardcoded `8` for `constants.FOV_RADIUS` wherever your FOV radius lives instead.
 
 ### Step 2: replace `GameState` with the new version
 
@@ -823,6 +841,8 @@ Part 9 already wired this correctly: `ConfusionConsumable` and `FireballDamageCo
 ```python
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import tcod
 
 from game.constants import config as constants
@@ -833,7 +853,7 @@ def run(
     state: BaseGameState,
     context: tcod.context.Context,
     console: tcod.console.Console,
-    on_exit = None,
+    on_exit: Callable[[BaseGameState], None] | None = None,
 ) -> None:
     """Drive the game state machine until SystemExit. Calls on_exit(state) before re-raising."""
     try:
@@ -1121,10 +1141,10 @@ game/
         ...then draw the badge and its description separately:
 
         ```python
-        # Draw the hint for returning to the main menu.
+        # Draw the hint for returning to the main menu
         hint_x = (console.width - len(hint)) // 2
         hint_y = y + height - 2
-        # Draw the key that returns to the main menu.
+        # Draw the key that returns to the main menu
         console.print(
             x    = hint_x,
             y    = hint_y,
@@ -1133,7 +1153,7 @@ game/
             bg   = colors.GAME_OVER_ACCENT,
         )
 
-        # Draw the description for the return-to-menu action.
+        # Draw the description for the return-to-menu action
         console.print(
             x    = hint_x + len(hint_key) + 1,
             y    = hint_y,
@@ -1171,9 +1191,11 @@ game/
             self.hp -= amount
         +    if self.hp <= 0 and attacker is not self.entity:
         +        # Part-10. Exercise 2: Record a graveyard file
-        +        # Self-inflicted deaths do not count as kills.
+        +        # Self-inflicted deaths do not count as kills
         +        attacker.fighter.kill_count += 1
         ```
+
+        This changes `take_damage`'s signature, so every call site must pass `attacker`: `melee_attack` in `fighter.py`, plus the lightning, fireball, and drain consumables in `consumable.py`. That threading is exactly the change Part 11 makes in its "Award XP on kill" section, which then notes it is already in place if you did this exercise.
 
         Show the tally. Add the row color in `game/constants/colors.py`:
 

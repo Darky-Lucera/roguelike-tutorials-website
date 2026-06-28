@@ -89,36 +89,14 @@ In `game/constants/colors.py`, make sure `CHEST` exists in the entity colors sec
 +HEALTH_POTION     = Color(127, 0, 255)
 ```
 
-Then add the message and overlay colors near the other UI colors:
+Then add the HP-restore message color near the other UI colors:
 
 ```diff
  ENEMY_DEATH       = Color(0xFF, 0xA0, 0x30)
 +HEALTH_RECOVERED  = Color(0x00, 0xFF, 0x00)
 ```
 
-```diff
- WELCOME_TEXT      = Color(0x20, 0xA0, 0xFF)
- ...
-+INVALID           = Color(0xFF, 0xFF, 0x00)
-+
-+# Inventory overlay colors
-+INVENTORY_MENU_TITLE = Color(255, 245, 160)
-+INVENTORY_MENU_TEXT  = Color(232, 255, 255)
-+INVENTORY_MENU_DIM   = Color(168, 216, 216)
-+INVENTORY_MENU_KEY   = BLACK
-+
-+INVENTORY_USE_FG     = Color( 80, 255, 184)
-+INVENTORY_USE_BG     = Color(  5,  36,  30)
-+INVENTORY_USE_ACCENT = Color( 32, 168, 112)
-+INVENTORY_USE_ROW_BG = Color( 10,  58,  44)
-+
-+INVENTORY_DROP_FG     = Color(224, 128, 255)
-+INVENTORY_DROP_BG     = Color( 38,  14,  58)
-+INVENTORY_DROP_ACCENT = Color(160,  80, 232)
-+INVENTORY_DROP_ROW_BG = Color( 58,  22,  82)
-```
-
-`HEALTH_RECOVERED` is bright green for HP-restore messages. `INVALID` is yellow for action-rejection messages. The inventory constants define two color schemes for the overlays (green for "use item", purple for "drop item"), each with frame/text (`FG`), panel background (`BG`), key badge background (`ACCENT`), and row background (`ROW_BG`). The `INVENTORY_MENU_*` constants are shared by both schemes: title, text, and dim shades plus the key badge foreground.
+`HEALTH_RECOVERED` is bright green for HP-restore messages. The action-rejection color (`INVALID`) and the inventory overlay palette are added later in this chapter, each at the point where it is first used.
 
 !!! note "If you completed the Part 5 chest exercise"
     `sprites.CHEST` and `colors.CHEST` may already be defined. Keep the existing definitions instead of adding duplicates.
@@ -232,7 +210,7 @@ At the same time, add the imports that the new classes and annotations in this c
 -        self.ai              = ai
 ```
 
-#### Step 2: Add the `owner` field
+### Step 2: Add the `owner` field
 
 Add `owner` as the first parameter of `__init__`, and auto-register the entity when an owner is provided:
 
@@ -469,8 +447,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from game.entities.components.base_component import ItemComponent
 from game.constants import colors
+from game.entities.components.base_component import ItemComponent
 from game.exceptions import Impossible
 from game.message_log import MessageLog
 
@@ -537,11 +515,11 @@ The file defines `Consumable` as the base class for all item effects and `Healin
 Every `Actor` now requires an `Inventory`. Add the component to the existing templates:
 
 ```diff
+ from game.constants import colors, sprites
  from game.entities.components.ai import HostileEnemy
 +from game.entities.components.consumable import HealingConsumable
  from game.entities.components.fighter import Fighter
 +from game.entities.components.inventory import Inventory
- from game.constants import colors, sprites
 -from game.entities.entity import Actor, Entity
 +from game.entities.entity import Actor, Entity, Item
 ```
@@ -727,6 +705,16 @@ Then simplify `handle_events()` to a one-line dispatch:
 +        self.game_state.handle_events(event)
 ```
 
+Also add `INVALID` to `game/constants/colors.py`, since the rewritten `handle_events` uses it for rejection messages:
+
+```diff
+ WELCOME_TEXT = Color(0x20, 0xA0, 0xFF)
+ ...
++INVALID      = Color(0xFF, 0xFF, 0x00)
+```
+
+`INVALID` is yellow: it is used for every rejection the player should read, from a full inventory to an already-healed condition.
+
 Now rewrite `GameState.handle_events()` in `game/game_states.py` to own the full execution cycle. `from game.constants import colors` was already imported in Part 7; only `Impossible` is new:
 
 ```diff
@@ -830,6 +818,30 @@ Add three key bindings at the end of `event_keydown`:
 ## Inventory states
 
 Three new state classes go at the bottom of `game/game_states.py`.
+
+Add the inventory overlay colors to `game/constants/colors.py`:
+
+```diff
+ INVALID = Color(0xFF, 0xFF, 0x00)
++
++# Inventory overlay colors
++INVENTORY_MENU_TITLE = Color(255, 245, 160)
++INVENTORY_MENU_TEXT  = Color(232, 255, 255)
++INVENTORY_MENU_DIM   = Color(168, 216, 216)
++INVENTORY_MENU_KEY   = BLACK
++
++INVENTORY_USE_FG     = Color( 80, 255, 184)
++INVENTORY_USE_BG     = Color(  5,  36,  30)
++INVENTORY_USE_ACCENT = Color( 32, 168, 112)
++INVENTORY_USE_ROW_BG = Color( 10,  58,  44)
++
++INVENTORY_DROP_FG     = Color(224, 128, 255)
++INVENTORY_DROP_BG     = Color( 38,  14,  58)
++INVENTORY_DROP_ACCENT = Color(160,  80, 232)
++INVENTORY_DROP_ROW_BG = Color( 58,  22,  82)
+```
+
+The inventory overlay uses two distinct color schemes: green tones for item use (activation) and purple tones for item dropping. At a glance, the player always knows which overlay is open. The `INVENTORY_MENU_*` constants are shared by both schemes: title, text, and dim shades that look the same in either overlay, plus the key badge foreground.
 
 !!! tip "Modal states"
     An inventory state follows exactly the same pattern as `GameOverState` from Part 7: it overrides `on_render()` to draw an overlay on top of the map, and `event_keydown()` to handle its own key set. The overlay closes when the player selects a valid item (an action executes, then `GameState.handle_events` switches back to `MainGameState`) or presses `Escape` (handled explicitly in `event_keydown`, which sets the state directly without returning an action). Any other unrecognised key does nothing. This pattern composes cleanly: any state can open any other state, and the "stack" is simply `self.engine.game_state` with no state stack to maintain.
@@ -1222,11 +1234,17 @@ In `game/constants/colors.py`:
 
 ### `TreasureConsumable`
 
-Add a new consumable class in `game/entities/components/consumable.py`. It differs from `HealingConsumable` in one important way: the item is never added to the inventory. It is collected directly from the floor and disappears immediately. Add a class-level flag to mark this behavior, and override it:
+Add a new consumable class in `game/entities/components/consumable.py`. It differs from `HealingConsumable` in one important way: the item is never added to the inventory. It is collected directly from the floor and disappears immediately. Add a class-level flag to mark this behavior, plus the base `on_contact` hook that activates the item when the flag is set (the `MovementAction` wiring that calls `on_contact` is added later in this part):
 
 ```diff
  class Consumable(ItemComponent):
 +    auto_activate: bool = False
++
++    def on_contact(self, engine: Engine, consumer: Actor) -> None:
++        from game.actions import ItemAction
++
++        if self.auto_activate:
++            ItemAction(item=self.entity).perform(engine, consumer)
 ```
 
 ```python
@@ -1297,7 +1315,7 @@ The chest no longer blocks movement (items never block movement). The player wal
 
 ### Auto-collect in `MovementAction`
 
-`PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. This requires three additions.
+`PickupAction` is triggered by the `G` key. Treasure should also be collected automatically when the player steps on it. The `Consumable.on_contact` hook is already in place (added alongside `TreasureConsumable` above); two pieces remain to wire it up.
 
 First, add a `GameMap.items_at(x, y)` helper that returns all items at a given position:
 
@@ -1307,18 +1325,7 @@ def items_at(self, x: int, y: int) -> list[Item]:
     return [e for e in self.entities if isinstance(e, Item) and e.x == x and e.y == y]
 ```
 
-Second, add an `on_contact` method to `Consumable`. It activates the item if `auto_activate` is set, using the standard `ItemAction` path:
-
-```diff
- class Consumable(ItemComponent):
-     auto_activate: bool = False
-
-+    def on_contact(self, engine: Engine, consumer: Actor) -> None:
-+        if self.auto_activate:
-+            ItemAction(item=self.entity).perform(engine, consumer)
-```
-
-Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for every item on the new tile:
+Second, after `entity.move()` in `MovementAction.perform()`, trigger contact for every item on the new tile:
 
 ```diff
          entity.move(self.dx, self.dy)
@@ -1330,7 +1337,7 @@ Third, after `entity.move()` in `MovementAction.perform()`, trigger contact for 
 
 The `isinstance(entity, Actor)` check satisfies the type checker: `on_contact` expects an `Actor`, and `entity` in `MovementAction` is annotated as the wider `Entity` type. In practice any entity that moves will be an actor.
 
-`items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. There is no player-only guard here: every actor that steps on a tile triggers contact. Whether the consumable reacts depends on the consumable itself.
+`items_at()` returns a fresh list, so `activate()` can safely modify `game_map.entities` during iteration. The `MovementAction` wiring has no player check: it fires `on_contact` for every actor that steps on the tile. The decision to react lives in the consumable: `TreasureConsumable` only acts when the consumer is the player (so a wandering monster cannot scoop up a chest), while a different consumable could choose to react to anyone.
 
 ### `render_gold` in `hud.py`
 
@@ -1450,8 +1457,8 @@ game/
 
 ## Exercises
 
-!!! tip "Exercises 1-3 make the game noticeably more fun"
-    Exercises 1 through 3 together produce a game that is genuinely enjoyable to play: items stack cleanly in the overlay, the backpack scroll adds a progression mechanic worth hunting for, and persistent keys let the player activate items without opening the overlay at all. Exercise 4 is housekeeping that pays off in later parts. If you implement only three exercises this chapter, make it those three.
+!!! tip "Exercises 1 and 2 together make the game noticeably more fun"
+    Stacking keeps the inventory list clean, and the backpack gives the player a reason to seek scrolls. Exercises 3 and 4 polish the user interface.
 
 1. **Item stacking**:
 
