@@ -8,7 +8,7 @@ Part 8a builds the data model: items exist in the dungeon, can be seen, but cann
 
 ## What You Will Build
 
-By the end of Block 1, health potions and chests appear in the dungeon. Hovering the mouse over either shows its name. Walking over a chest does nothing yet: the auto-collect mechanic will be added in Part 8b. There are no other keyboard interactions with items yet either.
+By the end of Part 8a, health potions and chests appear in the dungeon. Hovering the mouse over either shows its name. Walking over a chest does nothing yet: the auto-collect mechanic will be added in Part 8b. There are no other keyboard interactions with items yet either.
 
 ## Learning goals
 
@@ -65,7 +65,7 @@ Compare the alternatives. Returning `None` is silent: the caller has to check fo
 
 ## New constants
 
-Block 1 introduces the visual constants for both item types: the health potion, the chest, and the gold color. The colors used for action rejections and the inventory overlay will be introduced in Part 8b, at the point where they are first used.
+Part 8a introduces the visual constants for both item types: the health potion, the chest, and the gold color. The colors used for action rejections and the inventory overlay will be introduced in Part 8b, at the point where they are first used.
 
 In `game/constants/sprites.py`, add both item sprites. `CHEST` belongs in the entity section (before `CORPSE`); `HEALTH_POTION` opens a new items section below:
 
@@ -301,12 +301,12 @@ Update `Actor.__init__`:
      def __init__(
          self,
          *,
-         x: int    = 0,
-         y: int    = 0,
-         char: str = sprites.UNKNOWN,
-         color: Color = colors.DEFAULT_FG,
-         name: str = "<unnamed>",
-         ai: BaseAI | None = None,
+         x: int              = 0,
+         y: int              = 0,
+         char: str           = sprites.UNKNOWN,
+         color: Color        = colors.DEFAULT_FG,
+         name: str           = "<unnamed>",
+         ai: BaseAI | None   = None,
          fighter: Fighter,
 +        inventory: Inventory,
      ) -> None:
@@ -347,21 +347,21 @@ Update `Actor.__init__`:
 +    def __init__(
 +        self,
 +        *,
-+        x: int = 0,
-+        y: int = 0,
-+        char: str = sprites.UNKNOWN,
++        x: int      = 0,
++        y: int      = 0,
++        char: str   = sprites.UNKNOWN,
 +        color: Color = colors.DEFAULT_FG,
-+        name: str = "<unnamed>",
++        name: str   = "<unnamed>",
 +        consumable: Consumable,
 +    ) -> None:
 +        super().__init__(
-+            x=x,
-+            y=y,
-+            char=char,
-+            color=color,
-+            name=name,
-+            blocks_movement=False,
-+            render_order=RenderOrder.ITEM,
++            x               = x,
++            y               = y,
++            char            = char,
++            color           = color,
++            name            = name,
++            blocks_movement = False,
++            render_order    = RenderOrder.ITEM,
 +        )
 +        self.consumable = consumable
 +        self.consumable.entity = self
@@ -640,11 +640,11 @@ Then add the item spawning loop at the end of the function body. The diff also r
 -            monster = random.choices(
 +            monsters = random.choices(
                  monster_templates,
-                 weights=monster_weights,
--                k=1,
+                 weights = monster_weights,
+-                k       = 1,
 -            )[0]
 -            monster.spawn(dungeon, x, y)
-+                k=1,
++                k       = 1,
 +            )
 +            # First element (because random.choices returns a list)
 +            monsters[0].spawn(dungeon, x, y)
@@ -657,7 +657,7 @@ Then add the item spawning loop at the end of the function body. The diff also r
 +            items = random.choices(
 +                item_templates,
 +                weights=item_weights,
-+                k=1,
++                k       = 1,
 +            )
 +            # First element (because random.choices returns a list)
 +            items[0].spawn(dungeon, x, y)
@@ -731,7 +731,7 @@ Pass them to `generate_dungeon`:
 
 ---
 
-## Testing Block 1
+## Testing Part 8a
 
 Run the game and verify the following:
 
@@ -740,6 +740,6 @@ Run the game and verify the following:
 - Walking over a chest does nothing yet. Auto-collect will be added in Part 8b.
 - No keyboard interactions with items exist yet. The `G`, `I`, and `D` keys will be added in Part 8b.
 
-If both item types appear and hover names work, Block 1 is complete.
+If both item types appear and hover names work, Part 8a is complete.
 
 ---

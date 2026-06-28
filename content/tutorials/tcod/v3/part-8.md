@@ -323,12 +323,12 @@ Update `Actor.__init__`:
      def __init__(
          self,
          *,
-         x: int    = 0,
-         y: int    = 0,
-         char: str = sprites.UNKNOWN,
-         color: Color = colors.DEFAULT_FG,
-         name: str = "<unnamed>",
-         ai: BaseAI | None = None,
+         x: int              = 0,
+         y: int              = 0,
+         char: str           = sprites.UNKNOWN,
+         color: Color        = colors.DEFAULT_FG,
+         name: str           = "<unnamed>",
+         ai: BaseAI | None   = None,
          fighter: Fighter,
 +        inventory: Inventory,
      ) -> None:
@@ -369,21 +369,21 @@ Update `Actor.__init__`:
 +    def __init__(
 +        self,
 +        *,
-+        x: int = 0,
-+        y: int = 0,
-+        char: str = sprites.UNKNOWN,
++        x: int      = 0,
++        y: int      = 0,
++        char: str   = sprites.UNKNOWN,
 +        color: Color = colors.DEFAULT_FG,
-+        name: str = "<unnamed>",
++        name: str   = "<unnamed>",
 +        consumable: Consumable,
 +    ) -> None:
 +        super().__init__(
-+            x=x,
-+            y=y,
-+            char=char,
-+            color=color,
-+            name=name,
-+            blocks_movement=False,
-+            render_order=RenderOrder.ITEM,
++            x               = x,
++            y               = y,
++            char            = char,
++            color           = color,
++            name            = name,
++            blocks_movement = False,
++            render_order    = RenderOrder.ITEM,
 +        )
 +        self.consumable = consumable
 +        self.consumable.entity = self
@@ -897,11 +897,11 @@ class InventoryState(GameState):
         title = f" {self.TITLE} "
         # Draw the inventory title over the frame.
         console.print(
-            x  = x + (width - len(title)) // 2,
-            y  = y,
+            x    = x + (width - len(title)) // 2,
+            y    = y,
             text = title,
-            fg = colors.INVENTORY_MENU_TITLE,
-            bg = self.BG_COLOR,
+            fg   = colors.INVENTORY_MENU_TITLE,
+            bg   = self.BG_COLOR,
         )
 
         # Draw the main help text.
@@ -1114,11 +1114,11 @@ Then add the item spawning loop at the end of the function body. The diff also r
 -            monster = random.choices(
 +            monsters = random.choices(
                  monster_templates,
-                 weights=monster_weights,
--                k=1,
+                 weights = monster_weights,
+-                k       = 1,
 -            )[0]
 -            monster.spawn(dungeon, x, y)
-+                k=1,
++                k       = 1,
 +            )
 +            # First element (because random.choices returns a list)
 +            monsters[0].spawn(dungeon, x, y)
@@ -1131,7 +1131,7 @@ Then add the item spawning loop at the end of the function body. The diff also r
 +            items = random.choices(
 +                item_templates,
 +                weights=item_weights,
-+                k=1,
++                k       = 1,
 +            )
 +            # First element (because random.choices returns a list)
 +            items[0].spawn(dungeon, x, y)
@@ -1342,7 +1342,12 @@ def render_gold(
     gold: int,
     y: int = 44,
 ) -> None:
-    console.print(x=0, y=y, text=f"$ {gold}", fg=colors.GOLD)
+    console.print(
+        x    = 0,
+        y    = y,
+        text = f"$ {gold}",
+        fg   = colors.GOLD,
+    )
 ```
 
 Call it from `Engine.render()`:

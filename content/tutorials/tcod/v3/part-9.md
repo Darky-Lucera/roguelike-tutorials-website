@@ -565,9 +565,13 @@ class SingleRangedTargetingAction(TargetingAction):
 
 class AreaRangedTargetingAction(TargetingAction):
 
-    def __init__(self, item: Item, radius: int,
-                 color: Color,
-                 prompt: str = "Select a target location.") -> None:
+    def __init__(
+        self,
+        item: Item,
+        radius: int,
+        color: Color,
+        prompt: str = "Select a target location.",
+    ) -> None:
         self.item     = item
         self.radius   = radius
         self.color    = color
@@ -669,9 +673,9 @@ class ConfusionConsumable(Consumable):
             colors.STATUS_EFFECT_APPLIED,
         )
         target.ai = ConfusedEnemy(
-            entity=target,
-            previous_ai=target.ai,
-            turns_remaining=self.number_of_turns,
+            entity          = target,
+            previous_ai     = target.ai,
+            turns_remaining = self.number_of_turns,
         )
         self.consume()
 ```
@@ -919,15 +923,15 @@ The second change happens after `action.perform()` succeeds. If the result is a 
 +                if isinstance(action, SingleRangedTargetingAction):
 +                    self.engine.game_state = SingleRangedAttackState(
 +                        self.engine,
-+                        callback=action.callback,
++                        callback = action.callback,
 +                    )
 +
 +                elif isinstance(action, AreaRangedTargetingAction):
 +                    self.engine.game_state = AreaRangedAttackState(
 +                        self.engine,
-+                        radius=action.radius,
-+                        color=action.color,
-+                        callback=action.callback,
++                        radius   = action.radius,
++                        color    = action.color,
++                        callback = action.callback,
 +                    )
 +
 +                return

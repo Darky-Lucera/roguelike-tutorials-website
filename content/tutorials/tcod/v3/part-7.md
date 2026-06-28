@@ -119,7 +119,7 @@ class MessageLog:
     def add_message(
         cls,
         text: str,
-        fg: Color = colors.WHITE,
+        fg: Color   = colors.WHITE,
         *,
         stack: bool = True,
     ) -> None:
@@ -150,7 +150,12 @@ class MessageLog:
         end   = start + height
 
         for y_offset, (line, color) in enumerate(wrapped_lines[start:end]):
-            console.print(x=x, y=y + y_offset, text=line, fg=color)
+            console.print(
+                x    = x,
+                y    = y + y_offset,
+                text = line,
+                fg   = color,
+            )
 ```
 
 `MessageLog` has no `__init__`: `messages` is a class variable shared by everyone, and the methods operate on it without needing an instance. `render` first flattens all messages into a list of `(line, color)` pairs, then takes a slice of `height` lines from the end (the most recent ones) and renders them top to bottom. `clear()` empties the list; it is called in Part 10 when starting a new game.
@@ -195,7 +200,7 @@ def render_panel(console: Console, y: int = 44, height: int = 6) -> None:
         width  = console.width,
         height = height,
         ch     = ord(' '),
-        bg     = colors.HUD_BG
+        bg     = colors.HUD_BG,
     )
 
 
@@ -214,7 +219,7 @@ def render_bar(
         width  = total_width,
         height = 1,
         ch     = ord(' '),
-        bg     = colors.HP_BAR_EMPTY
+        bg     = colors.HP_BAR_EMPTY,
     )
 
     if bar_width > 0:
@@ -224,7 +229,7 @@ def render_bar(
             width  = bar_width,
             height = 1,
             ch     = ord(' '),
-            bg     = colors.HP_BAR_FILLED
+            bg     = colors.HP_BAR_FILLED,
         )
 
     console.print(
@@ -563,7 +568,7 @@ Replace the existing `render()` method. It no longer receives `context` or contr
             x       = 21,
             y       = 45,
             width   = 40,
-            height  = 5
+            height  = 5,
         )
 
         hud.render_bar(

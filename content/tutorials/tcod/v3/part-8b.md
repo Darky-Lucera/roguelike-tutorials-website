@@ -371,11 +371,11 @@ class InventoryState(GameState):
         title = f" {self.TITLE} "
         # Draw the inventory title over the frame.
         console.print(
-            x  = x + (width - len(title)) // 2,
-            y  = y,
+            x    = x + (width - len(title)) // 2,
+            y    = y,
             text = title,
-            fg = colors.INVENTORY_MENU_TITLE,
-            bg = self.BG_COLOR,
+            fg   = colors.INVENTORY_MENU_TITLE,
+            bg   = self.BG_COLOR,
         )
 
         # Draw the main help text.
@@ -420,7 +420,7 @@ class InventoryState(GameState):
                     row_y,
                     item.char,
                     fg = item.color,
-                    bg = self.ROW_BG_COLOR
+                    bg = self.ROW_BG_COLOR,
                 )
 
                 # Draw the item name, trimmed if it does not fit.
@@ -608,7 +608,12 @@ def render_gold(
     gold: int,
     y: int = 44,
 ) -> None:
-    console.print(x=0, y=y, text=f"$ {gold}", fg=colors.GOLD)
+    console.print(
+        x    = 0,
+        y    = y,
+        text = f"$ {gold}",
+        fg   = colors.GOLD,
+    )
 ```
 
 Call it from `Engine.render()`:

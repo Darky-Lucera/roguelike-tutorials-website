@@ -983,7 +983,12 @@ def render_gold(
     y: int           = 44,
 ) -> None:
     text = f"$ {gold}"
-    console.print(x=total_width - len(text), y=y, text=text, fg=colors.GOLD)
+    console.print(
+        x    = total_width - len(text),
+        y    = y,
+        text = text,
+        fg   = colors.GOLD,
+    )
 
 
 def render_dungeon_level(
@@ -991,7 +996,12 @@ def render_dungeon_level(
     dungeon_floor: int,
     y: int = 44,
 ) -> None:
-    console.print(x=0, y=y, text=f"Floor: {dungeon_floor}", fg=colors.FLOOR)
+    console.print(
+        x    = 0,
+        y    = y,
+        text = f"Floor: {dungeon_floor}",
+        fg   = colors.FLOOR,
+    )
 ```
 
 **Step 5.** Add `render_xp_bar` to `game/hud.py`. This basic version draws the bar background, fills it proportionally, and centers the XP text. Exercise 1 later replaces it with the full color gradient and the embedded level number:

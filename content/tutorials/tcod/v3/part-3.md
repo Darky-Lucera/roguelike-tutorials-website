@@ -245,19 +245,19 @@ def generate_dungeon(
 
         new_room = RectangularRoom(x, y, room_width, room_height)
 
-        # Skip this room if it overlaps with any existing room.
+        # Skip this room if it overlaps with any existing room
         if any(new_room.intersects(other) for other in rooms):
             continue
 
-        # Dig out the interior.
+        # Dig out the interior
         dungeon.tiles[new_room.inner] = tile_types.floor
 
         if not rooms:
-            # First room: place the player here.
+            # First room: place the player here
             player.set_position(*new_room.center)
 
         else:
-            # All subsequent rooms: dig a tunnel to the previous room.
+            # All subsequent rooms: dig a tunnel to the previous room
             for x, y in tunnel_between(rooms[-1].center, new_room.center):
                 dungeon.tiles[x, y] = tile_types.floor
 
@@ -288,14 +288,14 @@ The algorithm in plain language:
 The generator digs floors out of a solid wall map. Update `game/map/game_map.py` to start with walls:
 
 ```diff
--        # Fill the entire map with floor tiles for now.
--        # Part 3 will change this to walls, which we dig out.
+-        # Fill the entire map with floor tiles for now
+-        # Part 3 will change this to walls, which we dig out
 -        self.tiles = np.full((width, height), fill_value=tile_types.floor, order="F")
 -
 -        half_width  = width  // 2
 -        half_height = height // 2
 -
--        # A small wall for testing: we will remove it in Part 3.
+-        # A small wall for testing: we will remove it in Part 3
 -        self.tiles[half_width-10:half_width+10+1, half_height] = tile_types.wall
 +        self.tiles = np.full((width, height), fill_value=tile_types.wall, order="F")
 ```
@@ -462,7 +462,35 @@ game/
 
 2. **Connect to the *nearest* room instead of the *previous* one**:
 
-    Our current algorithm connects each room to the one placed before it. This sometimes creates long diagonal tunnels. Instead, find the already-placed room whose center is closest to the new room's center and connect to that. The dungeon will look more compact.
+    Our current algorithm connects each room to the one placed before it. This sometimes creates long diagonal tunnels. Instead, find the already-placed room that is closest to the new room and connect to that. The dungeon will look more compact.
+
+    Add distance helpers to `RectangularRoom`:
+
+    ```python
+    def squared_center_distance(self, other_room: RectangularRoom) -> int:
+        dx = self.center[0] - other_room.center[0]
+        dy = self.center[1] - other_room.center[1]
+        return dx * dx + dy * dy
+
+    def squared_distance(self, other_room: RectangularRoom) -> int:
+        dx = max(
+            other_room.x1 - self.x2,
+            self.x1 - other_room.x2,
+            0,
+        )
+        dy = max(
+            other_room.y1 - self.y2,
+            self.y1 - other_room.y2,
+            0,
+        )
+        return dx * dx + dy * dy
+    ```
+
+    `squared_center_distance` compares room centers. `squared_distance` compares the rectangles themselves: if two rooms overlap along one axis, that axis contributes `0`; otherwise it contributes the gap between their edges. Use `squared_distance` for this exercise.
+
+    We compare squared distances instead of real distances because we only need to know which room is closest. Taking a square root would make every distance slower to compute, and it would not change the ordering: if one squared distance is smaller than another, its real distance is smaller too.
+
+    A simple explicit loop is a good fit here: keep track of the closest room found so far and update it when you find a shorter distance. This avoids extra imports and keeps type checkers happy.
 
 3. **Connect rooms using rough centers**:
 

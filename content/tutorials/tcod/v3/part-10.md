@@ -492,7 +492,7 @@ class MainMenuState(BaseGameState):
             height,
             colors.MENU_TITLE,
             colors.MENU_ROW_BG,
-            shadow = False
+            shadow = False,
         )
 
         title = f" {title_text} "
@@ -638,14 +638,16 @@ In `game/engine.py`, remove the event-loop and game-state imports (now unused), 
 
  class Engine:
 
-     def __init__(self,
-                  game_map: GameMap,
-                  player: Actor,
-                  # Part-4. Exercise 1: Variable torch radius
-                  fov_radius: int = constants.FOV_RADIUS,
-                  # Part-4. Exercise 4: Fading memory
-                  fading_memory: bool = False,
-                  memory_duration: int = 10) -> None:
+     def __init__(
+         self,
+         game_map: GameMap,
+         player: Actor,
+         # Part-4. Exercise 1: Variable torch radius
+         fov_radius: int     = constants.FOV_RADIUS,
+         # Part-4. Exercise 4: Fading memory
+         fading_memory: bool = False,
+         memory_duration: int = 10,
+     ) -> None:
          ...
 -        self.game_state: GameState = MainGameState(self)
          self.update_fov()
@@ -711,9 +713,9 @@ class GameState(BaseGameState):
                 if isinstance(action, AreaRangedTargetingAction):
                     return AreaRangedAttackState(
                         self.engine,
-                        radius=action.radius,
-                        color=action.color,
-                        callback=action.callback,
+                        radius   = action.radius,
+                        color    = action.color,
+                        callback = action.callback,
                     )
 
             if self.engine.player.is_alive:

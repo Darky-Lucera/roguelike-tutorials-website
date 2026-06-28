@@ -82,7 +82,7 @@ tile_dtype = np.dtype(
     ]
 )
 
-# Used for tiles the player has never seen. Pure black.
+# Used for tiles the player has never seen. Pure black
 UNSEEN = np.array((ord(" "), (255, 255, 255), (0, 0, 0)), dtype=graphic_dtype)
 
 
@@ -228,10 +228,10 @@ class Engine:
         self.game_map.visible[:] = tcod.map.compute_fov(
             self.game_map.tiles["transparent"],
             (self.player.x, self.player.y),
-            radius=8,
-            algorithm=tcod.constants.FOV_SHADOW,
+            radius    = 8,
+            algorithm = tcod.constants.FOV_SHADOW,
         )
-        # Any tile now visible is permanently remembered.
+        # Any tile now visible is permanently remembered
         self.game_map.explored |= self.game_map.visible
 
     def handle_events(self, events: Iterable[Any]) -> None:

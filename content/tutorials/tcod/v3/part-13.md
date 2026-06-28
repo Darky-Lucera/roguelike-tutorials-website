@@ -81,8 +81,8 @@ class Equippable(ItemComponent):
     def __init__(
         self,
         equipment_type: EquipmentType,
-        attack_bonus:   float = 0,
-        defense_bonus:  float = 0,
+        attack_bonus: float  = 0,
+        defense_bonus: float = 0,
     ) -> None:
         self.equipment_type = equipment_type
         self.attack_bonus   = attack_bonus
@@ -803,10 +803,10 @@ Then a helper method, above `generate_floor`:
 And pass the result to the generator:
 
 ```diff
-             player                = self.engine.player,
-             seed                  = self.seed + self.current_floor,
-             current_floor         = self.current_floor,
-+            equipment             = self.equipment_for_floor(),
+             player        = self.engine.player,
+             seed          = self.seed + self.current_floor,
+             current_floor = self.current_floor,
++            equipment     = self.equipment_for_floor(),
          )
 ```
 
@@ -978,13 +978,31 @@ game/
 
 ## Exercises
 
-1. **Equipment stats in the HUD.** Show effective attack and defense in the panel, for example `Attack: 9  Defense: 5`. Read `player.fighter.attack` and `player.fighter.defense`; they already include the bonuses.
+1. **Show equipment bonuses in the inventory**:
 
-2. **Ring slot.** Add `EquipmentType.RING` and a third slot to `Equipment` (the `getattr`/`setattr` helpers already work for any slot name). Create a Ring of Protection template with `defense_bonus=1` and give it its own band in `equipment_spawns`, say floors 5 to 7.
+   The inventory lists `Sword` and `Chain Mail` with no hint of what they do, so the player has no reason to prefer one over another. Make each equippable row show its bonus, for example `Sword (+4 attack)` or `Chain Mail (+3 defense)`.
 
-3. **Cursed items.** Add a `cursed: bool = False` flag to `Equippable`. `unequip_from_slot` raises `Impossible("You cannot remove the cursed item!")` when the equipped item is cursed. Add a Remove Curse scroll that clears the flag. A cursed item with a bigger bonus is a classic risk and reward trade.
+   The bonus lives on the item: `item.equippable` is `None` for consumables and an `Equippable` for gear, and it carries `attack_bonus`, `defense_bonus`, and `equipment_type` (which tells you whether to label the number "attack" or "defense"). The name is drawn in `InventoryState.on_render`, in the `_trim_text(item.name, name_width)` call. Build the suffix only when `item.equippable is not None`, append it to the name *before* trimming, and remember that the extra characters eat into `name_width`.
 
-4. **Smarter placement.** On deep floors the guaranteed piece can land in the room you arrive in. Change the placement to skip `rooms[0]` outside floor 1. Then try the reverse experiment: turn the bands into fixed floors and decide which version makes runs feel better.
+2. **Equipment stats in the HUD**:
+
+   The panel shows the HP and XP bars, the floor, and your gold, but never your actual combat numbers. Add one line below the XP bar, for example `Attack: 9  Defense: 5`.
+
+   This is almost free, and that is the lesson: the `Fighter.attack` and `Fighter.defense` properties you edited earlier in this chapter already fold the weapon and armor bonuses on top of the base stats, so you do **not** touch `Equipment` here at all. You only *read* `player.fighter.attack` and `player.fighter.defense` (they return floats, so wrap them in `int(...)`) and print them.
+
+   Follow the pattern of the other panel pieces: add a small `render_combat_stats(console, attack, defense)` to `game/hud.py`, next to `render_dungeon_level`, have it `console.print` the line on a free panel row, and call it from `Engine.render()` right after `hud.render_xp_bar(...)`. The text itself is just `f"Attack: {int(attack)}  Defense: {int(defense)}"`.
+
+3. **Place guaranteed equipment away from the arrival room**:
+
+   On floors after the first, the guaranteed piece can currently land in `rooms[0]`, the room you arrive in, which also holds the up stairs, so the reward appears with no exploration. In the placement loop in `generate_dungeon` (`game/map/map_generator.py`), the deeper-floor branch is `random.choice(rooms)`; restrict it to `rooms[1:]` so the arrival room is excluded.
+
+   Fall back safely when the dungeon has only one room (so `rooms[1:]` is empty): `rooms[1:] or rooms` gives you the candidate list in a single expression. Leave the floor-1 special case (`rooms[0]`) untouched, since placing the dagger in the safe starting room is deliberate.
+
+4. **Optional challenge: equipment for monsters**:
+
+   Every actor already carries an `Equipment` component, so the machinery for armed monsters is mostly in place. Give one monster template (say the orc) an equipped weapon in `factories.py` (`equipment = Equipment(weapon=...)`); because `Fighter.attack` reads `entity.equipment`, that orc immediately hits harder, with no other change. Each monster is deep-copied from its template on spawn (Part 5), so every orc gets its own weapon instance.
+
+   Then make the kill rewarding: in the death logic in `Fighter` (the `die` handler that turns an actor into a corpse), check whether the dying actor has anything in a slot and, if so, drop it onto the corpse's tile (set the item's `x`/`y` and add it to the map's entities) so the player can pick it up and equip it. That turns equipment from a player-only system into a general actor feature.
 
 ---
 

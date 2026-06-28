@@ -373,18 +373,18 @@ This is the architectural payoff of the chapter: adding new floor-scaled content
 
          self.current_floor += 1
          self.engine.game_map = generate_dungeon(
-             max_rooms             = self.max_rooms,
-             room_min_size         = self.room_min_size,
-             room_max_size         = self.room_max_size,
-             map_width             = self.map_width,
-             map_height            = self.map_height,
+             max_rooms     = self.max_rooms,
+             room_min_size = self.room_min_size,
+             room_max_size = self.room_max_size,
+             map_width     = self.map_width,
+             map_height    = self.map_height,
 -            min_monsters_per_room = self.min_monsters_per_room,
 -            max_monsters_per_room = self.max_monsters_per_room,
 -            min_items_per_room    = self.min_items_per_room,
 -            max_items_per_room    = self.max_items_per_room,
-             player                = self.engine.player,
-             seed                  = self.seed + self.current_floor,
-             current_floor         = self.current_floor,
+             player        = self.engine.player,
+             seed          = self.seed + self.current_floor,
+             current_floor = self.current_floor,
          )
          self.floors.append(self.engine.game_map)
 ```
@@ -395,17 +395,17 @@ Finally, remove the four arguments from `new_game()` in `game/setup_game.py`:
 
 ```diff
      engine.game_world = GameWorld(
-         engine                = engine,
-         max_rooms             = constants.MAX_ROOMS,
-         room_min_size         = constants.ROOM_MIN_SIZE,
-         room_max_size         = constants.ROOM_MAX_SIZE,
-         map_width             = constants.MAP_WIDTH,
-         map_height            = constants.MAP_HEIGHT,
+         engine        = engine,
+         max_rooms     = constants.MAX_ROOMS,
+         room_min_size = constants.ROOM_MIN_SIZE,
+         room_max_size = constants.ROOM_MAX_SIZE,
+         map_width     = constants.MAP_WIDTH,
+         map_height    = constants.MAP_HEIGHT,
 -        min_monsters_per_room = constants.MIN_MONSTERS_PER_ROOM,
 -        max_monsters_per_room = constants.MAX_MONSTERS_PER_ROOM,
 -        min_items_per_room    = constants.MIN_ITEMS_PER_ROOM,
 -        max_items_per_room    = constants.MAX_ITEMS_PER_ROOM,
-         seed                  = seed,
+         seed          = seed,
      )
 ```
 
@@ -634,8 +634,19 @@ game/
         Give the troll the trait in `game/entities/factories.py`:
 
         ```diff
-        -    fighter   = Fighter(hp=12, defense=0, attack=3, flee_threshold=0.3),
-        +    fighter   = Fighter(hp=12, defense=0, attack=3, flee_threshold=0.3, regeneration=1.0),
+        -    fighter   = Fighter(
+        -        hp            = 12,
+        -        defense       = 0,
+        -        attack        = 3,
+        -        flee_threshold = 0.3,
+        -    ),
+        +    fighter   = Fighter(
+        +        hp            = 12,
+        +        defense       = 0,
+        +        attack        = 3,
+        +        flee_threshold = 0.3,
+        +        regeneration  = 1.0,
+        +    ),
         ```
 
         Tick it in `handle_enemy_turns()` (`game/engine.py`), around the AI's turn:

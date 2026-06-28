@@ -95,7 +95,7 @@ from __future__ import annotations
 
 import numpy as np
 
-# Describes how to draw one tile: character + foreground + background colors.
+# Describes how to draw one tile: character + foreground + background colors
 graphic_dtype = np.dtype(
     [
         ("ch", np.int32),   # Unicode codepoint of the character
@@ -104,7 +104,7 @@ graphic_dtype = np.dtype(
     ]
 )
 
-# Describes one tile: its gameplay properties + its appearance.
+# Describes one tile: its gameplay properties + its appearance
 tile_dtype = np.dtype(
     [
         ("walkable",    np.bool_),      # True if entities can walk here
@@ -166,14 +166,14 @@ class GameMap:
     def __init__(self, width: int, height: int) -> None:
         self.width  = width
         self.height = height
-        # Fill the entire map with floor tiles for now.
-        # Part 3 will change this to walls, which we dig out.
+        # Fill the entire map with floor tiles for now
+        # Part 3 will change this to walls, which we dig out
         self.tiles = np.full((width, height), fill_value=tile_types.floor, order="F")
 
         half_width  = width  // 2
         half_height = height // 2
 
-        # A small wall for testing: we will remove it in Part 3.
+        # A small wall for testing: we will remove it in Part 3
         self.tiles[half_width-10:half_width+10+1, half_height] = tile_types.wall
 
     def in_bounds(self, x: int, y: int) -> bool:
@@ -402,13 +402,25 @@ class MovementAction(Action):
         dest_y = entity.y + self.dy
 
         if not engine.game_map.in_bounds(dest_x, dest_y):
-            return  # Destination is outside the map.
+            return  # Destination is outside the map
 
         if not engine.game_map.tiles["walkable"][dest_x, dest_y]:
-            return  # Destination is blocked by a tile.
+            return  # Destination is blocked by a tile
 
         entity.move(self.dx, self.dy)
 ```
+
+!!! note "If you completed the wait-action exercise"
+    If you completed Part 1, Exercise 3, your input handler already imports and returns `WaitAction`. Add this class below `MovementAction` now so that import still works:
+
+    ```python
+    class WaitAction(Action):
+
+        def perform(self, engine: Engine, entity: Entity) -> None:
+            pass
+    ```
+
+    If you skipped that exercise, you can ignore this for now. Exercise 2 at the end of this chapter adds it.
 
 !!! question "What is `TYPE_CHECKING`?"
     `from engine import Engine` inside the file would create a circular import: `game/engine.py` imports from `game/actions.py`, and `game/actions.py` would import from `game/engine.py`. `TYPE_CHECKING` is `False` at runtime, so the import only happens when a type checker (like mypy or Pyright) analyzes the code. This breaks the cycle.
@@ -515,7 +527,7 @@ game/
 2. **Promote `WaitAction` to the `perform()` pattern**:
 
     Add a `WaitAction(Action)` class to `game/actions.py` with a `perform()` that just `pass`es.
-    If you skipped Part 1's exercise, also wire `.` (and `KP_5`) to it in `game/input_handlers.py`. Notice that `Engine.handle_events` does not need any changes; that is the point of the polymorphic pattern.
+    If you already carried this forward from Part 1, you are done. If you skipped Part 1's exercise, also wire `.` (and `KP_5`) to it in `game/input_handlers.py`. Notice that `Engine.handle_events` does not need any changes; that is the point of the polymorphic pattern.
 
 3. **Add a new tile type**:
 

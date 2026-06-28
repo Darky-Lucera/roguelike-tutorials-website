@@ -134,9 +134,13 @@ tile_dtype = np.dtype(
     ]
 )
 
-# Used for tiles the player has never seen. Pure black.
+# Used for tiles the player has never seen. Pure black
 UNSEEN = np.array(
-    (ord(sprites.UNSEEN), colors.UNSEEN_FG, colors.UNSEEN_BG),
+    (
+        ord(sprites.UNSEEN),
+        colors.UNSEEN_FG,
+        colors.UNSEEN_BG
+    ),
     dtype=graphic_dtype,
 )
 
@@ -197,13 +201,13 @@ class Entity:
 
     def __init__(
         self,
-        x: int = 0,
-        y: int = 0,
-        char: str = sprites.UNKNOWN,
-        color: Color = colors.DEFAULT_FG,
-        name: str = "<unnamed>",
+        x: int                = 0,
+        y: int                = 0,
+        char: str             = sprites.UNKNOWN,
+        color: Color          = colors.DEFAULT_FG,
+        name: str             = "<unnamed>",
         blocks_movement: bool = False,
-        stays_visible: bool = False,
+        stays_visible: bool   = False,
     ) -> None:
         self.x = x
         self.y = y
@@ -330,7 +334,7 @@ class EscapeAction(Action):
 class WaitAction(Action):
 
     def perform(self, engine: Engine, entity: Entity) -> None:
-        pass  # Do nothing; time still passes.
+        pass  # Do nothing; time still passes
 
 
 class ActionWithDirection(Action, ABC):
@@ -348,13 +352,13 @@ class MovementAction(ActionWithDirection):
         dest_y = entity.y + self.dy
 
         if not engine.game_map.in_bounds(dest_x, dest_y):
-            return  # Destination is outside the map.
+            return  # Destination is outside the map
 
         if not engine.game_map.tiles["walkable"][dest_x, dest_y]:
-            return  # Destination is blocked by a tile.
+            return  # Destination is blocked by a tile
 
         if engine.game_map.get_blocking_entity_at(dest_x, dest_y):
-            return  # Blocked by an entity; cannot move here.
+            return  # Blocked by an entity; cannot move here
 
         entity.move(self.dx, self.dy)
 
@@ -523,14 +527,14 @@ class HostileEnemy(BaseAI):
 
     def perform(self, engine: Engine, entity: Entity) -> None:
         if not engine.game_map.visible[entity.x, entity.y]:
-            return  # Enemy is not in player's FOV; it cannot see the player either.
+            return  # Enemy is not in player's FOV; it cannot see the player either
 
         target = engine.player
         dx = target.x - entity.x
         dy = target.y - entity.y
 
-        # Step one tile toward the player along each axis.
-        # Clamp dx/dy to -1, 0, or 1 to get a unit direction.
+        # Step one tile toward the player along each axis
+        # Clamp dx/dy to -1, 0, or 1 to get a unit direction
         BumpAction(
             dx = max(-1, min(1, dx)),
             dy = max(-1, min(1, dy)),
@@ -560,14 +564,14 @@ Entities that have AI (enemies) need an `ai` attribute. Add it to `Entity`:
 
      def __init__(
          self,
-         x: int = 0,
-         y: int = 0,
-         char: str = sprites.UNKNOWN,
-         color: Color = colors.DEFAULT_FG,
-         name: str = "<unnamed>",
+         x: int                = 0,
+         y: int                = 0,
+         char: str             = sprites.UNKNOWN,
+         color: Color          = colors.DEFAULT_FG,
+         name: str             = "<unnamed>",
          blocks_movement: bool = False,
-         stays_visible: bool = False,
-+        ai: BaseAI | None = None,
+         stays_visible: bool   = False,
++        ai: BaseAI | None     = None,
      ) -> None:
          ...
 +        self.ai = ai
@@ -692,7 +696,7 @@ Update `generate_dungeon` to call `place_entities` and accept the new parameter:
          else:
              nearest_room = min(
                  rooms,
-                 key=lambda room: (
+                 key = lambda room: (
                      (room.center[0] - new_room.center[0]) ** 2 +
                      (room.center[1] - new_room.center[1]) ** 2
                  ),

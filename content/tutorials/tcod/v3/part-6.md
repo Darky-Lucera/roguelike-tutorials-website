@@ -198,15 +198,15 @@ Update `game/entities/entity.py`:
 
      def __init__(
          self,
-         x: int = 0,
-         y: int = 0,
-         char: str = sprites.UNKNOWN,
-         color: Color = colors.DEFAULT_FG,
-         name: str = "<unnamed>",
-         blocks_movement: bool = False,
-         stays_visible: bool = False,
+         x: int                    = 0,
+         y: int                    = 0,
+         char: str                 = sprites.UNKNOWN,
+         color: Color              = colors.DEFAULT_FG,
+         name: str                 = "<unnamed>",
+         blocks_movement: bool     = False,
+         stays_visible: bool       = False,
 +        render_order: RenderOrder = RenderOrder.UNKNOWN,
-         ai: BaseAI | None = None,
+         ai: BaseAI | None         = None,
      ) -> None:
          self.x     = x
          self.y     = y
@@ -298,23 +298,23 @@ Now add `Actor` below `Entity` in `game/entities/entity.py`:
 +    def __init__(
 +        self,
 +        *,
-+        x: int = 0,
-+        y: int = 0,
-+        char: str = sprites.UNKNOWN,
-+        color: Color = colors.DEFAULT_FG,
-+        name: str = "<unnamed>",
++        x: int            = 0,
++        y: int            = 0,
++        char: str         = sprites.UNKNOWN,
++        color: Color      = colors.DEFAULT_FG,
++        name: str         = "<unnamed>",
 +        ai: BaseAI | None = None,
 +        fighter: Fighter,
 +    ) -> None:
 +        super().__init__(
-+            x=x,
-+            y=y,
-+            char=char,
-+            color=color,
-+            name=name,
-+            blocks_movement=True,
-+            render_order=RenderOrder.ACTOR,
-+            ai=ai,
++            x               = x,
++            y               = y,
++            char            = char,
++            color           = color,
++            name            = name,
++            blocks_movement = True,
++            render_order    = RenderOrder.ACTOR,
++            ai              = ai,
 +        )
 +        self.fighter = fighter
 +        self.fighter.entity = self
@@ -587,8 +587,8 @@ class HostileEnemy(BaseAI):
         if path:
             dest_x, dest_y = path[0]
             BumpAction(
-                dx=dest_x - entity.x,
-                dy=dest_y - entity.y,
+                dx = dest_x - entity.x,
+                dy = dest_y - entity.y,
             ).perform(engine, entity)
 ```
 
@@ -615,9 +615,9 @@ Update `game/map/game_map.py`:
 
      def render(self, console: Console) -> None:
          console.rgb[0 : self.width, 0 : self.height] = np.select(
-             condlist=[self.visible, self.explored],
-             choicelist=[self.tiles["in_fov"], self.tiles["out_of_fov"]],
-             default=tile_types.UNSEEN,
+             condlist   = [self.visible, self.explored],
+             choicelist = [self.tiles["in_fov"], self.tiles["out_of_fov"]],
+             default    = tile_types.UNSEEN,
          )
 -        for entity in self.entities:
 -            if self.visible[entity.x, entity.y]:
